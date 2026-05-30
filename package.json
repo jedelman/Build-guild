@@ -1,0 +1,18 @@
+{
+  "name": "build-guild",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mutual aid for builders — team up like an MMORPG guild and combine your skill-peaks.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "db:init": "wrangler d1 execute build_guild --local --file=./schema.sql",
+    "db:seed": "wrangler d1 execute build_guild --local --file=./seed.sql",
+    "db:reset": "npm run db:init && npm run db:seed",
+    "deploy": "wrangler deploy",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

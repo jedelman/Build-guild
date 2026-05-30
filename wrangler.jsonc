@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "build-guild",
+  "main": "src/index.js",
+  "compatibility_date": "2025-05-01",
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "build_guild",
+      // For local `wrangler dev` this id is unused. Before deploying, run
+      // `wrangler d1 create build_guild` and paste the real id here.
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ]
+}
