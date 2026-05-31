@@ -11,10 +11,10 @@
     "directory": "./public",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    // API routes must always hit the Worker, never the static-assets layer
-    // (which 405s a POST under SPA not_found_handling). Keep in sync with
-    // ../../wrangler.jsonc.
-    "run_worker_first": ["/api/*"]
+    // /api/* and /client-metadata.json must always hit the Worker, never the
+    // static-assets layer (405 on POST; HTML for the metadata doc that Bluesky
+    // rejects). Keep in sync with ../../wrangler.jsonc.
+    "run_worker_first": ["/api/*", "/client-metadata.json"]
   },
   "d1_databases": [
     {

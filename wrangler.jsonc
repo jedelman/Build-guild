@@ -8,9 +8,11 @@
     "directory": "./public",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    // API routes must always hit the Worker, never the static-assets layer
-    // (which only allows GET/HEAD and 405s a POST under SPA not_found_handling).
-    "run_worker_first": ["/api/*"]
+    // These paths must always hit the Worker, never the static-assets layer:
+    //  - /api/*  (assets 405s a POST under SPA not_found_handling)
+    //  - /client-metadata.json (assets would serve index.html as text/html,
+    //    which Bluesky rejects when fetching the OAuth client metadata)
+    "run_worker_first": ["/api/*", "/client-metadata.json"]
   },
   "d1_databases": [
     {
