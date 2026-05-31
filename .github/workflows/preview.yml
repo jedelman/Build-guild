@@ -141,17 +141,26 @@ jobs:
             --remote --config wrangler.ci.jsonc
 
       # Copy production DATA only (the schema is already built above), taken once
-      # when the PR environment is created. The D1 dump sets
-      # `PRAGMA defer_foreign_keys`, so insert order is safe; we only strip the
-      # d1_migrations rows, which the migrations step already wrote (re-inserting
-      # them would collide on the primary key).
+      # when the PR environment is created. Two adjustments to the dump:
+      #  - D1 enforces foreign keys per-statement on import (its
+      #    `defer_foreign_keys` pragma isn't honored across the batched import),
+      #    so parent rows must precede children. The dump lists tables in
+      #    creation order, which puts `skills` before the `skill_catalog` rows
+      #    its skill_id references — so we float skill_catalog to the front.
+      #  - Drop the d1_migrations rows; the migrations step already wrote them
+      #    (re-inserting would collide on the primary key).
       - name: Clone production data into the PR database
         if: ${{ steps.provision.outputs.new_db == '1' }}
         run: |
           exec > >(tee -a "$GITHUB_WORKSPACE/preview.log") 2>&1
           set -euo pipefail
           npx wrangler d1 export build_guild --remote --no-schema --output prod-data.sql
-          grep -v 'INSERT INTO "d1_migrations"' prod-data.sql > prod-data.clean.sql
+          grep -v 'INSERT INTO "d1_migrations"' prod-data.sql > nomig.sql
+          {
+            grep -m1 '^PRAGMA' nomig.sql || true
+            grep 'INSERT INTO "skill_catalog"' nomig.sql || true
+            grep -v 'INSERT INTO "skill_catalog"' nomig.sql | grep -v '^PRAGMA'
+          } > prod-data.clean.sql
           npx wrangler d1 execute "${{ steps.provision.outputs.db_name }}" \
             --remote --file prod-data.clean.sql --config wrangler.ci.jsonc
 
