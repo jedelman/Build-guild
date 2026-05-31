@@ -42,6 +42,17 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Strip a stray "Bearer " prefix, surrounding quotes, or whitespace from
+      # the token secret so a valid token isn't rejected for cosmetic reasons.
+      - name: Sanitize Cloudflare API token
+        run: |
+          t="${CLOUDFLARE_API_TOKEN}"
+          t="${t#Bearer }"
+          t="${t#\"}"; t="${t%\"}"
+          t="${t#\'}"; t="${t%\'}"
+          t="$(printf '%s' "$t" | tr -d '[:space:]')"
+          echo "::add-mask::$t"
+          echo "CLOUDFLARE_API_TOKEN=$t" >> "$GITHUB_ENV"
       - name: Apply D1 migrations (remote)
         run: npx wrangler d1 migrations apply build_guild --remote
       - name: Deploy Worker

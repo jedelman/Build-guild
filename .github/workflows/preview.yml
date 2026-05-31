@@ -62,10 +62,9 @@ jobs:
       - run: npm ci
 
       # Defensive cleanup: a Cloudflare API token is 40 chars with no
-      # whitespace. If the secret was pasted with surrounding quotes, a
-      # "Bearer " prefix, or a trailing newline, strip them so a fundamentally
-      # valid token isn't rejected for cosmetic reasons. Re-export the cleaned
-      # value (masked) for every later step, including wrangler.
+      # whitespace. Strip a stray "Bearer " prefix, surrounding quotes, or
+      # whitespace so a valid token isn't rejected for cosmetic reasons, then
+      # re-export the cleaned value (masked) for every later step.
       - name: Sanitize Cloudflare API token
         run: |
           t="${CLOUDFLARE_API_TOKEN}"
@@ -75,7 +74,6 @@ jobs:
           t="$(printf '%s' "$t" | tr -d '[:space:]')"
           echo "::add-mask::$t"
           echo "CLOUDFLARE_API_TOKEN=$t" >> "$GITHUB_ENV"
-          echo "raw length: ${#CLOUDFLARE_API_TOKEN}, sanitized length: ${#t} (expected 40)"
 
       # Find or create this PR's database, then render a wrangler config that
       # points a build-guild-pr-<N> Worker at it.
@@ -87,15 +85,11 @@ jobs:
         id: provision
         run: |
           exec > >(tee -a "$GITHUB_WORKSPACE/preview.log") 2>&1
-          set -euxo pipefail
+          set -euo pipefail
           WORKER_NAME="build-guild-pr-${PR_NUMBER}"
           DB_NAME="build_guild_pr_${PR_NUMBER}"
           API="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}"
           AUTH="Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
-
-          # Show identity + that the account id is set (token value is masked).
-          echo "account id length: ${#CLOUDFLARE_ACCOUNT_ID}, token length: ${#CLOUDFLARE_API_TOKEN}"
-          curl -sS "${API}/d1/database?name=${DB_NAME}" -H "$AUTH" | jq '{success, errors, count: (.result | length)}'
 
           DB_ID="$(curl -fsS "${API}/d1/database?name=${DB_NAME}" -H "$AUTH" \
             | jq -r '.result[0].uuid // empty')"
@@ -134,7 +128,7 @@ jobs:
         if: ${{ steps.provision.outputs.new_db == '1' }}
         run: |
           exec > >(tee -a "$GITHUB_WORKSPACE/preview.log") 2>&1
-          set -euxo pipefail
+          set -euo pipefail
           npx wrangler d1 export build_guild --remote --output prod-dump.sql
           npx wrangler d1 execute "${{ steps.provision.outputs.db_name }}" \
             --remote --file prod-dump.sql --config wrangler.ci.jsonc
@@ -143,7 +137,7 @@ jobs:
       - name: Apply branch migrations to the PR database
         run: |
           exec > >(tee -a "$GITHUB_WORKSPACE/preview.log") 2>&1
-          set -euxo pipefail
+          set -euo pipefail
           npx wrangler d1 migrations apply "${{ steps.provision.outputs.db_name }}" \
             --remote --config wrangler.ci.jsonc
 
