@@ -1,6 +1,11 @@
 -- Production migration: same shape as schema.sql but non-destructive
 -- (no DROP / DELETE). Safe to apply to the remote D1 database, including
 -- via the CI deploy workflow's `wrangler d1 migrations apply`.
+--
+-- GUARDRAIL: no PII in D1. Only public, builder-authored data belongs here.
+-- Payment/billing PII lives in Stripe; account identity is gated behind
+-- Bluesky OAuth. Do not add columns for emails, payment details, or other
+-- sensitive data. See "Data & privacy" in the README.
 
 CREATE TABLE IF NOT EXISTS builders (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,

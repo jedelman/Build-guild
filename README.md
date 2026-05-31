@@ -63,6 +63,23 @@ This is the read-only foundation. Next steps, in order of lift:
    atproto repo under a custom lexicon (`build.guild.*`), making profiles user-owned and
    portable, with D1 as a cache/index.
 
+## Data & privacy
+
+**No PII in D1.** The database holds only public, builder-authored content — Bluesky
+handle/DID, display name, avatar, skill-peaks, projects, guilds. By design it must never
+store personally identifiable or sensitive data:
+
+- **Payments / billing** live in **Stripe** — Stripe is the system of record for customer
+  identity, payment methods, and anything billing-related. We reference a Stripe customer
+  id at most, never card or contact PII.
+- **Identity / account actions** are gated behind **Bluesky OAuth** (see the auth
+  roadmap) — we authenticate against the user's handle rather than storing credentials.
+
+This is what keeps the per-PR preview model safe: because D1 carries no PII, cloning the
+**full** production database into throwaway preview environments leaks nothing sensitive.
+If a future change would introduce PII into D1, stop — put it in Stripe or the user's PDS
+instead, and switch the preview clone step to schema-only (`--no-data`).
+
 ## Deploying
 
 ### Via GitHub Actions (recommended)
