@@ -70,20 +70,27 @@ jobs:
       - name: Provision ephemeral database + config
         id: provision
         run: |
-          set -euo pipefail
+          exec > >(tee -a "$GITHUB_WORKSPACE/preview.log") 2>&1
+          set -euxo pipefail
           WORKER_NAME="build-guild-pr-${PR_NUMBER}"
           DB_NAME="build_guild_pr_${PR_NUMBER}"
           API="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}"
           AUTH="Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
+
+          # Show identity + that the account id is set (token value is masked).
+          echo "account id length: ${#CLOUDFLARE_ACCOUNT_ID}, token length: ${#CLOUDFLARE_API_TOKEN}"
+          curl -sS "${API}/d1/database?name=${DB_NAME}" -H "$AUTH" | jq '{success, errors, count: (.result | length)}'
 
           DB_ID="$(curl -fsS "${API}/d1/database?name=${DB_NAME}" -H "$AUTH" \
             | jq -r '.result[0].uuid // empty')"
           NEW_DB=0
           if [ -z "$DB_ID" ]; then
             echo "Creating database $DB_NAME"
-            DB_ID="$(curl -fsS -X POST "${API}/d1/database" -H "$AUTH" \
+            curl -fsS -X POST "${API}/d1/database" -H "$AUTH" \
               -H 'Content-Type: application/json' \
-              --data "{\"name\":\"${DB_NAME}\"}" | jq -r '.result.uuid')"
+              --data "{\"name\":\"${DB_NAME}\"}" > create.json
+            jq '{success, errors}' create.json
+            DB_ID="$(jq -r '.result.uuid' create.json)"
             NEW_DB=1
           fi
           [ -n "$DB_ID" ] && [ "$DB_ID" != "null" ] || { echo "Could not resolve database id"; exit 1; }
@@ -110,7 +117,8 @@ jobs:
       - name: Clone production data into the PR database
         if: ${{ steps.provision.outputs.new_db == '1' }}
         run: |
-          set -euo pipefail
+          exec > >(tee -a "$GITHUB_WORKSPACE/preview.log") 2>&1
+          set -euxo pipefail
           npx wrangler d1 export build_guild --remote --output prod-dump.sql
           npx wrangler d1 execute "${{ steps.provision.outputs.db_name }}" \
             --remote --file prod-dump.sql --config wrangler.ci.jsonc
@@ -118,12 +126,15 @@ jobs:
       # Apply any migrations the branch adds on top of the production copy.
       - name: Apply branch migrations to the PR database
         run: |
+          exec > >(tee -a "$GITHUB_WORKSPACE/preview.log") 2>&1
+          set -euxo pipefail
           npx wrangler d1 migrations apply "${{ steps.provision.outputs.db_name }}" \
             --remote --config wrangler.ci.jsonc
 
       - name: Deploy ephemeral preview Worker
         id: deploy
         run: |
+          exec > >(tee -a "$GITHUB_WORKSPACE/preview.log") 2>&1
           set -o pipefail
           npx wrangler deploy --config wrangler.ci.jsonc 2>&1 | tee deploy.log
           url="$(grep -oE 'https://[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev' deploy.log | head -n1)"
@@ -147,6 +158,56 @@ jobs:
                 : '⚠️ Preview URL could not be parsed — check the *Deploy ephemeral preview Worker* step logs.',
               '',
               `<sub>Database \`${dbName}\` · commit \`${context.sha.slice(0, 7)}\` · redeployed on every push.</sub>`,
+            ].join('\n');
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      # If anything above failed, post the captured pipeline log to the PR so
+      # it can be diagnosed without direct access to the Actions log UI. The
+      # token is redacted because secret-masking does not apply to comment text.
+      - name: Post failure diagnostics to the PR
+        if: failure()
+        uses: actions/github-script@v7
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        with:
+          script: |
+            const fs = require('fs');
+            let log = '(no preview.log was produced — the failure happened before the pipeline started)';
+            try { log = fs.readFileSync(`${process.env.GITHUB_WORKSPACE}/preview.log`, 'utf8'); } catch (e) {}
+            const tok = process.env.CF_TOKEN || '';
+            if (tok) log = log.split(tok).join('***');
+            log = log.replace(/Bearer\s+[A-Za-z0-9._\-]+/g, 'Bearer ***');
+            const tail = log.split('\n').slice(-80).join('\n');
+            const marker = '<!-- build-guild-preview-debug -->';
+            const body = [
+              marker,
+              '### ⚠️ Preview deployment failed',
+              '',
+              `Commit \`${context.sha.slice(0, 7)}\` — last 80 lines of the preview pipeline (token redacted):`,
+              '',
+              '```',
+              tail,
+              '```',
             ].join('\n');
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
