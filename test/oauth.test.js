@@ -73,7 +73,8 @@ test("cookies round-trip and the session cookie is hardened", () => {
 test("clientMetadata is derived from the deployment origin", () => {
   const cm = clientMetadata("https://build-guild-pr-7.example.workers.dev");
   assert.equal(cm.client_id, "https://build-guild-pr-7.example.workers.dev/client-metadata.json");
-  assert.equal(cm.redirect_uris[0], "https://build-guild-pr-7.example.workers.dev/api/auth/callback");
+  // Browser-only SPA: the authorization response is handled on the app origin.
+  assert.equal(cm.redirect_uris[0], "https://build-guild-pr-7.example.workers.dev/");
   assert.equal(cm.token_endpoint_auth_method, "none");
   assert.equal(cm.dpop_bound_access_tokens, true);
   assert.equal(cm.scope, "atproto transition:generic");

@@ -109,13 +109,18 @@ export function serializeCookie(name, value, { maxAge, expires } = {}) {
 
 // ---------- client metadata ----------
 
-/** The OAuth client metadata document, derived from the deployment origin. */
+/**
+ * The OAuth client metadata document, derived from the deployment origin.
+ * Browser-only (SPA) public client: @atproto/oauth-client-browser runs the flow
+ * client-side and the authorization response is handled on the app origin, so
+ * the redirect URI is the app root rather than a server callback endpoint.
+ */
 export function clientMetadata(origin) {
   return {
     client_id: `${origin}/client-metadata.json`,
     client_name: "Build Guild",
     client_uri: origin,
-    redirect_uris: [`${origin}/api/auth/callback`],
+    redirect_uris: [`${origin}/`],
     grant_types: ["authorization_code", "refresh_token"],
     response_types: ["code"],
     scope: "atproto transition:generic",

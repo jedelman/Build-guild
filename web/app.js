@@ -1,6 +1,8 @@
 // Build Guild — front-end. Vanilla JS, talks to the Worker's /api.
 
 import { initTelemetry, reportBug, flush } from "./telemetry.js";
+import { BrowserOAuthClient } from "@atproto/oauth-client-browser";
+import { Agent } from "@atproto/api";
 // Telemetry must never be able to break the app.
 try {
   initTelemetry();
@@ -16,6 +18,11 @@ const authbar = document.getElementById("authbar");
 // Identity comes from the logged-in Bluesky session (/api/auth/me), not a
 // free picker — you can only act as your own verified builder.
 const state = { builders: [], guilds: [], auth: { authenticated: false }, me: null };
+
+// atproto OAuth lives on-device (tokens in IndexedDB). We keep the client and
+// the active/restored session here.
+let oauthClient = null;
+let atprotoSession = null;
 
 // ---- helpers ---------------------------------------------------------------
 const esc = (s = "") =>
@@ -60,13 +67,52 @@ async function loadAuth() {
   state.me = state.auth.builder_id || null;
 }
 
-// Inline handle widget (the pattern other atproto apps use) instead of a
-// prompt(): a plain text field with autofill on and autocapitalize/correct off.
+// Set up on-device atproto OAuth, complete the post-login redirect if present,
+// and sync our server session cookie with the active atproto session.
+async function initAtprotoAuth() {
+  try {
+    oauthClient = await BrowserOAuthClient.load({
+      clientId: `${location.origin}/client-metadata.json`,
+      handleResolver: "https://bsky.social",
+    });
+    const result = await oauthClient.init(); // handles the redirect or restores
+    atprotoSession = result?.session || null;
+    if (atprotoSession && result?.state !== undefined) toast("Logged in with Bluesky 🦋");
+  } catch (e) {
+    console.warn("atproto auth init failed", e);
+    toast("Login failed: " + (e?.message || e), true);
+  }
+
+  await loadAuth();
+  if (atprotoSession && !state.auth.authenticated) {
+    try {
+      await establishServerSession(atprotoSession);
+    } catch (e) {
+      console.warn("establish session failed", e);
+      flush("establish_error", e?.message || String(e));
+    }
+  }
+  state.me = state.auth.builder_id || null;
+}
+
+// Prove the on-device DID to our server with a Service Auth JWT, minted by the
+// user's PDS and signed by their atproto key → our server sets a session cookie.
+async function establishServerSession(session) {
+  const agent = new Agent(session);
+  const { data } = await agent.com.atproto.server.getServiceAuth({
+    aud: `did:web:${location.host}`,
+    lxm: "org.buildguild.establishSession",
+  });
+  state.auth = await api("/auth/establish", {
+    method: "POST",
+    headers: { authorization: `Bearer ${data.token}` },
+  });
+}
+
+// Inline handle widget. Submitting starts the on-device atproto OAuth flow (see
+// the delegated submit handler near boot), which redirects to the user's PDS.
 function loginFormHTML(btnLabel = "Log in with Bluesky") {
-  // Native POST to /api/auth/login: works with zero JS, and POST is never
-  // served from the browser's GET cache (a stale GET was eating earlier
-  // attempts). The server trims a leading @ itself.
-  return `<form class="login-form" action="/api/auth/login" method="post">
+  return `<form class="login-form">
     <input class="login-handle" name="handle" placeholder="you.bsky.social"
       autocomplete="username" autocapitalize="none" autocorrect="off"
       spellcheck="false" inputmode="email" aria-label="Bluesky handle" />
@@ -85,7 +131,16 @@ function startLogin() {
 }
 
 async function logout() {
-  await api("/auth/logout", { method: "POST" });
+  // Sign out on-device (revoke tokens + clear IndexedDB) and clear our cookie.
+  try {
+    await (atprotoSession?.signOut?.() ?? oauthClient?.revoke?.(atprotoSession?.sub));
+  } catch (e) {
+    console.warn("atproto sign-out failed", e);
+  }
+  atprotoSession = null;
+  try {
+    await api("/auth/logout", { method: "POST" });
+  } catch {}
   window.location.href = "/";
 }
 
@@ -562,22 +617,27 @@ function renderEnlist(existing) {
 }
 
 // ---- boot ------------------------------------------------------------------
+// A login form submission anywhere starts the on-device atproto OAuth flow.
+document.addEventListener("submit", async (e) => {
+  const form = e.target;
+  if (!form?.classList?.contains("login-form")) return;
+  e.preventDefault();
+  const handle = form.querySelector(".login-handle")?.value.trim();
+  if (!handle) return;
+  if (!oauthClient) return toast("Login isn't ready yet — one moment.", true);
+  try {
+    await oauthClient.signIn(handle); // redirects to the user's PDS; never returns
+  } catch (err) {
+    toast("Login failed: " + (err?.message || err), true);
+  }
+});
+
 (async () => {
   try {
-    await loadAuth();
+    await initAtprotoAuth();
     await refresh();
     renderAuthBar();
     render();
-    const params = new URLSearchParams(location.search);
-    if (params.get("login") === "ok") toast("Logged in with Bluesky 🦋");
-    if (params.get("login") === "error") {
-      const reason = params.get("reason") || "please try again";
-      console.error("Bluesky login failed:", reason);
-      toast("Login failed: " + reason, true);
-      // No console on mobile — auto-upload the failure trace so we can debug it.
-      flush("login_error", reason);
-    }
-    if (params.has("login")) history.replaceState({}, "", "/");
   } catch (e) {
     app.innerHTML = `<p class="empty">Couldn't reach the guild hall: ${esc(e.message)}</p>`;
   }
