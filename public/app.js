@@ -129,14 +129,30 @@ function render() {
   if (currentView === "enlist") return renderEnlist();
 }
 
+function heroHTML() {
+  return `
+    <section class="hero">
+      <h2>Don't job-hunt alone.</h2>
+      <p>Publish your character sheet, rally a <em>suitably diverse</em> guild, and combine
+      your skill-peaks. 100% like an MMORPG guild — built from
+      <a href="https://bsky.app/profile/codewright.bsky.social/post/3mmyav5klfc2l" target="_blank" rel="noopener">a Bluesky thread</a>.</p>
+      <p class="muted">Log in with your Bluesky handle to enlist — your sheet is tied to your
+      verified identity, so no one can impersonate you. Browse freely below.</p>
+      ${loginFormHTML("Log in with Bluesky")}
+    </section>`;
+}
+
 function renderGuilds() {
+  const loggedOut = !state.auth.authenticated;
   app.innerHTML = `
+    ${loggedOut ? heroHTML() : ""}
     <div class="section-head">
       <div><h2>Guild Hall</h2><p>Suitably diverse parties combining their skill-peaks.</p></div>
-      <button class="btn" id="new-guild">+ Found a guild</button>
+      ${loggedOut ? "" : '<button class="btn" id="new-guild">+ Found a guild</button>'}
     </div>
     <div class="grid" id="guild-grid"></div>`;
-  document.getElementById("new-guild").addEventListener("click", foundGuildPrompt);
+  if (loggedOut) wireLoginForms(app);
+  else document.getElementById("new-guild").addEventListener("click", foundGuildPrompt);
 
   const grid = document.getElementById("guild-grid");
   if (!state.guilds.length) {
@@ -539,7 +555,11 @@ function renderEnlist(existing) {
     render();
     const params = new URLSearchParams(location.search);
     if (params.get("login") === "ok") toast("Logged in with Bluesky 🦋");
-    if (params.get("login") === "error") toast("Login failed — please try again", true);
+    if (params.get("login") === "error") {
+      const reason = params.get("reason") || "please try again";
+      console.error("Bluesky login failed:", reason);
+      toast("Login failed: " + reason, true);
+    }
     if (params.has("login")) history.replaceState({}, "", "/");
   } catch (e) {
     app.innerHTML = `<p class="empty">Couldn't reach the guild hall: ${esc(e.message)}</p>`;

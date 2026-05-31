@@ -262,12 +262,17 @@ async function authCallback(env, url) {
   const code = url.searchParams.get("code");
   const iss = url.searchParams.get("iss");
   const err = url.searchParams.get("error");
-  if (err) return redirectHome(`/?login=error&reason=${encodeURIComponent(err)}`);
-  if (!state || !code) return fail("missing state or code");
+  // Surface every failure as a clean redirect with the reason in the query
+  // string, so it's visible to the user (and shareable for debugging) rather
+  // than a raw JSON 500.
+  const oops = (reason) => redirectHome(`/?login=error&reason=${encodeURIComponent(reason)}`);
+  if (err) return oops(url.searchParams.get("error_description") || err);
+  if (!state || !code) return oops("missing state or code");
 
   const st = await takeAuthState(env, state);
-  if (!st) return fail("invalid or expired login state", 400);
-  if (iss && iss !== st.issuer) return fail("issuer mismatch", 400);
+  if (!st) return oops("invalid or expired login state");
+  const norm = (s) => (s || "").replace(/\/+$/, "");
+  if (iss && norm(iss) !== norm(st.issuer)) return oops(`issuer mismatch (${iss} vs ${st.issuer})`);
 
   const cm = clientMetadata(url.origin);
   let tok;
@@ -285,11 +290,11 @@ async function authCallback(env, url) {
       st.dpop_nonce
     ));
   } catch (e) {
-    return fail(`token exchange failed: ${e.message}`, 502);
+    return oops(`token exchange failed: ${e.message}`);
   }
 
   const did = tok.sub || st.did;
-  if (!did) return fail("login did not yield a DID", 502);
+  if (!did) return oops("login did not yield a DID");
 
   const session = await createSession(env, { did, handle: st.handle });
   const headers = new Headers({ location: "/?login=ok" });

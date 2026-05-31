@@ -166,3 +166,12 @@ form.enlist label { display: grid; gap: 0.3rem; font-size: 0.85rem; color: var(-
 }
 .subform .login-form { justify-content: center; margin-top: 0.6rem; }
 .subform .login-form .login-handle { width: 16rem; }
+
+/* Logged-out hero / landing banner. */
+.hero {
+  border: 1px solid var(--gold-dim); border-radius: 14px; padding: 1.4rem 1.5rem;
+  margin-bottom: 1.2rem; background: linear-gradient(160deg, rgba(217,182,95,0.08), transparent 70%);
+}
+.hero h2 { font-family: Cinzel, serif; color: var(--gold); margin: 0 0 0.4rem; font-size: 1.5rem; }
+.hero p { margin: 0 0 0.6rem; max-width: 60ch; }
+.hero .login-form { margin-top: 0.9rem; }
