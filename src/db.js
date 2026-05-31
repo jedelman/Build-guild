@@ -9,6 +9,10 @@ const groupBy = (rows, key) => {
 };
 
 const clampPeak = (v) => Math.max(1, Math.min(100, Math.round(Number(v) || 1)));
+// Provisional strength for a declared-but-unendorsed skill. Self-rating (the
+// old slider) is gone; real strength will come from peer endorsement (#4), so
+// until then every declared skill starts from the same neutral baseline.
+const DEFAULT_PEAK = 70;
 const byPeak = (a, b) => b.peak - a.peak;
 
 /**
@@ -24,6 +28,8 @@ function skillInsertStmts(env, builderId, skills = []) {
     if (!s?.name?.trim()) continue;
     const name = s.name.trim();
     const slug = skillSlug(name);
+    // peak is optional now (the slider is gone); fall back to the baseline.
+    const peak = s.peak == null ? DEFAULT_PEAK : clampPeak(s.peak);
     stmts.push(
       env.DB.prepare("INSERT OR IGNORE INTO skill_catalog (slug, name) VALUES (?, ?)").bind(slug, name)
     );
@@ -31,7 +37,7 @@ function skillInsertStmts(env, builderId, skills = []) {
       env.DB.prepare(
         `INSERT INTO skills (builder_id, name, peak, skill_id)
          SELECT ?, c.name, ?, c.id FROM skill_catalog c WHERE c.slug = ?`
-      ).bind(builderId, clampPeak(s.peak), slug)
+      ).bind(builderId, peak, slug)
     );
   }
   return stmts;
