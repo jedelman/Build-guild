@@ -1,0 +1,8 @@
+node_modules/
+.wrangler/
+dist/
+.dev.vars
+
+# Generated in CI for per-PR ephemeral previews
+wrangler.ci.jsonc
+prod-dump.sql

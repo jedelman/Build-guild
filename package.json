@@ -1,0 +1,19 @@
+{
+  "name": "build-guild",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mutual aid for builders — team up like an MMORPG guild and combine your skill-peaks.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "db:migrate": "wrangler d1 migrations apply build_guild --local",
+    "db:migrate:remote": "wrangler d1 migrations apply build_guild --remote",
+    "db:seed": "wrangler d1 execute build_guild --local --file=./seed.sql",
+    "db:reset": "npm run db:migrate && npm run db:seed",
+    "deploy": "wrangler deploy",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

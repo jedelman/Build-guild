@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "build-guild",
+  "main": "src/index.js",
+  "compatibility_date": "2025-05-01",
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "build_guild",
+      // For local `wrangler dev` this id is unused. The production database
+      // was created with `wrangler d1 create build_guild`.
+      "database_id": "80ab167e-706f-427a-8bab-5df04035b3f2"
+    }
+  ]
+  // Per-PR preview environments are NOT defined here. Each pull request gets
+  // its own throwaway Worker + D1 database, provisioned at deploy time from
+  // .github/preview/wrangler.template.jsonc by .github/workflows/preview.yml,
+  // and destroyed on PR close by .github/workflows/preview-cleanup.yml.
+}

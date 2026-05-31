@@ -1,0 +1,22 @@
+{
+  // Template for a per-PR ephemeral preview environment. The preview workflow
+  // (.github/workflows/preview.yml) substitutes the ${...} placeholders and
+  // writes the result to wrangler.ci.jsonc, which is git-ignored and used only
+  // in CI. Keep main / assets / observability in sync with ../../wrangler.jsonc.
+  "name": "${WORKER_NAME}",
+  "main": "src/index.js",
+  "compatibility_date": "${COMPAT_DATE}",
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "${DB_NAME}",
+      "database_id": "${DB_ID}"
+    }
+  ]
+}

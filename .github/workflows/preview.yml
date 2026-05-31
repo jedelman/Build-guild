@@ -1,0 +1,242 @@
+name: Preview
+
+# Per-PR ephemeral preview environments.
+#
+# Every pull request gets its OWN throwaway Worker and D1 database:
+#   Worker:   build-guild-pr-<N>
+#   Database: build_guild_pr_<N>
+#
+# When the environment is first created, the database is a FULL COPY of
+# production (schema + data) via `wrangler d1 export` → import. It is then
+# brought up to the branch's schema with `wrangler d1 migrations apply`, so
+# the preview runs the PR's code against production-shaped data — in complete
+# isolation from prod. The environment is destroyed on PR close by
+# preview-cleanup.yml.
+#
+# Required repository secrets:
+#   CLOUDFLARE_API_TOKEN   - token with Workers Scripts:Edit + D1:Edit
+#   CLOUDFLARE_ACCOUNT_ID  - your Cloudflare account id
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+# One preview run per PR; a newer push cancels the older, in-flight run.
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  preview:
+    needs: test
+    runs-on: ubuntu-latest
+    # Forks can't read the Cloudflare secrets, so skip the deploy for them.
+    # (Their PRs still get the `test` job above.)
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # Defensive cleanup: a Cloudflare API token is 40 chars with no
+      # whitespace. Strip a stray "Bearer " prefix, surrounding quotes, or
+      # whitespace so a valid token isn't rejected for cosmetic reasons, then
+      # re-export the cleaned value (masked) for every later step.
+      - name: Sanitize Cloudflare API token
+        run: |
+          t="${CLOUDFLARE_API_TOKEN}"
+          t="${t#Bearer }"
+          t="${t#\"}"; t="${t%\"}"
+          t="${t#\'}"; t="${t%\'}"
+          t="$(printf '%s' "$t" | tr -d '[:space:]')"
+          echo "::add-mask::$t"
+          echo "CLOUDFLARE_API_TOKEN=$t" >> "$GITHUB_ENV"
+
+      # Find or create this PR's database, then render a wrangler config that
+      # points a build-guild-pr-<N> Worker at it.
+      #
+      # Note: we use the Cloudflare REST API (not `wrangler d1 list --json`)
+      # for the lookup/create, because wrangler prints human-readable notices
+      # to stdout that corrupt JSON parsing.
+      - name: Provision ephemeral database + config
+        id: provision
+        run: |
+          exec > >(tee -a "$GITHUB_WORKSPACE/preview.log") 2>&1
+          set -euo pipefail
+          WORKER_NAME="build-guild-pr-${PR_NUMBER}"
+          DB_NAME="build_guild_pr_${PR_NUMBER}"
+          API="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}"
+          AUTH="Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
+
+          DB_ID="$(curl -fsS "${API}/d1/database?name=${DB_NAME}" -H "$AUTH" \
+            | jq -r '.result[0].uuid // empty')"
+          NEW_DB=0
+          if [ -z "$DB_ID" ]; then
+            echo "Creating database $DB_NAME"
+            curl -fsS -X POST "${API}/d1/database" -H "$AUTH" \
+              -H 'Content-Type: application/json' \
+              --data "{\"name\":\"${DB_NAME}\"}" > create.json
+            jq '{success, errors}' create.json
+            DB_ID="$(jq -r '.result.uuid' create.json)"
+            NEW_DB=1
+          fi
+          [ -n "$DB_ID" ] && [ "$DB_ID" != "null" ] || { echo "Could not resolve database id"; exit 1; }
+          echo "Database $DB_NAME -> $DB_ID (new=$NEW_DB)"
+
+          # Keep compatibility_date in lock-step with the committed config.
+          COMPAT_DATE="$(grep compatibility_date wrangler.jsonc | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}')"
+
+          sed -e "s|\${WORKER_NAME}|$WORKER_NAME|g" \
+              -e "s|\${DB_NAME}|$DB_NAME|g" \
+              -e "s|\${DB_ID}|$DB_ID|g" \
+              -e "s|\${COMPAT_DATE}|$COMPAT_DATE|g" \
+              .github/preview/wrangler.template.jsonc > wrangler.ci.jsonc
+          echo "----- wrangler.ci.jsonc -----"
+          cat wrangler.ci.jsonc
+
+          {
+            echo "worker_name=$WORKER_NAME"
+            echo "db_name=$DB_NAME"
+            echo "new_db=$NEW_DB"
+          } >> "$GITHUB_OUTPUT"
+
+      # Full copy of production, taken once when the PR environment is created.
+      - name: Clone production data into the PR database
+        if: ${{ steps.provision.outputs.new_db == '1' }}
+        run: |
+          exec > >(tee -a "$GITHUB_WORKSPACE/preview.log") 2>&1
+          set -euo pipefail
+          npx wrangler d1 export build_guild --remote --output prod-dump.sql
+          npx wrangler d1 execute "${{ steps.provision.outputs.db_name }}" \
+            --remote --file prod-dump.sql --config wrangler.ci.jsonc
+
+      # Apply any migrations the branch adds on top of the production copy.
+      - name: Apply branch migrations to the PR database
+        run: |
+          exec > >(tee -a "$GITHUB_WORKSPACE/preview.log") 2>&1
+          set -euo pipefail
+          npx wrangler d1 migrations apply "${{ steps.provision.outputs.db_name }}" \
+            --remote --config wrangler.ci.jsonc
+
+      - name: Deploy ephemeral preview Worker
+        id: deploy
+        run: |
+          exec > >(tee -a "$GITHUB_WORKSPACE/preview.log") 2>&1
+          set -o pipefail
+          npx wrangler deploy --config wrangler.ci.jsonc 2>&1 | tee deploy.log
+          url="$(grep -oE 'https://[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev' deploy.log | head -n1)"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Comment preview URL on the PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = '${{ steps.deploy.outputs.url }}';
+            const dbName = '${{ steps.provision.outputs.db_name }}';
+            const marker = '<!-- build-guild-preview -->';
+            const body = [
+              marker,
+              '### 🔭 Preview deployment',
+              '',
+              'This PR has its own **ephemeral** Worker and D1 database — a full copy of production data, fully isolated. Both are destroyed when the PR closes.',
+              '',
+              url
+                ? `🔗 **${url}**`
+                : '⚠️ Preview URL could not be parsed — check the *Deploy ephemeral preview Worker* step logs.',
+              '',
+              `<sub>Database \`${dbName}\` · commit \`${context.sha.slice(0, 7)}\` · redeployed on every push.</sub>`,
+            ].join('\n');
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      # If anything above failed, post the captured pipeline log to the PR so
+      # it can be diagnosed without direct access to the Actions log UI. The
+      # token is redacted because secret-masking does not apply to comment text.
+      - name: Post failure diagnostics to the PR
+        if: failure()
+        uses: actions/github-script@v7
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        with:
+          script: |
+            const fs = require('fs');
+            let log = '(no preview.log was produced — the failure happened before the pipeline started)';
+            try { log = fs.readFileSync(`${process.env.GITHUB_WORKSPACE}/preview.log`, 'utf8'); } catch (e) {}
+            const tok = process.env.CF_TOKEN || '';
+            if (tok) log = log.split(tok).join('***');
+            log = log.replace(/Bearer\s+[A-Za-z0-9._\-]+/g, 'Bearer ***');
+            const tail = log.split('\n').slice(-80).join('\n');
+            const marker = '<!-- build-guild-preview-debug -->';
+            const body = [
+              marker,
+              '### ⚠️ Preview deployment failed',
+              '',
+              `Commit \`${context.sha.slice(0, 7)}\` — last 80 lines of the preview pipeline (token redacted):`,
+              '',
+              '```',
+              tail,
+              '```',
+            ].join('\n');
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
