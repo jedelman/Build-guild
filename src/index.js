@@ -10,6 +10,7 @@ import {
   leaveGuild,
 } from "./db.js";
 import { recommendRecruits } from "./logic.js";
+import { fetchBlueskyProfile, suggestSkillsFromProfile } from "./atproto.js";
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -51,11 +52,31 @@ async function route(request, env, url) {
 
   if (resource === "health") return json({ ok: true, ts: Date.now() });
 
+  // Look up a Bluesky profile to verify a handle and prefill a character sheet.
+  if (resource === "atproto" && id === "profile" && method === "GET") {
+    const handle = url.searchParams.get("handle");
+    if (!handle) return fail("handle query param required");
+    const profile = await fetchBlueskyProfile(handle);
+    if (!profile) return fail("couldn't find that handle on Bluesky", 404);
+    return json({ ...profile, suggested_skills: suggestSkillsFromProfile(profile.bio) });
+  }
+
   if (resource === "builders") {
     if (method === "GET" && !id) return json(await listBuilders(env));
     if (method === "POST" && !id) {
       const body = await readJson(request);
       if (!body) return fail("invalid JSON body");
+      // Re-verify the handle server-side so the stored DID/avatar are authoritative
+      // rather than client-supplied. If the lookup fails we still create the
+      // builder (unverified) so the app works even when Bluesky is unreachable.
+      if (body.handle) {
+        const profile = await fetchBlueskyProfile(body.handle);
+        if (profile) {
+          body.handle = profile.handle;
+          body.did = profile.did;
+          if (!body.avatar) body.avatar = profile.avatar;
+        }
+      }
       return json(await createBuilder(env, body), 201);
     }
     if (method === "GET" && id) {

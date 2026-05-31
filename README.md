@@ -40,28 +40,60 @@ npm run dev           # wrangler dev → http://localhost:8787
 npm test              # node --test — exercises the guild scoring & matchmaking logic
 ```
 
+## Bluesky / atproto
+
+Build Guild is handle-first: a builder's identity *is* their Bluesky handle.
+
+- **Import & verify** — on the Enlist form, "🦋 Import from Bluesky" resolves the
+  handle against the public AppView (`app.bsky.actor.getProfile`), prefills display
+  name / avatar / bio, and suggests starter skills from the bio.
+- **Server-side verification** — `POST /api/builders` re-resolves the handle on the
+  server and stores the authoritative **DID** + avatar, so a verified badge can't be
+  spoofed by the client. If Bluesky is unreachable the builder is still created, just
+  unverified (empty `did`).
+
+See `src/atproto.js`. No auth or API key is needed for this — it's all public reads.
+
+### Auth roadmap
+This is the read-only foundation. Next steps, in order of lift:
+1. **Bluesky OAuth** (recommended) — log in with your handle, no password shared.
+   Needs hosted client metadata + DPoP/PAR; works on Workers.
+2. **PDS storage** — store each builder's skill-peaks/projects as records in *their own*
+   atproto repo under a custom lexicon (`build.guild.*`), making profiles user-owned and
+   portable, with D1 as a cache/index.
+
 ## Deploying
 
-1. Create the database and copy its id into `wrangler.jsonc` (`d1_databases[0].database_id`):
-   ```bash
-   wrangler d1 create build_guild
-   ```
-2. Apply the schema to the remote database:
-   ```bash
-   wrangler d1 execute build_guild --remote --file=./schema.sql
-   # optional sample data:
-   wrangler d1 execute build_guild --remote --file=./seed.sql
-   ```
-3. Ship it:
-   ```bash
-   npm run deploy
-   ```
+### Via GitHub Actions (recommended)
+`.github/workflows/deploy.yml` runs tests, applies D1 migrations, and deploys on every
+push to `main`. Set two repository secrets (**Settings → Secrets and variables → Actions**):
+
+| Secret | Value |
+| ------ | ----- |
+| `CLOUDFLARE_API_TOKEN` | token with *Workers Scripts:Edit* + *D1:Edit* |
+| `CLOUDFLARE_ACCOUNT_ID` | your Cloudflare account id |
+
+One-time bootstrap before the first deploy (creates the DB and gives you the id):
+```bash
+wrangler d1 create build_guild      # paste the id into wrangler.jsonc → d1_databases[0].database_id
+```
+Then merging to `main` deploys automatically. Migrations live in `migrations/` and are
+applied with `wrangler d1 migrations apply` (non-destructive, unlike `schema.sql`).
+
+### Manually
+```bash
+wrangler d1 create build_guild                                   # then paste id into wrangler.jsonc
+wrangler d1 migrations apply build_guild --remote
+wrangler d1 execute build_guild --remote --file=./seed.sql       # optional sample data
+npm run deploy
+```
 
 ## API
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
 | `GET`  | `/api/health` | liveness check |
+| `GET`  | `/api/atproto/profile?handle=` | resolve a Bluesky handle → `{did, handle, display_name, avatar, bio, suggested_skills}` |
 | `GET`  | `/api/builders` | roster, each with sorted skill peaks |
 | `POST` | `/api/builders` | create a builder (`{display_name, handle, klass, skills:[{name,peak}], projects:[…]}`) |
 | `GET`  | `/api/builders/:id` | full character sheet (skills, projects, guilds) |

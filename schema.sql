@@ -8,11 +8,13 @@ DROP TABLE IF EXISTS builders;
 -- A builder = a member's character sheet.
 CREATE TABLE builders (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
-  handle       TEXT UNIQUE NOT NULL,            -- e.g. bsky handle
+  handle       TEXT UNIQUE NOT NULL,            -- atproto/bsky handle, e.g. ada.bsky.social
+  did          TEXT DEFAULT '',                 -- atproto DID once the handle is verified
   display_name TEXT NOT NULL,
   klass        TEXT NOT NULL DEFAULT 'Generalist', -- archetype: Architect, Artificer, Druid...
   tagline      TEXT DEFAULT '',
   bio          TEXT DEFAULT '',
+  avatar       TEXT DEFAULT '',                 -- avatar URL (imported from Bluesky)
   seeking      TEXT DEFAULT '',                 -- what they're after: income, collaborators, both
   ai_augmented INTEGER NOT NULL DEFAULT 1,      -- "learned to leverage AI" (1/0)
   created_at   TEXT NOT NULL DEFAULT (datetime('now'))

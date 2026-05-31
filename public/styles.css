@@ -98,6 +98,7 @@ main { max-width: 1040px; margin: 0 auto; padding: 1.4rem; }
   background: radial-gradient(circle at 30% 30%, #3a2f5c, #221c34);
   border: 1px solid var(--gold-dim);
   font-weight: 700; color: var(--gold);
+  object-fit: cover;
 }
 .builder-head .name { font-weight: 600; }
 .builder-head .klass { font-size: 0.74rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.05em; }

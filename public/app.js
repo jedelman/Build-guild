@@ -11,6 +11,11 @@ const state = { builders: [], guilds: [], me: localStorage.getItem("bg_me") || "
 const esc = (s = "") =>
   String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const initials = (n = "?") => n.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+const avatarEl = (b) =>
+  b.avatar
+    ? `<img class="avatar" src="${esc(b.avatar)}" alt="" />`
+    : `<div class="avatar">${esc(initials(b.display_name))}</div>`;
+const verified = (b) => (b.did ? ` <span class="badge ai" title="Bluesky handle verified">🦋 verified</span>` : "");
 
 async function api(path, opts = {}) {
   const res = await fetch("/api" + path, {
@@ -120,8 +125,8 @@ function builderCard(b) {
   return `
   <div class="card click" data-builder="${b.id}">
     <div class="builder-head">
-      <div class="avatar">${esc(initials(b.display_name))}</div>
-      <div><div class="name">${esc(b.display_name)}</div><div class="klass">${esc(b.klass)}</div></div>
+      ${avatarEl(b)}
+      <div><div class="name">${esc(b.display_name)}${verified(b)}</div><div class="klass">${esc(b.klass)}</div></div>
     </div>
     <p class="tagline">${esc(b.tagline || "")}</p>
     ${top.map(skillBar).join("")}
@@ -149,9 +154,9 @@ async function openBuilder(id) {
   const b = await api(`/builders/${id}`);
   openDrawer(`
     <div class="builder-head">
-      <div class="avatar">${esc(initials(b.display_name))}</div>
-      <div><h2 style="margin:0">${esc(b.display_name)}</h2>
-      <div class="klass">${esc(b.klass)} · @${esc(b.handle)}</div></div>
+      ${avatarEl(b)}
+      <div><h2 style="margin:0">${esc(b.display_name)}${verified(b)}</h2>
+      <div class="klass">${esc(b.klass)} · <a href="https://bsky.app/profile/${esc(b.handle)}" target="_blank" rel="noopener">@${esc(b.handle)}</a></div></div>
     </div>
     <p class="tagline">${esc(b.tagline || "")}</p>
     ${b.bio ? `<p>${esc(b.bio)}</p>` : ""}
@@ -283,6 +288,15 @@ function renderEnlist() {
     <div class="section-head"><div><h2>Enlist</h2>
       <p>Create your character sheet. Be honest about your peaks — that's the whole point.</p></div></div>
     <form class="enlist" id="enlist-form">
+      <div class="subform" id="bsky-import">
+        <h3>🦋 Import from Bluesky</h3>
+        <p class="muted" style="margin:0;font-size:.82rem">Verify your handle and prefill your sheet from your public profile.</p>
+        <div class="row" style="gap:.5rem">
+          <input id="bsky-handle" placeholder="ada.bsky.social" style="flex:1" />
+          <button type="button" class="btn" id="bsky-go">Import</button>
+        </div>
+        <div id="bsky-status" class="muted" style="font-size:.82rem"></div>
+      </div>
       <div class="row" style="gap:.9rem">
         <label style="flex:1">Display name<input name="display_name" required placeholder="Ada Lovelace" /></label>
         <label style="flex:1">Handle<input name="handle" required placeholder="ada.bsky.social" /></label>
@@ -344,6 +358,41 @@ function renderEnlist() {
   addSkill("", 80);
   addSkill("", 60);
 
+  // Bluesky import: verify the handle and prefill the sheet.
+  const importBtn = document.getElementById("bsky-go");
+  const importStatus = document.getElementById("bsky-status");
+  const doImport = async () => {
+    const handle = document.getElementById("bsky-handle").value.trim().replace(/^@+/, "");
+    if (!handle) return;
+    importBtn.disabled = true;
+    importStatus.textContent = "Looking up @" + handle + "…";
+    try {
+      const p = await api(`/atproto/profile?handle=${encodeURIComponent(handle)}`);
+      const form = document.getElementById("enlist-form");
+      form.handle.value = p.handle;
+      if (!form.display_name.value) form.display_name.value = p.display_name;
+      if (!form.bio.value) form.bio.value = p.bio;
+      form.dataset.did = p.did;
+      form.dataset.avatar = p.avatar || "";
+      // Replace the two blank starter rows with suggested skills, if any.
+      if (p.suggested_skills?.length) {
+        skillRows.innerHTML = "";
+        p.suggested_skills.forEach((s) => addSkill(s.name, s.peak));
+      }
+      importStatus.innerHTML = `✓ Verified <strong>@${esc(p.handle)}</strong>${
+        p.avatar ? ` · <img src="${esc(p.avatar)}" alt="" style="width:20px;height:20px;border-radius:50%;vertical-align:middle">` : ""
+      } — review and adjust below.`;
+    } catch (e) {
+      importStatus.textContent = "✗ " + e.message;
+    } finally {
+      importBtn.disabled = false;
+    }
+  };
+  importBtn.addEventListener("click", doImport);
+  document.getElementById("bsky-handle").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); doImport(); }
+  });
+
   document.getElementById("enlist-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const f = e.target;
@@ -365,6 +414,8 @@ function renderEnlist() {
       tagline: f.tagline.value,
       bio: f.bio.value,
       ai_augmented: f.ai_augmented.checked,
+      did: f.dataset.did || "",
+      avatar: f.dataset.avatar || "",
       skills,
       projects,
     };

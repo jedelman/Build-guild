@@ -37,20 +37,22 @@ export async function getBuilder(env, id) {
 }
 
 export async function createBuilder(env, body) {
-  const { handle, display_name, klass, tagline, bio, seeking, ai_augmented } = body;
+  const { handle, display_name, klass, tagline, bio, seeking, ai_augmented, did, avatar } = body;
   if (!handle?.trim() || !display_name?.trim()) {
     throw new Error("handle and display_name are required");
   }
   const res = await env.DB.prepare(
-    `INSERT INTO builders (handle, display_name, klass, tagline, bio, seeking, ai_augmented)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO builders (handle, did, display_name, klass, tagline, bio, avatar, seeking, ai_augmented)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
-      handle.trim(),
+      handle.trim().replace(/^@+/, ""),
+      did || "",
       display_name.trim(),
       klass?.trim() || "Generalist",
       tagline || "",
       bio || "",
+      avatar || "",
       seeking || "",
       ai_augmented ? 1 : 0
     )
