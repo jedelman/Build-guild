@@ -55,13 +55,20 @@ Build Guild is handle-first: a builder's identity *is* their Bluesky handle.
 
 See `src/atproto.js`. No auth or API key is needed for this — it's all public reads.
 
-### Auth roadmap
-This is the read-only foundation. Next steps, in order of lift:
-1. **Bluesky OAuth** (recommended) — log in with your handle, no password shared.
-   Needs hosted client metadata + DPoP/PAR; works on Workers.
-2. **PDS storage** — store each builder's skill-peaks/projects as records in *their own*
-   atproto repo under a custom lexicon (`build.guild.*`), making profiles user-owned and
-   portable, with D1 as a cache/index.
+### Auth (Bluesky OAuth)
+Identity is gated behind **Bluesky OAuth** — you log in with your handle (no password
+shared) and can only create/edit/delete *your own* builder, so no one can impersonate
+anyone. Implemented in `src/oauth.js` (hand-rolled for Workers: PKCE + DPoP + PAR, public
+client) and `src/index.js` (`/api/auth/login`, `/api/auth/callback`, `/api/auth/me`,
+`/api/auth/logout`). The OAuth client id is `/client-metadata.json`, served dynamically so
+it resolves on prod *and* every per-PR preview origin. We mint our own session cookie once
+the handshake proves DID ownership; no atproto tokens are persisted yet, and **no new
+secrets are required** (public client).
+
+Next step:
+- **PDS storage** — store each builder's skill-peaks/projects as records in *their own*
+  atproto repo under a custom lexicon (`build.guild.*`), making profiles user-owned and
+  portable, with D1 as a cache/index. (This is when atproto token storage gets added.)
 
 ## Data & privacy
 

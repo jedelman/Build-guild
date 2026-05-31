@@ -42,6 +42,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Build front-end bundle
+        run: npm run build
       # Strip a stray "Bearer " prefix, surrounding quotes, or whitespace from
       # the token secret so a valid token isn't rejected for cosmetic reasons.
       - name: Sanitize Cloudflare API token

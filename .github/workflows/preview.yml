@@ -60,6 +60,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Build front-end bundle
+        run: npm run build
 
       # Defensive cleanup: a Cloudflare API token is 40 chars with no
       # whitespace. Strip a stray "Bearer " prefix, surrounding quotes, or

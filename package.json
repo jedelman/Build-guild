@@ -5,15 +5,26 @@
   "type": "module",
   "description": "Mutual aid for builders — team up like an MMORPG guild and combine your skill-peaks.",
   "scripts": {
-    "dev": "wrangler dev",
+    "build": "esbuild web/app.js --bundle --format=esm --target=es2020 --platform=browser --outfile=public/app.js --minify --legal-comments=none",
+    "dev": "npm run build && wrangler dev",
     "db:migrate": "wrangler d1 migrations apply build_guild --local",
     "db:migrate:remote": "wrangler d1 migrations apply build_guild --remote",
     "db:seed": "wrangler d1 execute build_guild --local --file=./seed.sql",
     "db:reset": "npm run db:migrate && npm run db:seed",
-    "deploy": "wrangler deploy",
+    "deploy": "npm run build && wrangler deploy",
     "test": "node --test"
   },
   "devDependencies": {
+    "esbuild": "^0.28.0",
     "wrangler": "^4.0.0"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.218.0",
+    "@opentelemetry/instrumentation": "^0.218.0",
+    "@opentelemetry/instrumentation-fetch": "^0.218.0",
+    "@opentelemetry/resources": "^2.7.1",
+    "@opentelemetry/sdk-trace-web": "^2.7.1",
+    "@opentelemetry/semantic-conventions": "^1.41.1"
   }
 }
