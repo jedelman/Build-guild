@@ -211,54 +211,57 @@ async function authRoute(request, env, url, action) {
 
 async function authLogin(env, url) {
   const handle = url.searchParams.get("handle");
-  if (!handle) return fail("handle query param required");
-
-  let did, meta;
-  try {
-    did = await resolveHandleToDid(handle);
-    meta = await resolveAuthServer(await resolveDidToPds(did));
-  } catch (e) {
-    return fail(`couldn't start login for that handle: ${e.message}`, 400);
-  }
+  if (!handle) return loginErrorRedirect("missing handle");
 
   const cm = clientMetadata(url.origin);
   const pkce = await createPkce();
   const dpopJwk = await generateDpopKey();
   const state = randomToken(24);
 
-  const parParams = {
-    client_id: cm.client_id,
-    response_type: "code",
-    redirect_uri: cm.redirect_uris[0],
-    scope: "atproto",
-    state,
-    code_challenge: pkce.challenge,
-    code_challenge_method: "S256",
-    login_hint: handle,
-  };
-
-  let par, nonce;
   try {
-    ({ json: par, nonce } = await pushedAuthorizationRequest(meta, parParams, dpopJwk));
+    // The resolution + PAR chain is several network hops to external services;
+    // retry once to absorb a transient blip (cold start, momentary DNS/PDS
+    // hiccup) rather than dead-ending the user on a JSON error.
+    const { meta, did, par, nonce } = await withRetry(async () => {
+      const did = await resolveHandleToDid(handle);
+      const meta = await resolveAuthServer(await resolveDidToPds(did));
+      const { json: par, nonce } = await pushedAuthorizationRequest(
+        meta,
+        {
+          client_id: cm.client_id,
+          response_type: "code",
+          redirect_uri: cm.redirect_uris[0],
+          scope: "atproto",
+          state,
+          code_challenge: pkce.challenge,
+          code_challenge_method: "S256",
+          login_hint: handle,
+        },
+        dpopJwk
+      );
+      return { meta, did, par, nonce };
+    });
+
+    await saveAuthState(env, {
+      state,
+      handle,
+      did,
+      pkce_verifier: pkce.verifier,
+      dpop_jwk: JSON.stringify(dpopJwk),
+      token_endpoint: meta.token_endpoint,
+      issuer: meta.issuer,
+      dpop_nonce: nonce,
+    });
+
+    const authUrl = `${meta.authorization_endpoint}?client_id=${encodeURIComponent(
+      cm.client_id
+    )}&request_uri=${encodeURIComponent(par.request_uri)}`;
+    return Response.redirect(authUrl, 302);
   } catch (e) {
-    return fail(`authorization request failed: ${e.message}`, 502);
+    // Redirect (not raw JSON) so the user lands on a real page and the
+    // client telemetry uploads the failure trace.
+    return loginErrorRedirect(`couldn't start login: ${e.message}`);
   }
-
-  await saveAuthState(env, {
-    state,
-    handle,
-    did,
-    pkce_verifier: pkce.verifier,
-    dpop_jwk: JSON.stringify(dpopJwk),
-    token_endpoint: meta.token_endpoint,
-    issuer: meta.issuer,
-    dpop_nonce: nonce,
-  });
-
-  const authUrl = `${meta.authorization_endpoint}?client_id=${encodeURIComponent(
-    cm.client_id
-  )}&request_uri=${encodeURIComponent(par.request_uri)}`;
-  return Response.redirect(authUrl, 302);
 }
 
 async function authCallback(env, url) {
@@ -269,7 +272,7 @@ async function authCallback(env, url) {
   // Surface every failure as a clean redirect with the reason in the query
   // string, so it's visible to the user (and shareable for debugging) rather
   // than a raw JSON 500.
-  const oops = (reason) => redirectHome(`/?login=error&reason=${encodeURIComponent(reason)}`);
+  const oops = loginErrorRedirect;
   if (err) return oops(url.searchParams.get("error_description") || err);
   if (!state || !code) return oops("missing state or code");
 
@@ -310,3 +313,21 @@ async function authCallback(env, url) {
 }
 
 const redirectHome = (location) => new Response(null, { status: 302, headers: { location } });
+
+// Every login failure (initiation or callback) lands here: a clean redirect
+// with the reason in the query string, so it's visible to the user and the
+// client telemetry uploads the failure trace.
+const loginErrorRedirect = (reason) =>
+  redirectHome(`/?login=error&reason=${encodeURIComponent(reason)}`);
+
+async function withRetry(fn, attempts = 2) {
+  let last;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      last = e;
+    }
+  }
+  throw last;
+}
