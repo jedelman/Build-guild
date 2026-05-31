@@ -125,23 +125,35 @@ jobs:
             echo "new_db=$NEW_DB"
           } >> "$GITHUB_OUTPUT"
 
-      # Full copy of production, taken once when the PR environment is created.
-      - name: Clone production data into the PR database
-        if: ${{ steps.provision.outputs.new_db == '1' }}
-        run: |
-          exec > >(tee -a "$GITHUB_WORKSPACE/preview.log") 2>&1
-          set -euo pipefail
-          npx wrangler d1 export build_guild --remote --output prod-dump.sql
-          npx wrangler d1 execute "${{ steps.provision.outputs.db_name }}" \
-            --remote --file prod-dump.sql --config wrangler.ci.jsonc
-
-      # Apply any migrations the branch adds on top of the production copy.
-      - name: Apply branch migrations to the PR database
+      # Build the PR database's schema from migrations (correct dependency
+      # order). We deliberately do NOT import production's *schema* dump: it
+      # emits `CREATE TABLE skills` (which has a foreign key to skill_catalog,
+      # added by a later migration) before `CREATE TABLE skill_catalog`, and D1
+      # rejects that forward reference on import as "no such table:
+      # skill_catalog". Migrations create skill_catalog before adding the
+      # referencing column, so they always apply cleanly. Runs for new and
+      # existing PR databases (idempotent).
+      - name: Apply migrations to the PR database
         run: |
           exec > >(tee -a "$GITHUB_WORKSPACE/preview.log") 2>&1
           set -euo pipefail
           npx wrangler d1 migrations apply "${{ steps.provision.outputs.db_name }}" \
             --remote --config wrangler.ci.jsonc
+
+      # Copy production DATA only (the schema is already built above), taken once
+      # when the PR environment is created. The D1 dump sets
+      # `PRAGMA defer_foreign_keys`, so insert order is safe; we only strip the
+      # d1_migrations rows, which the migrations step already wrote (re-inserting
+      # them would collide on the primary key).
+      - name: Clone production data into the PR database
+        if: ${{ steps.provision.outputs.new_db == '1' }}
+        run: |
+          exec > >(tee -a "$GITHUB_WORKSPACE/preview.log") 2>&1
+          set -euo pipefail
+          npx wrangler d1 export build_guild --remote --no-schema --output prod-data.sql
+          grep -v 'INSERT INTO "d1_migrations"' prod-data.sql > prod-data.clean.sql
+          npx wrangler d1 execute "${{ steps.provision.outputs.db_name }}" \
+            --remote --file prod-data.clean.sql --config wrangler.ci.jsonc
 
       - name: Deploy ephemeral preview Worker
         id: deploy

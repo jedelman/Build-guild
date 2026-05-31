@@ -117,10 +117,12 @@ applied with `wrangler d1 migrations apply` (non-destructive, unlike `schema.sql
 preview — a throwaway Worker and D1 database, torn down when the PR closes:
 
 - Runs the test suite (forks included).
-- Provisions a per-PR database `build_guild_pr_<N>`. On first creation it's a **full
-  copy of production** (`wrangler d1 export build_guild` → import), then branch
-  migrations are applied on top, so the preview runs the PR's code against
-  production-shaped data.
+- Provisions a per-PR database `build_guild_pr_<N>`. Its **schema is built from
+  migrations**, then on first creation production's **data** is copied in
+  (`wrangler d1 export build_guild --no-schema` → import), so the preview runs the
+  PR's code against production-shaped data. (We build the schema from migrations
+  rather than importing prod's schema dump because the dump emits a forward
+  foreign-key reference — `skills` → `skill_catalog` — that D1 rejects on import.)
 - Renders a per-PR wrangler config from `.github/preview/wrangler.template.jsonc` and
   deploys a `build-guild-pr-<N>` Worker bound to that database.
 - Comments the unique preview URL on the PR, redeployed on every push.
