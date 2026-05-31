@@ -242,7 +242,7 @@ async function authLogin(request, env, url) {
           client_id: cm.client_id,
           response_type: "code",
           redirect_uri: cm.redirect_uris[0],
-          scope: "atproto",
+          scope: "atproto transition:generic",
           state,
           code_challenge: pkce.challenge,
           code_challenge_method: "S256",

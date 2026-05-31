@@ -76,5 +76,5 @@ test("clientMetadata is derived from the deployment origin", () => {
   assert.equal(cm.redirect_uris[0], "https://build-guild-pr-7.example.workers.dev/api/auth/callback");
   assert.equal(cm.token_endpoint_auth_method, "none");
   assert.equal(cm.dpop_bound_access_tokens, true);
-  assert.equal(cm.scope, "atproto");
+  assert.equal(cm.scope, "atproto transition:generic");
 });
