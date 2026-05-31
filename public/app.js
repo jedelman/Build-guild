@@ -52,12 +52,37 @@ async function loadAuth() {
   state.me = state.auth.builder_id || null;
 }
 
+// Inline handle widget (the pattern other atproto apps use) instead of a
+// prompt(): a plain text field with autofill on and autocapitalize/correct off.
+function loginFormHTML(btnLabel = "Log in with Bluesky") {
+  return `<form class="login-form">
+    <input class="login-handle" name="handle" placeholder="you.bsky.social"
+      autocomplete="username" autocapitalize="none" autocorrect="off"
+      spellcheck="false" inputmode="email" aria-label="Bluesky handle" />
+    <button class="btn gold" type="submit">${btnLabel}</button>
+  </form>`;
+}
+
+function wireLoginForms(root = document) {
+  root.querySelectorAll(".login-form").forEach((f) => {
+    if (f.dataset.wired) return;
+    f.dataset.wired = "1";
+    f.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const handle = f.querySelector(".login-handle").value.trim().replace(/^@+/, "");
+      if (handle) window.location.href = "/api/auth/login?handle=" + encodeURIComponent(handle);
+    });
+  });
+}
+
+// Used by buttons that aren't themselves a form (e.g. in the guild drawer):
+// surface the handle widget in the top bar and focus it.
 function startLogin() {
-  const handle = prompt("Log in with your Bluesky handle:", "");
-  if (!handle) return;
-  const clean = handle.trim().replace(/^@+/, "");
-  if (!clean) return;
-  window.location.href = "/api/auth/login?handle=" + encodeURIComponent(clean);
+  const input = document.querySelector(".login-form .login-handle");
+  if (input) {
+    input.scrollIntoView({ block: "center", behavior: "smooth" });
+    input.focus();
+  }
 }
 
 async function logout() {
@@ -72,8 +97,8 @@ function renderAuthBar() {
       <button class="btn ghost" id="logout-btn">Log out</button>`;
     document.getElementById("logout-btn").addEventListener("click", logout);
   } else {
-    authbar.innerHTML = `<button class="btn gold" id="login-btn">Log in with Bluesky</button>`;
-    document.getElementById("login-btn").addEventListener("click", startLogin);
+    authbar.innerHTML = loginFormHTML();
+    wireLoginForms(authbar);
   }
 }
 
@@ -362,9 +387,9 @@ function renderEnlist(existing) {
         <p>Your character sheet is tied to your Bluesky identity, so no one can impersonate you.</p></div></div>
       <div class="subform" style="text-align:center;padding:2rem">
         <p>Log in with Bluesky to create your builder.</p>
-        <button class="btn gold" id="enlist-login">Log in with Bluesky</button>
+        ${loginFormHTML()}
       </div>`;
-    document.getElementById("enlist-login").addEventListener("click", startLogin);
+    wireLoginForms(app);
     return;
   }
   if (!existing && state.me) {
