@@ -242,8 +242,7 @@ form.enlist label input, form.enlist label textarea { text-transform: none; lett
 .subform { border: 1px solid var(--line); border-radius: var(--r); padding: var(--s4); background: var(--surface); display: grid; gap: var(--s3); }
 .subform h3 { margin: 0; font-size: 0.9rem; color: var(--gold-soft); font-family: Cinzel, serif; font-weight: 600; }
 .skill-line, .project-line { display: grid; gap: var(--s2); }
-.skill-line { grid-template-columns: 1fr 84px auto; align-items: center; }
-.peak-slider { width: 100%; accent-color: var(--gold); }
+.skill-line { grid-template-columns: 1fr auto; align-items: center; }
 
 /* ---- footer ---------------------------------------------------------------*/
 .foot { text-align: center; color: var(--faint); font-size: 0.8rem; padding: var(--s6) var(--s4) var(--s7); border-top: 1px solid var(--line); margin-top: var(--s7); }

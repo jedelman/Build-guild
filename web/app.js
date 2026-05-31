@@ -419,7 +419,8 @@ function renderEnlist(existing) {
   const editing = !!existing;
   app.innerHTML = `
     <div class="section-head"><div><h2>${editing ? "Edit your sheet" : "Enlist"}</h2>
-      <p>Be honest about your peaks — that's the whole point. You're verified as
+      <p>List the skills you're genuinely strong at — other builders' endorsements,
+      not a self-rated slider, will speak to how strong. You're verified as
       <strong>@${esc(state.auth.handle)}</strong>.</p></div></div>
     <form class="enlist" id="enlist-form">
       <div class="row" style="gap:.9rem">
@@ -451,17 +452,13 @@ function renderEnlist(existing) {
   const form = document.getElementById("enlist-form");
   const skillRows = document.getElementById("skill-rows");
   const projectRows = document.getElementById("project-rows");
-  const addSkill = (name = "", peak = 70) => {
+  const addSkill = (name = "") => {
     const div = document.createElement("div");
     div.className = "skill-line";
     div.innerHTML = `
-      <input class="s-name" placeholder="Skill (e.g. Rust)" value="${esc(name)}" />
-      <span class="peak-num"><output>${peak}</output></span>
-      <button type="button" class="btn ghost rm">✕</button>
-      <input class="s-peak peak-slider" type="range" min="1" max="100" value="${peak}" style="grid-column:1/-1" />`;
-    div.querySelector(".s-peak").addEventListener("input", (e) => {
-      div.querySelector("output").textContent = e.target.value;
-    });
+      <input class="s-name" placeholder="Skill (e.g. Rust)" value="${esc(name)}"
+        list="skill-options" autocomplete="off" />
+      <button type="button" class="btn ghost rm" aria-label="Remove skill">✕</button>`;
     div.querySelector(".rm").addEventListener("click", () => div.remove());
     skillRows.appendChild(div);
   };
@@ -479,6 +476,28 @@ function renderEnlist(existing) {
   document.getElementById("add-skill").addEventListener("click", () => addSkill());
   document.getElementById("add-project").addEventListener("click", () => addProject());
 
+  // Canonical-skill autocomplete: one shared <datalist> the skill inputs read
+  // from (via list="skill-options"), refreshed from /api/skills/suggest as the
+  // builder types so they converge on existing skills instead of re-spelling.
+  const skillList = document.createElement("datalist");
+  skillList.id = "skill-options";
+  form.appendChild(skillList);
+  let sugTimer;
+  const refreshSkillOptions = (q) => {
+    clearTimeout(sugTimer);
+    sugTimer = setTimeout(() => {
+      api(`/skills/suggest?q=${encodeURIComponent(q || "")}`)
+        .then((items) => {
+          skillList.innerHTML = items.map((s) => `<option value="${esc(s.name)}"></option>`).join("");
+        })
+        .catch(() => {});
+    }, 150);
+  };
+  skillRows.addEventListener("input", (e) => {
+    if (e.target.classList.contains("s-name")) refreshSkillOptions(e.target.value);
+  });
+  refreshSkillOptions(""); // preload the most-used skills
+
   if (editing) {
     form.display_name.value = existing.display_name || "";
     form.klass.value = existing.klass || "";
@@ -486,19 +505,19 @@ function renderEnlist(existing) {
     form.tagline.value = existing.tagline || "";
     form.bio.value = existing.bio || "";
     form.ai_augmented.checked = !!existing.ai_augmented;
-    (existing.skills || []).forEach((s) => addSkill(s.name, s.peak));
+    (existing.skills || []).forEach((s) => addSkill(s.name));
     (existing.projects || []).forEach(addProject);
-    if (!existing.skills?.length) addSkill("", 80);
+    if (!existing.skills?.length) addSkill("");
   } else {
     // Prefill from the logged-in user's own public Bluesky profile.
-    addSkill("", 80);
+    addSkill("");
     api(`/atproto/profile?handle=${encodeURIComponent(state.auth.handle)}`)
       .then((p) => {
         if (!form.display_name.value) form.display_name.value = p.display_name || "";
         if (!form.bio.value) form.bio.value = p.bio || "";
         if (p.suggested_skills?.length) {
           skillRows.innerHTML = "";
-          p.suggested_skills.forEach((s) => addSkill(s.name, s.peak));
+          p.suggested_skills.forEach((s) => addSkill(s.name));
         }
       })
       .catch(() => {});
@@ -507,7 +526,7 @@ function renderEnlist(existing) {
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const skills = [...skillRows.querySelectorAll(".skill-line")]
-      .map((r) => ({ name: r.querySelector(".s-name").value.trim(), peak: Number(r.querySelector(".s-peak").value) }))
+      .map((r) => ({ name: r.querySelector(".s-name").value.trim() }))
       .filter((s) => s.name);
     const projects = [...projectRows.querySelectorAll(".project-line")]
       .map((r) => ({
