@@ -16,10 +16,11 @@ import {
   createSession,
   getSession,
   deleteSession,
+  logAuthEvent,
 } from "./db.js";
 import { recommendRecruits } from "./logic.js";
 import { fetchBlueskyProfile, suggestSkillsFromProfile } from "./atproto.js";
-import { ingestTelemetry } from "./telemetry.js";
+import { ingestTelemetry, scrub } from "./telemetry.js";
 import {
   clientMetadata,
   createPkce,
@@ -253,6 +254,7 @@ async function authLogin(env, url) {
       dpop_nonce: nonce,
     });
 
+    await logAuthEvent(env, "login_init", { handle, did, detail: "redirect to consent" });
     const authUrl = `${meta.authorization_endpoint}?client_id=${encodeURIComponent(
       cm.client_id
     )}&request_uri=${encodeURIComponent(par.request_uri)}`;
@@ -260,6 +262,7 @@ async function authLogin(env, url) {
   } catch (e) {
     // Redirect (not raw JSON) so the user lands on a real page and the
     // client telemetry uploads the failure trace.
+    await logAuthEvent(env, "login_error", { handle, detail: scrub(e.message) });
     return loginErrorRedirect(`couldn't start login: ${e.message}`);
   }
 }
@@ -273,13 +276,25 @@ async function authCallback(env, url) {
   // string, so it's visible to the user (and shareable for debugging) rather
   // than a raw JSON 500.
   const oops = loginErrorRedirect;
+  await logAuthEvent(env, "callback_recv", {
+    detail: `code=${!!code} state=${!!state} iss=${iss || ""} err=${err || ""}`,
+  });
   if (err) return oops(url.searchParams.get("error_description") || err);
   if (!state || !code) return oops("missing state or code");
 
   const st = await takeAuthState(env, state);
-  if (!st) return oops("invalid or expired login state");
+  if (!st) {
+    await logAuthEvent(env, "callback_nostate", { detail: "state not found or expired" });
+    return oops("invalid or expired login state");
+  }
   const norm = (s) => (s || "").replace(/\/+$/, "");
-  if (iss && norm(iss) !== norm(st.issuer)) return oops(`issuer mismatch (${iss} vs ${st.issuer})`);
+  if (iss && norm(iss) !== norm(st.issuer)) {
+    await logAuthEvent(env, "callback_error", {
+      handle: st.handle,
+      detail: `issuer mismatch (${iss} vs ${st.issuer})`,
+    });
+    return oops(`issuer mismatch (${iss} vs ${st.issuer})`);
+  }
 
   const cm = clientMetadata(url.origin);
   let tok;
@@ -297,12 +312,21 @@ async function authCallback(env, url) {
       st.dpop_nonce
     ));
   } catch (e) {
+    await logAuthEvent(env, "callback_error", {
+      handle: st.handle,
+      did: st.did,
+      detail: scrub(`token exchange failed: ${e.message}`),
+    });
     return oops(`token exchange failed: ${e.message}`);
   }
 
   const did = tok.sub || st.did;
-  if (!did) return oops("login did not yield a DID");
+  if (!did) {
+    await logAuthEvent(env, "callback_error", { handle: st.handle, detail: "no DID in token response" });
+    return oops("login did not yield a DID");
+  }
 
+  await logAuthEvent(env, "callback_ok", { handle: st.handle, did, detail: "session created" });
   const session = await createSession(env, { did, handle: st.handle });
   const headers = new Headers({ location: "/?login=ok" });
   headers.append(

@@ -243,6 +243,20 @@ export async function deleteSession(env, id) {
   await env.DB.prepare("DELETE FROM sessions WHERE id = ?").bind(id).run();
 }
 
+// Append-only log of OAuth handshake steps. Best-effort: never let a logging
+// failure break the actual auth flow.
+export async function logAuthEvent(env, kind, { handle = "", did = "", detail = "", ua = "" } = {}) {
+  try {
+    await env.DB.prepare(
+      "INSERT INTO auth_events (id, kind, handle, did, detail, user_agent) VALUES (?, ?, ?, ?, ?, ?)"
+    )
+      .bind(crypto.randomUUID(), kind, handle, did, String(detail).slice(0, 500), String(ua).slice(0, 200))
+      .run();
+  } catch {
+    /* logging is best-effort */
+  }
+}
+
 export async function joinGuild(env, guildId, builderId, role = "member") {
   await env.DB.prepare(
     "INSERT OR IGNORE INTO guild_members (guild_id, builder_id, role) VALUES (?, ?, ?)"
