@@ -175,3 +175,10 @@ form.enlist label { display: grid; gap: 0.3rem; font-size: 0.85rem; color: var(-
 .hero h2 { font-family: Cinzel, serif; color: var(--gold); margin: 0 0 0.4rem; font-size: 1.5rem; }
 .hero p { margin: 0 0 0.6rem; max-width: 60ch; }
 .hero .login-form { margin-top: 0.9rem; }
+
+/* "Report a bug" button in the footer, styled as an inline link. */
+.linklike {
+  background: none; border: none; padding: 0; font: inherit; cursor: pointer;
+  color: var(--gold); text-decoration: underline;
+}
+.linklike:hover { color: var(--ink); }

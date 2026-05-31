@@ -1,5 +1,8 @@
 // Build Guild — front-end. Vanilla JS, talks to the Worker's /api.
 
+import { initTelemetry, reportBug, flush } from "./telemetry.js";
+initTelemetry();
+
 const app = document.getElementById("app");
 const drawer = document.getElementById("drawer");
 const drawerBody = document.getElementById("drawer-body");
@@ -559,9 +562,19 @@ function renderEnlist(existing) {
       const reason = params.get("reason") || "please try again";
       console.error("Bluesky login failed:", reason);
       toast("Login failed: " + reason, true);
+      // No console on mobile — auto-upload the failure trace so we can debug it.
+      flush("login_error", reason);
     }
     if (params.has("login")) history.replaceState({}, "", "/");
   } catch (e) {
     app.innerHTML = `<p class="empty">Couldn't reach the guild hall: ${esc(e.message)}</p>`;
   }
 })();
+
+// "Report a bug" — upload the recent trace with an optional note.
+document.getElementById("report-bug")?.addEventListener("click", async () => {
+  const note = prompt("What went wrong? (optional — a diagnostic trace is sent either way)");
+  if (note === null) return; // cancelled
+  await reportBug(note);
+  toast("Thanks — diagnostics sent 🛠️");
+});

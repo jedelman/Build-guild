@@ -3,6 +3,9 @@ node_modules/
 dist/
 .dev.vars
 
+# Built front-end bundle (esbuild from web/ → public/app.js); produced in CI.
+public/app.js
+
 # Generated in CI for per-PR ephemeral previews
 wrangler.ci.jsonc
 prod-dump.sql

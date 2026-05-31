@@ -19,6 +19,7 @@ import {
 } from "./db.js";
 import { recommendRecruits } from "./logic.js";
 import { fetchBlueskyProfile, suggestSkillsFromProfile } from "./atproto.js";
+import { ingestTelemetry } from "./telemetry.js";
 import {
   clientMetadata,
   createPkce,
@@ -84,6 +85,9 @@ async function route(request, env, url) {
   const gid = Number(id);
 
   if (resource === "health") return json({ ok: true, ts: Date.now() });
+
+  // Client OTLP trace uploads (tail-sampled: only sent on error / bug report).
+  if (resource === "telemetry" && method === "POST") return ingestTelemetry(env, request);
 
   if (resource === "auth") return authRoute(request, env, url, id);
 
