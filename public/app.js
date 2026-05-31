@@ -3,9 +3,11 @@
 const app = document.getElementById("app");
 const drawer = document.getElementById("drawer");
 const drawerBody = document.getElementById("drawer-body");
-const identitySel = document.getElementById("identity");
+const authbar = document.getElementById("authbar");
 
-const state = { builders: [], guilds: [], me: localStorage.getItem("bg_me") || "" };
+// Identity comes from the logged-in Bluesky session (/api/auth/me), not a
+// free picker — you can only act as your own verified builder.
+const state = { builders: [], guilds: [], auth: { authenticated: false }, me: null };
 
 // ---- helpers ---------------------------------------------------------------
 const esc = (s = "") =>
@@ -40,23 +42,50 @@ const skillBar = (s) => `
   <div class="bar-row"><span>${esc(s.name)}</span><span class="peak-num">${s.peak}</span></div>
   <div class="bar"><span style="width:${s.peak}%"></span></div>`;
 
+// ---- auth ------------------------------------------------------------------
+async function loadAuth() {
+  try {
+    state.auth = await api("/auth/me");
+  } catch {
+    state.auth = { authenticated: false };
+  }
+  state.me = state.auth.builder_id || null;
+}
+
+function startLogin() {
+  const handle = prompt("Log in with your Bluesky handle:", "");
+  if (!handle) return;
+  const clean = handle.trim().replace(/^@+/, "");
+  if (!clean) return;
+  window.location.href = "/api/auth/login?handle=" + encodeURIComponent(clean);
+}
+
+async function logout() {
+  await api("/auth/logout", { method: "POST" });
+  window.location.href = "/";
+}
+
+function renderAuthBar() {
+  if (state.auth.authenticated) {
+    authbar.innerHTML = `
+      <span class="muted">🦋 @${esc(state.auth.handle)}</span>
+      <button class="btn ghost" id="logout-btn">Log out</button>`;
+    document.getElementById("logout-btn").addEventListener("click", logout);
+  } else {
+    authbar.innerHTML = `<button class="btn gold" id="login-btn">Log in with Bluesky</button>`;
+    document.getElementById("login-btn").addEventListener("click", startLogin);
+  }
+}
+
+const requireLogin = (why) => {
+  toast(why || "Log in with Bluesky first", true);
+  startLogin();
+};
+
 // ---- data loading ----------------------------------------------------------
 async function refresh() {
   [state.builders, state.guilds] = await Promise.all([api("/builders"), api("/guilds")]);
-  renderIdentity();
 }
-
-function renderIdentity() {
-  identitySel.innerHTML =
-    '<option value="">— pick your builder —</option>' +
-    state.builders.map((b) => `<option value="${b.id}">${esc(b.display_name)}</option>`).join("");
-  if (state.me) identitySel.value = state.me;
-}
-identitySel.addEventListener("change", () => {
-  state.me = identitySel.value;
-  localStorage.setItem("bg_me", state.me);
-  if (currentView === "guilds") renderGuilds();
-});
 
 // ---- views -----------------------------------------------------------------
 let currentView = "guilds";
@@ -152,12 +181,20 @@ drawer.addEventListener("click", (e) => {
 
 async function openBuilder(id) {
   const b = await api(`/builders/${id}`);
+  const mine = state.auth.authenticated && b.did && b.did === state.auth.did;
   openDrawer(`
     <div class="builder-head">
       ${avatarEl(b)}
       <div><h2 style="margin:0">${esc(b.display_name)}${verified(b)}</h2>
       <div class="klass">${esc(b.klass)} · <a href="https://bsky.app/profile/${esc(b.handle)}" target="_blank" rel="noopener">@${esc(b.handle)}</a></div></div>
     </div>
+    ${
+      mine
+        ? `<div class="row" style="gap:.5rem;margin:.4rem 0">
+             <button class="btn" id="edit-me">Edit my sheet</button>
+             <button class="btn ghost" id="delete-me">Delete</button></div>`
+        : ""
+    }
     <p class="tagline">${esc(b.tagline || "")}</p>
     ${b.bio ? `<p>${esc(b.bio)}</p>` : ""}
     <div class="badges">
@@ -178,11 +215,33 @@ async function openBuilder(id) {
         )
         .join("") || '<p class="muted">No projects yet.</p>'
     }`);
+
+  if (mine) {
+    document.getElementById("edit-me").addEventListener("click", () => {
+      closeDrawer();
+      tabs.forEach((x) => x.classList.toggle("active", x.dataset.view === "enlist"));
+      currentView = "enlist";
+      renderEnlist(b);
+    });
+    document.getElementById("delete-me").addEventListener("click", async () => {
+      if (!confirm("Delete your builder? This can't be undone.")) return;
+      try {
+        await api(`/builders/${b.id}`, { method: "DELETE" });
+        await refresh();
+        state.me = null;
+        closeDrawer();
+        toast("Your builder was deleted.");
+        render();
+      } catch (e) {
+        toast(e.message, true);
+      }
+    });
+  }
 }
 
 async function openGuild(id) {
   const [g, recruits] = await Promise.all([api(`/guilds/${id}`), api(`/guilds/${id}/recruits`)]);
-  const meId = Number(state.me) || null;
+  const meId = state.me;
   const inGuild = g.members.some((m) => m.id === meId);
   const championOf = Object.fromEntries(g.champions.map((c) => [c.display_name, c.champions]));
 
@@ -202,11 +261,13 @@ async function openGuild(id) {
 
     <div class="row" style="margin:.8rem 0">
       ${
-        meId
+        state.auth.authenticated && meId
           ? `<button class="btn ${inGuild ? "ghost" : "gold"}" id="join-toggle">${
               inGuild ? "Leave guild" : "Join this guild"
             }</button>`
-          : `<span class="muted">Pick who you're playing as (top right) to join.</span>`
+          : state.auth.authenticated
+            ? `<span class="muted">Enlist (create your builder) to join.</span>`
+            : `<button class="btn gold" id="login-to-join">Log in with Bluesky to join</button>`
       }
     </div>
 
@@ -230,49 +291,59 @@ async function openGuild(id) {
       '<p class="muted">No skills yet.</p>'}
 
     <h3 style="color:var(--gold);font-family:Cinzel,serif">Recommended recruits</h3>
-    <p class="muted" style="font-size:.8rem;margin-top:-.4rem">Builders who'd fill the party's current gaps.</p>
+    <p class="muted" style="font-size:.8rem;margin-top:-.4rem">Builders who'd fill the party's current gaps. Guild members can recruit them.</p>
     ${
       recruits.length
         ? recruits
             .map(
               (r) => `<div class="subform"><div class="row" style="justify-content:space-between">
         <strong>${esc(r.builder.display_name)}</strong>
-        <button class="btn ghost recruit" data-id="${r.builder.id}">Recruit</button></div>
+        ${inGuild ? `<button class="btn ghost recruit" data-id="${r.builder.id}">Recruit</button>` : ""}</div>
         <div class="muted" style="font-size:.82rem">Fills: ${r.fills.map(esc).join(", ")}</div></div>`
             )
             .join("")
         : '<p class="muted">This party already covers the candidate pool. Enlist more builders!</p>'
     }`);
 
+  const loginToJoin = document.getElementById("login-to-join");
+  if (loginToJoin) loginToJoin.addEventListener("click", startLogin);
+
   const toggle = document.getElementById("join-toggle");
   if (toggle)
     toggle.addEventListener("click", async () => {
       const action = inGuild ? "leave" : "join";
-      await api(`/guilds/${id}/${action}`, { method: "POST", body: { builder_id: meId } });
-      await refresh();
-      toast(inGuild ? "Left the guild" : "Joined the guild!");
-      openGuild(id);
+      try {
+        await api(`/guilds/${id}/${action}`, { method: "POST", body: {} });
+        await refresh();
+        toast(inGuild ? "Left the guild" : "Joined the guild!");
+        openGuild(id);
+      } catch (e) {
+        toast(e.message, true);
+      }
     });
 
   drawerBody.querySelectorAll(".recruit").forEach((btn) =>
     btn.addEventListener("click", async () => {
-      await api(`/guilds/${id}/join`, { method: "POST", body: { builder_id: Number(btn.dataset.id) } });
-      await refresh();
-      toast("Recruit added to the party!");
-      openGuild(id);
+      try {
+        await api(`/guilds/${id}/join`, { method: "POST", body: { builder_id: Number(btn.dataset.id) } });
+        await refresh();
+        toast("Recruit added to the party!");
+        openGuild(id);
+      } catch (e) {
+        toast(e.message, true);
+      }
     })
   );
 }
 
 async function foundGuildPrompt() {
+  if (!state.auth.authenticated) return requireLogin("Log in with Bluesky to found a guild");
+  if (!state.me) return toast("Create your builder (Enlist) first", true);
   const name = prompt("Name your guild:");
   if (!name) return;
   const charter = prompt("Guild charter (one line):") || "";
   try {
-    const g = await api("/guilds", {
-      method: "POST",
-      body: { name, charter, founder_id: Number(state.me) || undefined },
-    });
+    const g = await api("/guilds", { method: "POST", body: { name, charter } });
     await refresh();
     renderGuilds();
     toast("Guild founded!");
@@ -282,29 +353,43 @@ async function foundGuildPrompt() {
   }
 }
 
-// ---- enlist form -----------------------------------------------------------
-function renderEnlist() {
+// ---- enlist / edit form ----------------------------------------------------
+// `existing` is a builder object when editing; undefined when enlisting.
+function renderEnlist(existing) {
+  if (!state.auth.authenticated) {
+    app.innerHTML = `
+      <div class="section-head"><div><h2>Enlist</h2>
+        <p>Your character sheet is tied to your Bluesky identity, so no one can impersonate you.</p></div></div>
+      <div class="subform" style="text-align:center;padding:2rem">
+        <p>Log in with Bluesky to create your builder.</p>
+        <button class="btn gold" id="enlist-login">Log in with Bluesky</button>
+      </div>`;
+    document.getElementById("enlist-login").addEventListener("click", startLogin);
+    return;
+  }
+  if (!existing && state.me) {
+    // Already enlisted — point them at their sheet rather than a second one.
+    app.innerHTML = `
+      <div class="section-head"><div><h2>Enlist</h2></div></div>
+      <div class="subform" style="text-align:center;padding:2rem">
+        <p>You're already enlisted as <strong>@${esc(state.auth.handle)}</strong>.</p>
+        <button class="btn gold" id="open-mine">View / edit my sheet</button>
+      </div>`;
+    document.getElementById("open-mine").addEventListener("click", () => openBuilder(state.me));
+    return;
+  }
+
+  const editing = !!existing;
   app.innerHTML = `
-    <div class="section-head"><div><h2>Enlist</h2>
-      <p>Create your character sheet. Be honest about your peaks — that's the whole point.</p></div></div>
+    <div class="section-head"><div><h2>${editing ? "Edit your sheet" : "Enlist"}</h2>
+      <p>Be honest about your peaks — that's the whole point. You're verified as
+      <strong>@${esc(state.auth.handle)}</strong>.</p></div></div>
     <form class="enlist" id="enlist-form">
-      <div class="subform" id="bsky-import">
-        <h3>🦋 Import from Bluesky</h3>
-        <p class="muted" style="margin:0;font-size:.82rem">Verify your handle and prefill your sheet from your public profile.</p>
-        <div class="row" style="gap:.5rem">
-          <input id="bsky-handle" placeholder="ada.bsky.social" style="flex:1" />
-          <button type="button" class="btn" id="bsky-go">Import</button>
-        </div>
-        <div id="bsky-status" class="muted" style="font-size:.82rem"></div>
-      </div>
       <div class="row" style="gap:.9rem">
         <label style="flex:1">Display name<input name="display_name" required placeholder="Ada Lovelace" /></label>
-        <label style="flex:1">Handle<input name="handle" required placeholder="ada.bsky.social" /></label>
-      </div>
-      <div class="row" style="gap:.9rem">
         <label style="flex:1">Class / archetype<input name="klass" placeholder="Architect, Bard, Druid…" /></label>
-        <label style="flex:1">Seeking<input name="seeking" placeholder="income, collaborators, both" /></label>
       </div>
+      <label>Seeking<input name="seeking" placeholder="income, collaborators, both" /></label>
       <label>Tagline<input name="tagline" placeholder="One line on what you bring" /></label>
       <label>Bio<textarea name="bio" rows="3"></textarea></label>
       <label class="row" style="align-items:center;gap:.5rem">
@@ -323,9 +408,10 @@ function renderEnlist() {
         <button type="button" class="btn ghost" id="add-project">+ Add project</button>
       </div>
 
-      <button class="btn gold" type="submit">Join the Build Guild</button>
+      <button class="btn gold" type="submit">${editing ? "Save changes" : "Join the Build Guild"}</button>
     </form>`;
 
+  const form = document.getElementById("enlist-form");
   const skillRows = document.getElementById("skill-rows");
   const projectRows = document.getElementById("project-rows");
   const addSkill = (name = "", peak = 70) => {
@@ -342,60 +428,47 @@ function renderEnlist() {
     div.querySelector(".rm").addEventListener("click", () => div.remove());
     skillRows.appendChild(div);
   };
-  const addProject = () => {
+  const addProject = (p = {}) => {
     const div = document.createElement("div");
     div.className = "project-line";
     div.innerHTML = `
-      <input class="p-name" placeholder="Project name" />
-      <input class="p-desc" placeholder="What is it?" />
-      <input class="p-help" placeholder="Where you'd welcome help" />
+      <input class="p-name" placeholder="Project name" value="${esc(p.name || "")}" />
+      <input class="p-desc" placeholder="What is it?" value="${esc(p.description || "")}" />
+      <input class="p-help" placeholder="Where you'd welcome help" value="${esc(p.help_wanted || "")}" />
       <button type="button" class="btn ghost rm">Remove project</button>`;
     div.querySelector(".rm").addEventListener("click", () => div.remove());
     projectRows.appendChild(div);
   };
   document.getElementById("add-skill").addEventListener("click", () => addSkill());
-  document.getElementById("add-project").addEventListener("click", addProject);
-  addSkill("", 80);
-  addSkill("", 60);
+  document.getElementById("add-project").addEventListener("click", () => addProject());
 
-  // Bluesky import: verify the handle and prefill the sheet.
-  const importBtn = document.getElementById("bsky-go");
-  const importStatus = document.getElementById("bsky-status");
-  const doImport = async () => {
-    const handle = document.getElementById("bsky-handle").value.trim().replace(/^@+/, "");
-    if (!handle) return;
-    importBtn.disabled = true;
-    importStatus.textContent = "Looking up @" + handle + "…";
-    try {
-      const p = await api(`/atproto/profile?handle=${encodeURIComponent(handle)}`);
-      const form = document.getElementById("enlist-form");
-      form.handle.value = p.handle;
-      if (!form.display_name.value) form.display_name.value = p.display_name;
-      if (!form.bio.value) form.bio.value = p.bio;
-      form.dataset.did = p.did;
-      form.dataset.avatar = p.avatar || "";
-      // Replace the two blank starter rows with suggested skills, if any.
-      if (p.suggested_skills?.length) {
-        skillRows.innerHTML = "";
-        p.suggested_skills.forEach((s) => addSkill(s.name, s.peak));
-      }
-      importStatus.innerHTML = `✓ Verified <strong>@${esc(p.handle)}</strong>${
-        p.avatar ? ` · <img src="${esc(p.avatar)}" alt="" style="width:20px;height:20px;border-radius:50%;vertical-align:middle">` : ""
-      } — review and adjust below.`;
-    } catch (e) {
-      importStatus.textContent = "✗ " + e.message;
-    } finally {
-      importBtn.disabled = false;
-    }
-  };
-  importBtn.addEventListener("click", doImport);
-  document.getElementById("bsky-handle").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") { e.preventDefault(); doImport(); }
-  });
+  if (editing) {
+    form.display_name.value = existing.display_name || "";
+    form.klass.value = existing.klass || "";
+    form.seeking.value = existing.seeking || "";
+    form.tagline.value = existing.tagline || "";
+    form.bio.value = existing.bio || "";
+    form.ai_augmented.checked = !!existing.ai_augmented;
+    (existing.skills || []).forEach((s) => addSkill(s.name, s.peak));
+    (existing.projects || []).forEach(addProject);
+    if (!existing.skills?.length) addSkill("", 80);
+  } else {
+    // Prefill from the logged-in user's own public Bluesky profile.
+    addSkill("", 80);
+    api(`/atproto/profile?handle=${encodeURIComponent(state.auth.handle)}`)
+      .then((p) => {
+        if (!form.display_name.value) form.display_name.value = p.display_name || "";
+        if (!form.bio.value) form.bio.value = p.bio || "";
+        if (p.suggested_skills?.length) {
+          skillRows.innerHTML = "";
+          p.suggested_skills.forEach((s) => addSkill(s.name, s.peak));
+        }
+      })
+      .catch(() => {});
+  }
 
-  document.getElementById("enlist-form").addEventListener("submit", async (e) => {
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const f = e.target;
     const skills = [...skillRows.querySelectorAll(".skill-line")]
       .map((r) => ({ name: r.querySelector(".s-name").value.trim(), peak: Number(r.querySelector(".s-peak").value) }))
       .filter((s) => s.name);
@@ -407,25 +480,22 @@ function renderEnlist() {
       }))
       .filter((p) => p.name);
     const body = {
-      display_name: f.display_name.value,
-      handle: f.handle.value,
-      klass: f.klass.value,
-      seeking: f.seeking.value,
-      tagline: f.tagline.value,
-      bio: f.bio.value,
-      ai_augmented: f.ai_augmented.checked,
-      did: f.dataset.did || "",
-      avatar: f.dataset.avatar || "",
+      display_name: form.display_name.value,
+      klass: form.klass.value,
+      seeking: form.seeking.value,
+      tagline: form.tagline.value,
+      bio: form.bio.value,
+      ai_augmented: form.ai_augmented.checked,
       skills,
       projects,
     };
     try {
-      const b = await api("/builders", { method: "POST", body });
+      const b = editing
+        ? await api(`/builders/${existing.id}`, { method: "PUT", body })
+        : await api("/builders", { method: "POST", body });
       await refresh();
-      state.me = String(b.id);
-      localStorage.setItem("bg_me", state.me);
-      identitySel.value = state.me;
-      toast(`Welcome, ${b.display_name}!`);
+      state.me = b.id;
+      toast(editing ? "Sheet updated!" : `Welcome, ${b.display_name}!`);
       tabs.forEach((x) => x.classList.toggle("active", x.dataset.view === "roster"));
       currentView = "roster";
       render();
@@ -436,6 +506,17 @@ function renderEnlist() {
 }
 
 // ---- boot ------------------------------------------------------------------
-refresh().then(render).catch((e) => {
-  app.innerHTML = `<p class="empty">Couldn't reach the guild hall: ${esc(e.message)}</p>`;
-});
+(async () => {
+  try {
+    await loadAuth();
+    await refresh();
+    renderAuthBar();
+    render();
+    const params = new URLSearchParams(location.search);
+    if (params.get("login") === "ok") toast("Logged in with Bluesky 🦋");
+    if (params.get("login") === "error") toast("Login failed — please try again", true);
+    if (params.has("login")) history.replaceState({}, "", "/");
+  } catch (e) {
+    app.innerHTML = `<p class="empty">Couldn't reach the guild hall: ${esc(e.message)}</p>`;
+  }
+})();

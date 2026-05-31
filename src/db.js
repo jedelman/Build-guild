@@ -130,6 +130,119 @@ export async function createGuild(env, body) {
   return getGuild(env, guildId);
 }
 
+// ---------- builder ownership + edit/delete ----------
+
+/** The builder a given DID owns (handle is identity), or null. */
+export async function getBuilderByDid(env, did) {
+  if (!did) return null;
+  const row = await env.DB.prepare("SELECT * FROM builders WHERE did = ?").bind(did).first();
+  return row ? getBuilder(env, row.id) : null;
+}
+
+/** Update a builder's editable fields and replace its skills/projects. */
+export async function updateBuilder(env, id, body) {
+  const { display_name, klass, tagline, bio, seeking, ai_augmented, avatar } = body;
+  if (!display_name?.trim()) throw new Error("display_name is required");
+  await env.DB.prepare(
+    `UPDATE builders SET display_name = ?, klass = ?, tagline = ?, bio = ?, avatar = ?, seeking = ?, ai_augmented = ?
+       WHERE id = ?`
+  )
+    .bind(
+      display_name.trim(),
+      klass?.trim() || "Generalist",
+      tagline || "",
+      bio || "",
+      avatar || "",
+      seeking || "",
+      ai_augmented ? 1 : 0,
+      id
+    )
+    .run();
+
+  // Replace skills/projects wholesale — simplest correct behaviour for an edit form.
+  const stmts = [
+    env.DB.prepare("DELETE FROM skills WHERE builder_id = ?").bind(id),
+    env.DB.prepare("DELETE FROM projects WHERE builder_id = ?").bind(id),
+  ];
+  for (const s of body.skills || []) {
+    if (!s?.name?.trim()) continue;
+    stmts.push(
+      env.DB.prepare("INSERT INTO skills (builder_id, name, peak) VALUES (?, ?, ?)").bind(
+        id,
+        s.name.trim(),
+        clampPeak(s.peak)
+      )
+    );
+  }
+  for (const p of body.projects || []) {
+    if (!p?.name?.trim()) continue;
+    stmts.push(
+      env.DB.prepare(
+        "INSERT INTO projects (builder_id, name, description, help_wanted, url) VALUES (?, ?, ?, ?, ?)"
+      ).bind(id, p.name.trim(), p.description || "", p.help_wanted || "", p.url || "")
+    );
+  }
+  await env.DB.batch(stmts);
+  return getBuilder(env, id);
+}
+
+/** Delete a builder. ON DELETE CASCADE clears skills/projects/memberships. */
+export async function deleteBuilder(env, id) {
+  await env.DB.prepare("DELETE FROM builders WHERE id = ?").bind(id).run();
+}
+
+// ---------- OAuth state + sessions ----------
+
+export async function saveAuthState(env, s) {
+  await env.DB.prepare(
+    `INSERT INTO oauth_auth_state (state, handle, did, pkce_verifier, dpop_jwk, token_endpoint, issuer, dpop_nonce)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+    .bind(
+      s.state,
+      s.handle,
+      s.did || "",
+      s.pkce_verifier,
+      s.dpop_jwk,
+      s.token_endpoint,
+      s.issuer,
+      s.dpop_nonce || ""
+    )
+    .run();
+}
+
+/** Fetch and consume (delete) an auth-state row by state. */
+export async function takeAuthState(env, state) {
+  const row = await env.DB.prepare("SELECT * FROM oauth_auth_state WHERE state = ?").bind(state).first();
+  if (row) await env.DB.prepare("DELETE FROM oauth_auth_state WHERE state = ?").bind(state).run();
+  return row;
+}
+
+export async function createSession(env, { did, handle, ttlSeconds = 60 * 60 * 24 * 30 }) {
+  const id = crypto.randomUUID() + crypto.randomUUID().replace(/-/g, "");
+  const expires = new Date(Date.now() + ttlSeconds * 1000).toISOString();
+  await env.DB.prepare("INSERT INTO sessions (id, did, handle, expires_at) VALUES (?, ?, ?, ?)")
+    .bind(id, did, handle, expires)
+    .run();
+  return { id, expires_at: expires };
+}
+
+/** Return a live session row, or null if missing/expired. */
+export async function getSession(env, id) {
+  if (!id) return null;
+  const row = await env.DB.prepare("SELECT * FROM sessions WHERE id = ?").bind(id).first();
+  if (!row) return null;
+  if (new Date(row.expires_at).getTime() < Date.now()) {
+    await deleteSession(env, id);
+    return null;
+  }
+  return row;
+}
+
+export async function deleteSession(env, id) {
+  await env.DB.prepare("DELETE FROM sessions WHERE id = ?").bind(id).run();
+}
+
 export async function joinGuild(env, guildId, builderId, role = "member") {
   await env.DB.prepare(
     "INSERT OR IGNORE INTO guild_members (guild_id, builder_id, role) VALUES (?, ?, ?)"
