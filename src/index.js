@@ -11,6 +11,7 @@ import {
   createGuild,
   joinGuild,
   leaveGuild,
+  suggestSkills,
   saveAuthState,
   takeAuthState,
   createSession,
@@ -91,6 +92,11 @@ async function route(request, env, url) {
   if (resource === "telemetry" && method === "POST") return ingestTelemetry(env, request);
 
   if (resource === "auth") return authRoute(request, env, url, id);
+
+  // Canonical-skill autocomplete for the Enlist form.
+  if (resource === "skills" && id === "suggest" && method === "GET") {
+    return json(await suggestSkills(env, url.searchParams.get("q") || ""));
+  }
 
   // Look up a Bluesky profile to verify a handle and prefill a character sheet.
   if (resource === "atproto" && id === "profile" && method === "GET") {

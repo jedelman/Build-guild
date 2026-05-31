@@ -38,3 +38,13 @@ INSERT INTO guild_members (guild_id, builder_id, role) VALUES
  (1,1,'founder'),
  (1,2,'officer'),
  (1,3,'member');
+
+-- Link the seeded skills to the canonical catalog, mirroring what
+-- migrations/0005_skill_catalog.sql does to existing data in prod. `db:reset`
+-- migrates an empty DB (so the migration's backfill is a no-op) and only then
+-- seeds, so the linkage has to happen here too. Idempotent across re-seeds.
+INSERT OR IGNORE INTO skill_catalog (slug, name)
+  SELECT lower(trim(name)), MIN(trim(name)) FROM skills GROUP BY lower(trim(name));
+UPDATE skills
+   SET skill_id = (SELECT id FROM skill_catalog c WHERE c.slug = lower(trim(skills.name)))
+ WHERE skill_id IS NULL;

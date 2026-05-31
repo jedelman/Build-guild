@@ -455,7 +455,8 @@ function renderEnlist(existing) {
     const div = document.createElement("div");
     div.className = "skill-line";
     div.innerHTML = `
-      <input class="s-name" placeholder="Skill (e.g. Rust)" value="${esc(name)}" />
+      <input class="s-name" placeholder="Skill (e.g. Rust)" value="${esc(name)}"
+        list="skill-options" autocomplete="off" />
       <span class="peak-num"><output>${peak}</output></span>
       <button type="button" class="btn ghost rm">✕</button>
       <input class="s-peak peak-slider" type="range" min="1" max="100" value="${peak}" style="grid-column:1/-1" />`;
@@ -478,6 +479,28 @@ function renderEnlist(existing) {
   };
   document.getElementById("add-skill").addEventListener("click", () => addSkill());
   document.getElementById("add-project").addEventListener("click", () => addProject());
+
+  // Canonical-skill autocomplete: one shared <datalist> the skill inputs read
+  // from (via list="skill-options"), refreshed from /api/skills/suggest as the
+  // builder types so they converge on existing skills instead of re-spelling.
+  const skillList = document.createElement("datalist");
+  skillList.id = "skill-options";
+  form.appendChild(skillList);
+  let sugTimer;
+  const refreshSkillOptions = (q) => {
+    clearTimeout(sugTimer);
+    sugTimer = setTimeout(() => {
+      api(`/skills/suggest?q=${encodeURIComponent(q || "")}`)
+        .then((items) => {
+          skillList.innerHTML = items.map((s) => `<option value="${esc(s.name)}"></option>`).join("");
+        })
+        .catch(() => {});
+    }, 150);
+  };
+  skillRows.addEventListener("input", (e) => {
+    if (e.target.classList.contains("s-name")) refreshSkillOptions(e.target.value);
+  });
+  refreshSkillOptions(""); // preload the most-used skills
 
   if (editing) {
     form.display_name.value = existing.display_name || "";

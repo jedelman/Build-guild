@@ -1,5 +1,6 @@
 // D1 data access for Build Guild.
 import { guildSkillMap, diversityScore, championRoster } from "./logic.js";
+import { skillSlug } from "./skills.js";
 
 const groupBy = (rows, key) => {
   const out = {};
@@ -9,6 +10,51 @@ const groupBy = (rows, key) => {
 
 const clampPeak = (v) => Math.max(1, Math.min(100, Math.round(Number(v) || 1)));
 const byPeak = (a, b) => b.peak - a.peak;
+
+/**
+ * Statements that (idempotently) ensure each skill's canonical catalog entry
+ * exists, then insert the builder's skill pointing at it and storing the
+ * canonical display name. Returned as an ordered list for `DB.batch`, which
+ * runs them in one transaction — so the catalog row is visible to the skill
+ * insert that immediately follows it.
+ */
+function skillInsertStmts(env, builderId, skills = []) {
+  const stmts = [];
+  for (const s of skills) {
+    if (!s?.name?.trim()) continue;
+    const name = s.name.trim();
+    const slug = skillSlug(name);
+    stmts.push(
+      env.DB.prepare("INSERT OR IGNORE INTO skill_catalog (slug, name) VALUES (?, ?)").bind(slug, name)
+    );
+    stmts.push(
+      env.DB.prepare(
+        `INSERT INTO skills (builder_id, name, peak, skill_id)
+         SELECT ?, c.name, ?, c.id FROM skill_catalog c WHERE c.slug = ?`
+      ).bind(builderId, clampPeak(s.peak), slug)
+    );
+  }
+  return stmts;
+}
+
+/** Canonical skills matching a query, prefix-first then by usage. For the
+ *  Enlist autocomplete. Empty query returns the most-used skills. */
+export async function suggestSkills(env, q = "", limit = 20) {
+  const slug = skillSlug(q);
+  const safe = slug.replace(/[%_\\]/g, "\\$&"); // neutralize LIKE wildcards
+  const { results } = await env.DB.prepare(
+    `SELECT c.id, c.name, COUNT(s.id) AS uses
+       FROM skill_catalog c
+       LEFT JOIN skills s ON s.skill_id = c.id
+      WHERE ? = '' OR c.slug LIKE ? ESCAPE '\\' OR c.slug LIKE ? ESCAPE '\\'
+      GROUP BY c.id, c.name
+      ORDER BY (c.slug LIKE ? ESCAPE '\\') DESC, uses DESC, c.name ASC
+      LIMIT ?`
+  )
+    .bind(slug, safe + "%", "%" + safe + "%", safe + "%", Math.min(Number(limit) || 20, 50))
+    .all();
+  return results.map((r) => ({ id: r.id, name: r.name, uses: r.uses }));
+}
 
 export async function listBuilders(env) {
   const { results: builders } = await env.DB.prepare(
@@ -59,17 +105,7 @@ export async function createBuilder(env, body) {
     .run();
   const builderId = res.meta.last_row_id;
 
-  const stmts = [];
-  for (const s of body.skills || []) {
-    if (!s?.name?.trim()) continue;
-    stmts.push(
-      env.DB.prepare("INSERT INTO skills (builder_id, name, peak) VALUES (?, ?, ?)").bind(
-        builderId,
-        s.name.trim(),
-        clampPeak(s.peak)
-      )
-    );
-  }
+  const stmts = skillInsertStmts(env, builderId, body.skills);
   for (const p of body.projects || []) {
     if (!p?.name?.trim()) continue;
     stmts.push(
@@ -163,17 +199,8 @@ export async function updateBuilder(env, id, body) {
   const stmts = [
     env.DB.prepare("DELETE FROM skills WHERE builder_id = ?").bind(id),
     env.DB.prepare("DELETE FROM projects WHERE builder_id = ?").bind(id),
+    ...skillInsertStmts(env, id, body.skills),
   ];
-  for (const s of body.skills || []) {
-    if (!s?.name?.trim()) continue;
-    stmts.push(
-      env.DB.prepare("INSERT INTO skills (builder_id, name, peak) VALUES (?, ?, ?)").bind(
-        id,
-        s.name.trim(),
-        clampPeak(s.peak)
-      )
-    );
-  }
   for (const p of body.projects || []) {
     if (!p?.name?.trim()) continue;
     stmts.push(
