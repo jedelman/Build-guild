@@ -63,26 +63,15 @@ async function loadAuth() {
 // Inline handle widget (the pattern other atproto apps use) instead of a
 // prompt(): a plain text field with autofill on and autocapitalize/correct off.
 function loginFormHTML(btnLabel = "Log in with Bluesky") {
-  // Native GET submit to /api/auth/login works even if JS never wires up; the
-  // submit handler below is a progressive enhancement (trims @, same target).
-  return `<form class="login-form" action="/api/auth/login" method="get">
+  // Native POST to /api/auth/login: works with zero JS, and POST is never
+  // served from the browser's GET cache (a stale GET was eating earlier
+  // attempts). The server trims a leading @ itself.
+  return `<form class="login-form" action="/api/auth/login" method="post">
     <input class="login-handle" name="handle" placeholder="you.bsky.social"
       autocomplete="username" autocapitalize="none" autocorrect="off"
       spellcheck="false" inputmode="email" aria-label="Bluesky handle" />
     <button class="btn gold" type="submit">${btnLabel}</button>
   </form>`;
-}
-
-function wireLoginForms(root = document) {
-  root.querySelectorAll(".login-form").forEach((f) => {
-    if (f.dataset.wired) return;
-    f.dataset.wired = "1";
-    f.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const handle = f.querySelector(".login-handle").value.trim().replace(/^@+/, "");
-      if (handle) window.location.href = "/api/auth/login?handle=" + encodeURIComponent(handle);
-    });
-  });
 }
 
 // Used by buttons that aren't themselves a form (e.g. in the guild drawer):
@@ -108,7 +97,6 @@ function renderAuthBar() {
     document.getElementById("logout-btn").addEventListener("click", logout);
   } else {
     authbar.innerHTML = loginFormHTML();
-    wireLoginForms(authbar);
   }
 }
 
@@ -161,8 +149,7 @@ function renderGuilds() {
       ${loggedOut ? "" : '<button class="btn" id="new-guild">+ Found a guild</button>'}
     </div>
     <div class="grid" id="guild-grid"></div>`;
-  if (loggedOut) wireLoginForms(app);
-  else document.getElementById("new-guild").addEventListener("click", foundGuildPrompt);
+  if (!loggedOut) document.getElementById("new-guild").addEventListener("click", foundGuildPrompt);
 
   const grid = document.getElementById("guild-grid");
   if (!state.guilds.length) {
@@ -415,7 +402,6 @@ function renderEnlist(existing) {
         <p>Log in with Bluesky to create your builder.</p>
         ${loginFormHTML()}
       </div>`;
-    wireLoginForms(app);
     return;
   }
   if (!existing && state.me) {

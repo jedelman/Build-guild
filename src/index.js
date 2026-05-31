@@ -40,7 +40,7 @@ const SESSION_COOKIE = "bg_session";
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), {
     status,
-    headers: { "content-type": "application/json; charset=utf-8" },
+    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
   });
 const fail = (message, status = 400) => json({ error: message }, status);
 
@@ -183,7 +183,9 @@ async function sessionBuilder(request, env) {
 // ---------- OAuth routes ----------
 
 async function authRoute(request, env, url, action) {
-  if (action === "login" && request.method === "GET") return authLogin(env, url);
+  // POST (the login form's method) is never served from cache; GET still works.
+  if (action === "login" && (request.method === "POST" || request.method === "GET"))
+    return authLogin(request, env, url);
   if (action === "callback" && request.method === "GET") return authCallback(env, url);
   if (action === "me" && request.method === "GET") {
     const session = await currentSession(request, env);
@@ -210,8 +212,16 @@ async function authRoute(request, env, url, action) {
   return null;
 }
 
-async function authLogin(env, url) {
-  const handle = url.searchParams.get("handle");
+async function authLogin(request, env, url) {
+  let handle = url.searchParams.get("handle");
+  if (!handle && request.method === "POST") {
+    try {
+      handle = (await request.formData()).get("handle");
+    } catch {
+      /* fall through to missing-handle */
+    }
+  }
+  handle = (handle || "").trim();
   if (!handle) return loginErrorRedirect("missing handle");
 
   const cm = clientMetadata(url.origin);
@@ -258,7 +268,7 @@ async function authLogin(env, url) {
     const authUrl = `${meta.authorization_endpoint}?client_id=${encodeURIComponent(
       cm.client_id
     )}&request_uri=${encodeURIComponent(par.request_uri)}`;
-    return Response.redirect(authUrl, 302);
+    return redirectHome(authUrl); // generic no-store 302
   } catch (e) {
     // Redirect (not raw JSON) so the user lands on a real page and the
     // client telemetry uploads the failure trace.
@@ -328,7 +338,7 @@ async function authCallback(env, url) {
 
   await logAuthEvent(env, "callback_ok", { handle: st.handle, did, detail: "session created" });
   const session = await createSession(env, { did, handle: st.handle });
-  const headers = new Headers({ location: "/?login=ok" });
+  const headers = new Headers({ location: "/?login=ok", "cache-control": "no-store" });
   headers.append(
     "set-cookie",
     serializeCookie(SESSION_COOKIE, session.id, { maxAge: 60 * 60 * 24 * 30 })
@@ -336,7 +346,10 @@ async function authCallback(env, url) {
   return new Response(null, { status: 302, headers });
 }
 
-const redirectHome = (location) => new Response(null, { status: 302, headers: { location } });
+// All auth redirects are no-store: OAuth endpoints must never be cached, or a
+// browser can replay a stale response instead of hitting the server.
+const redirectHome = (location) =>
+  new Response(null, { status: 302, headers: { location, "cache-control": "no-store" } });
 
 // Every login failure (initiation or callback) lands here: a clean redirect
 // with the reason in the query string, so it's visible to the user and the
