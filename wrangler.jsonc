@@ -17,21 +17,9 @@
       // was created with `wrangler d1 create build_guild`.
       "database_id": "80ab167e-706f-427a-8bab-5df04035b3f2"
     }
-  ],
-  // Preview environment for PR deployments. `wrangler ... --env preview`
-  // targets a separate Worker (build-guild-preview) bound to a shared
-  // staging D1 database, so previews never touch production data. Bindings
-  // are NOT inherited by named environments, so DB is redefined here; the
-  // rest (main, assets, compatibility_date, observability) is inherited.
-  "env": {
-    "preview": {
-      "d1_databases": [
-        {
-          "binding": "DB",
-          "database_name": "build_guild_preview",
-          "database_id": "f5c84a07-89bb-4e93-bd7e-628e68eb7c0d"
-        }
-      ]
-    }
-  }
+  ]
+  // Per-PR preview environments are NOT defined here. Each pull request gets
+  // its own throwaway Worker + D1 database, provisioned at deploy time from
+  // .github/preview/wrangler.template.jsonc by .github/workflows/preview.yml,
+  // and destroyed on PR close by .github/workflows/preview-cleanup.yml.
 }

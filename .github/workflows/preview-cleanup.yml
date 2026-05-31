@@ -1,0 +1,84 @@
+name: Preview cleanup
+
+# Tears down a PR's ephemeral preview environment when the PR is closed
+# (merged or not): deletes the build-guild-pr-<N> Worker and the
+# build_guild_pr_<N> D1 database created by preview.yml.
+#
+# Uses the Cloudflare REST API directly so the deletes are non-interactive
+# and idempotent (a missing resource is treated as already cleaned up).
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Delete ephemeral Worker + database
+        run: |
+          set -uo pipefail
+          WORKER_NAME="build-guild-pr-${PR_NUMBER}"
+          DB_NAME="build_guild_pr_${PR_NUMBER}"
+          API="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}"
+
+          # Delete the Worker (ignore if it was never created).
+          if curl -fsS -X DELETE "${API}/workers/scripts/${WORKER_NAME}" \
+               -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" >/dev/null; then
+            echo "Deleted Worker ${WORKER_NAME}"
+          else
+            echo "Worker ${WORKER_NAME} not present"
+          fi
+
+          # Delete the D1 database by id (look it up by name first).
+          DB_ID="$(npx wrangler d1 list --json \
+            | jq -r --arg n "$DB_NAME" '.[] | select(.name==$n) | .uuid')"
+          if [ -n "$DB_ID" ] && [ "$DB_ID" != "null" ]; then
+            curl -fsS -X DELETE "${API}/d1/database/${DB_ID}" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" >/dev/null \
+              && echo "Deleted database ${DB_NAME} (${DB_ID})"
+          else
+            echo "Database ${DB_NAME} not present"
+          fi
+
+      - name: Mark the preview comment torn down
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- build-guild-preview -->';
+            const body = [
+              marker,
+              '### 🔭 Preview deployment',
+              '',
+              `🧹 Torn down — the ephemeral Worker and database for PR #${context.issue.number} have been deleted.`,
+            ].join('\n');
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            }

@@ -81,21 +81,26 @@ wrangler d1 create build_guild      # paste the id into wrangler.jsonc → d1_da
 Then merging to `main` deploys automatically. Migrations live in `migrations/` and are
 applied with `wrangler d1 migrations apply` (non-destructive, unlike `schema.sql`).
 
-### Preview deployments (per-PR)
-`.github/workflows/preview.yml` gives every pull request its own live preview without
-touching production:
+### Preview deployments (per-PR, ephemeral)
+`.github/workflows/preview.yml` gives every pull request its **own isolated** live
+preview — a throwaway Worker and D1 database, torn down when the PR closes:
 
 - Runs the test suite (forks included).
-- Applies pending migrations to a **shared staging** database (`build_guild_preview`),
-  then deploys a separate `build-guild-preview` Worker via
-  `wrangler deploy --env preview`.
-- Comments the preview URL on the PR, refreshed on every push.
+- Provisions a per-PR database `build_guild_pr_<N>`. On first creation it's a **full
+  copy of production** (`wrangler d1 export build_guild` → import), then branch
+  migrations are applied on top, so the preview runs the PR's code against
+  production-shaped data.
+- Renders a per-PR wrangler config from `.github/preview/wrangler.template.jsonc` and
+  deploys a `build-guild-pr-<N>` Worker bound to that database.
+- Comments the unique preview URL on the PR, redeployed on every push.
 
-The `preview` environment is defined in `wrangler.jsonc` under `env.preview` and binds
-`DB` to the staging database, so previews exercise real schema changes against
-throwaway data. Production D1 (`build_guild`) is only ever written by the `main` deploy.
-Because staging is shared across open PRs, concurrent PRs can see each other's writes —
-fine for review, not isolated test fixtures.
+`.github/workflows/preview-cleanup.yml` runs on PR close and deletes both the Worker and
+the database via the Cloudflare API, so nothing is left orphaned.
+
+Because each PR has its own copy, previews are fully isolated from each other and from
+production. Note the copy includes **real production data** — fine for this app, but if
+the database ever holds sensitive data, switch the clone step to schema-only
+(`wrangler d1 export --no-data`) plus a re-seed.
 
 ### Manually
 ```bash
