@@ -1,7 +1,12 @@
 // Build Guild — front-end. Vanilla JS, talks to the Worker's /api.
 
 import { initTelemetry, reportBug, flush } from "./telemetry.js";
-initTelemetry();
+// Telemetry must never be able to break the app.
+try {
+  initTelemetry();
+} catch (e) {
+  console.warn("telemetry init failed", e);
+}
 
 const app = document.getElementById("app");
 const drawer = document.getElementById("drawer");
@@ -58,7 +63,9 @@ async function loadAuth() {
 // Inline handle widget (the pattern other atproto apps use) instead of a
 // prompt(): a plain text field with autofill on and autocapitalize/correct off.
 function loginFormHTML(btnLabel = "Log in with Bluesky") {
-  return `<form class="login-form">
+  // Native GET submit to /api/auth/login works even if JS never wires up; the
+  // submit handler below is a progressive enhancement (trims @, same target).
+  return `<form class="login-form" action="/api/auth/login" method="get">
     <input class="login-handle" name="handle" placeholder="you.bsky.social"
       autocomplete="username" autocapitalize="none" autocorrect="off"
       spellcheck="false" inputmode="email" aria-label="Bluesky handle" />
