@@ -63,26 +63,30 @@ jobs:
 
       # Find or create this PR's database, then render a wrangler config that
       # points a build-guild-pr-<N> Worker at it.
+      #
+      # Note: we use the Cloudflare REST API (not `wrangler d1 list --json`)
+      # for the lookup/create, because wrangler prints human-readable notices
+      # to stdout that corrupt JSON parsing.
       - name: Provision ephemeral database + config
         id: provision
         run: |
           set -euo pipefail
           WORKER_NAME="build-guild-pr-${PR_NUMBER}"
           DB_NAME="build_guild_pr_${PR_NUMBER}"
+          API="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}"
+          AUTH="Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
 
-          db_id() {
-            npx wrangler d1 list --json \
-              | jq -r --arg n "$DB_NAME" '.[] | select(.name==$n) | .uuid'
-          }
-
-          DB_ID="$(db_id)"
+          DB_ID="$(curl -fsS "${API}/d1/database?name=${DB_NAME}" -H "$AUTH" \
+            | jq -r '.result[0].uuid // empty')"
           NEW_DB=0
-          if [ -z "$DB_ID" ] || [ "$DB_ID" = "null" ]; then
+          if [ -z "$DB_ID" ]; then
             echo "Creating database $DB_NAME"
-            npx wrangler d1 create "$DB_NAME" >/dev/null
-            DB_ID="$(db_id)"
+            DB_ID="$(curl -fsS -X POST "${API}/d1/database" -H "$AUTH" \
+              -H 'Content-Type: application/json' \
+              --data "{\"name\":\"${DB_NAME}\"}" | jq -r '.result.uuid')"
             NEW_DB=1
           fi
+          [ -n "$DB_ID" ] && [ "$DB_ID" != "null" ] || { echo "Could not resolve database id"; exit 1; }
           echo "Database $DB_NAME -> $DB_ID (new=$NEW_DB)"
 
           # Keep compatibility_date in lock-step with the committed config.

@@ -24,13 +24,6 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-
       - name: Delete ephemeral Worker + database
         run: |
           set -uo pipefail
@@ -46,9 +39,10 @@ jobs:
             echo "Worker ${WORKER_NAME} not present"
           fi
 
-          # Delete the D1 database by id (look it up by name first).
-          DB_ID="$(npx wrangler d1 list --json \
-            | jq -r --arg n "$DB_NAME" '.[] | select(.name==$n) | .uuid')"
+          # Delete the D1 database by id (look it up by name via the REST API).
+          DB_ID="$(curl -fsS "${API}/d1/database?name=${DB_NAME}" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            | jq -r '.result[0].uuid // empty')"
           if [ -n "$DB_ID" ] && [ "$DB_ID" != "null" ]; then
             curl -fsS -X DELETE "${API}/d1/database/${DB_ID}" \
               -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" >/dev/null \
