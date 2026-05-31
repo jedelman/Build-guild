@@ -87,9 +87,9 @@ touching production:
 
 - Runs the test suite (forks included).
 - Applies pending migrations to a **shared staging** database (`build_guild_preview`),
-  then uploads a new *version* of a separate `build-guild-preview` Worker via
-  `wrangler versions upload --env preview`.
-- Comments the unique preview URL on the PR, refreshed on every push.
+  then deploys a separate `build-guild-preview` Worker via
+  `wrangler deploy --env preview`.
+- Comments the preview URL on the PR, refreshed on every push.
 
 The `preview` environment is defined in `wrangler.jsonc` under `env.preview` and binds
 `DB` to the staging database, so previews exercise real schema changes against
