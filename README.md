@@ -20,7 +20,7 @@ and **recruit suggestions** that fill the party's current gaps.
 ## Stack
 
 - **Cloudflare Workers** — API + static asset serving (`src/index.js`)
-- **Cloudflare D1** (SQLite at the edge) — `schema.sql`
+- **Cloudflare D1** (SQLite at the edge) — schema in `migrations/`
 - Vanilla JS / CSS front-end in `public/` (no build step)
 - Pure, dependency-free guild math in `src/logic.js` (unit-tested)
 
@@ -28,11 +28,12 @@ and **recruit suggestions** that fill the party's current gaps.
 
 ```bash
 npm install
-npm run db:reset      # create local D1 tables (schema.sql) + seed sample roster (seed.sql)
+npm run db:reset      # apply migrations/ to local D1 + seed sample roster (seed.sql)
 npm run dev           # wrangler dev → http://localhost:8787
 ```
 
-`db:reset` runs against the **local** D1 instance used by `wrangler dev`.
+`db:reset` runs against the **local** D1 instance used by `wrangler dev`
+(`db:migrate` applies `migrations/`, then `db:seed` loads `seed.sql`).
 
 ## Tests
 
@@ -79,6 +80,22 @@ wrangler d1 create build_guild      # paste the id into wrangler.jsonc → d1_da
 ```
 Then merging to `main` deploys automatically. Migrations live in `migrations/` and are
 applied with `wrangler d1 migrations apply` (non-destructive, unlike `schema.sql`).
+
+### Preview deployments (per-PR)
+`.github/workflows/preview.yml` gives every pull request its own live preview without
+touching production:
+
+- Runs the test suite (forks included).
+- Applies pending migrations to a **shared staging** database (`build_guild_preview`),
+  then uploads a new *version* of a separate `build-guild-preview` Worker via
+  `wrangler versions upload --env preview`.
+- Comments the unique preview URL on the PR, refreshed on every push.
+
+The `preview` environment is defined in `wrangler.jsonc` under `env.preview` and binds
+`DB` to the staging database, so previews exercise real schema changes against
+throwaway data. Production D1 (`build_guild`) is only ever written by the `main` deploy.
+Because staging is shared across open PRs, concurrent PRs can see each other's writes —
+fine for review, not isolated test fixtures.
 
 ### Manually
 ```bash
