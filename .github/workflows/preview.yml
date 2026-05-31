@@ -61,6 +61,22 @@ jobs:
           cache: npm
       - run: npm ci
 
+      # Defensive cleanup: a Cloudflare API token is 40 chars with no
+      # whitespace. If the secret was pasted with surrounding quotes, a
+      # "Bearer " prefix, or a trailing newline, strip them so a fundamentally
+      # valid token isn't rejected for cosmetic reasons. Re-export the cleaned
+      # value (masked) for every later step, including wrangler.
+      - name: Sanitize Cloudflare API token
+        run: |
+          t="${CLOUDFLARE_API_TOKEN}"
+          t="${t#Bearer }"
+          t="${t#\"}"; t="${t%\"}"
+          t="${t#\'}"; t="${t%\'}"
+          t="$(printf '%s' "$t" | tr -d '[:space:]')"
+          echo "::add-mask::$t"
+          echo "CLOUDFLARE_API_TOKEN=$t" >> "$GITHUB_ENV"
+          echo "raw length: ${#CLOUDFLARE_API_TOKEN}, sanitized length: ${#t} (expected 40)"
+
       # Find or create this PR's database, then render a wrangler config that
       # points a build-guild-pr-<N> Worker at it.
       #
