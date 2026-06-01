@@ -269,6 +269,12 @@ form.enlist label input, form.enlist label textarea { text-transform: none; lett
 .endorse-btn { padding: 0.3rem 0.7rem; font-size: 0.78rem; }
 .endorse-btn.endorsed { color: var(--good); border-color: var(--accent-deep); }
 
+/* Endorser relationship-tier chips (stronger ties read with more colour) */
+.tier-chip { display: inline-block; font-size: 0.7rem; padding: 0.05rem 0.4rem; border-radius: var(--r-pill); border: 1px solid var(--line-strong); }
+.tier-chip.tier-client { color: var(--gold-soft); border-color: var(--gold-deep); background: rgba(216, 177, 90, 0.08); }
+.tier-chip.tier-leader { color: var(--gold-soft); border-color: var(--gold-deep); }
+.tier-chip.tier-guildmate { color: var(--accent); border-color: var(--accent-deep); }
+
 /* ---- footer ---------------------------------------------------------------*/
 .foot { text-align: center; color: var(--faint); font-size: 0.8rem; padding: var(--s6) var(--s4) var(--s7); border-top: 1px solid var(--line); margin-top: var(--s7); }
 .foot a { color: var(--ink-dim); }
