@@ -182,6 +182,7 @@ main { max-width: var(--maxw); margin: 0 auto; padding: var(--s6) var(--s5); }
 .badges { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s3); }
 .badge { font-size: 0.7rem; padding: 0.22rem 0.55rem; border-radius: var(--r-pill); border: 1px solid var(--line-strong); color: var(--ink-dim); letter-spacing: 0.01em; }
 .badge.ai { color: var(--good); border-color: var(--accent-deep); }
+.badge.ok { color: var(--good); border-color: #2f5a44; }
 .badge.role { color: var(--gold-soft); border-color: var(--gold-deep); }
 
 /* ---- guild power meter ----------------------------------------------------*/

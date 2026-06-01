@@ -1,5 +1,11 @@
 // D1 data access for Build Guild.
-import { guildSkillMap, diversityScore, championRoster, consensusPeak } from "./logic.js";
+import {
+  guildSkillMap,
+  diversityScore,
+  championRoster,
+  consensusPeak,
+  rankPartiesForQuest,
+} from "./logic.js";
 import { skillSlug, endorsementTier } from "./skills.js";
 import { resolveDidToPds } from "./oauth.js";
 
@@ -445,4 +451,100 @@ export async function leaveGuild(env, guildId, builderId) {
   await env.DB.prepare("DELETE FROM guild_members WHERE guild_id = ? AND builder_id = ?")
     .bind(guildId, builderId)
     .run();
+}
+
+// ---------- quests (#6) ----------
+
+/** List quests (newest first), each with its required canonical skills. */
+export async function listQuests(env) {
+  const { results: quests } = await env.DB.prepare(
+    "SELECT * FROM quests ORDER BY (status='open') DESC, created_at DESC, id DESC"
+  ).all();
+  if (!quests.length) return [];
+  const { results: qskills } = await env.DB.prepare("SELECT * FROM quest_skills").all();
+  const byQuest = groupBy(qskills, "quest_id");
+  return quests.map((q) => ({ ...q, skills: (byQuest[q.id] || []).map((s) => ({ name: s.name })) }));
+}
+
+/** A single quest with its required skills + skill-matched party suggestions. */
+export async function getQuest(env, id) {
+  const quest = await env.DB.prepare("SELECT * FROM quests WHERE id = ?").bind(id).first();
+  if (!quest) return null;
+  const { results: qskills } = await env.DB.prepare(
+    "SELECT * FROM quest_skills WHERE quest_id = ?"
+  ).bind(id).all();
+  const required = qskills.map((s) => ({ name: s.name }));
+
+  // Candidate parties: every guild (with consensus-peak member skills) plus each
+  // builder as a party of one. Reuse the pure matchmaking from logic.js.
+  const guilds = await listGuilds(env);
+  const parties = [];
+  for (const g of guilds) {
+    const full = await getGuild(env, g.id);
+    if (full) parties.push({ kind: "guild", id: g.id, name: g.name, members: full.members });
+  }
+  for (const b of await listBuilders(env)) {
+    parties.push({ kind: "builder", id: b.id, name: b.display_name, members: [{ skills: b.skills }] });
+  }
+  const ranked = rankPartiesForQuest(required, parties)
+    .filter((r) => r.coverage > 0)
+    .slice(0, 8)
+    .map((r) => ({
+      kind: r.party.kind,
+      id: r.party.id,
+      name: r.party.name,
+      coverage: Math.round(r.coverage * 100),
+      covered: r.covered,
+      missing: r.missing,
+    }));
+
+  return { ...quest, skills: required, suggested_parties: ranked };
+}
+
+/** Post a quest as the verified patron (DID/handle from the session). */
+export async function createQuest(env, { patron_did, patron_handle }, body) {
+  if (!body?.title?.trim()) throw new Error("quest title is required");
+  const res = await env.DB.prepare(
+    "INSERT INTO quests (patron_did, patron_handle, title, brief, reward) VALUES (?, ?, ?, ?, ?)"
+  )
+    .bind(patron_did, patron_handle || "", body.title.trim(), body.brief || "", body.reward || "")
+    .run();
+  const questId = res.meta.last_row_id;
+
+  const stmts = [];
+  for (const s of body.skills || []) {
+    const name = (s?.name || s || "").toString().trim();
+    if (!name) continue;
+    const slug = skillSlug(name);
+    stmts.push(env.DB.prepare("INSERT OR IGNORE INTO skill_catalog (slug, name) VALUES (?, ?)").bind(slug, name));
+    stmts.push(
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO quest_skills (quest_id, skill_id, name)
+         SELECT ?, c.id, c.name FROM skill_catalog c WHERE c.slug = ?`
+      ).bind(questId, slug)
+    );
+  }
+  if (stmts.length) await env.DB.batch(stmts);
+  return getQuest(env, questId);
+}
+
+/** Claim a quest as a guild or an individual builder. Only an open quest. */
+export async function claimQuest(env, id, { guildId = null, builderId = null }) {
+  const quest = await env.DB.prepare("SELECT * FROM quests WHERE id = ?").bind(id).first();
+  if (!quest) throw new Error("quest not found");
+  if (quest.status !== "open") throw new Error("quest is no longer open");
+  await env.DB.prepare(
+    "UPDATE quests SET status='claimed', claimed_guild_id=?, claimed_builder_id=? WHERE id=?"
+  )
+    .bind(guildId, builderId, id)
+    .run();
+  return getQuest(env, id);
+}
+
+/** Advance a quest's status (patron only — enforced in the route). */
+export async function setQuestStatus(env, id, status) {
+  const allowed = ["open", "claimed", "delivered", "closed"];
+  if (!allowed.includes(status)) throw new Error("invalid status");
+  await env.DB.prepare("UPDATE quests SET status=? WHERE id=?").bind(status, id).run();
+  return getQuest(env, id);
 }
