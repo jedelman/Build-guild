@@ -1,0 +1,13 @@
+{
+  "name": "Build Guild",
+  "short_name": "Build Guild",
+  "description": "Don't job-hunt alone. Team up and combine your skill-peaks.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0a0f",
+  "theme_color": "#0b0a0f",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon-180.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

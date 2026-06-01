@@ -9,6 +9,17 @@
       content="Build Guild — don't job-hunt alone. Publish your character sheet, form a suitably diverse guild, and combine your skill-peaks."
     />
     <title>Build Guild — mutual aid for builders</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icon-180.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta property="og:title" content="Build Guild — don't job-hunt alone" />
+    <meta
+      property="og:description"
+      content="Publish your character sheet, form a suitably diverse guild, and combine your skill-peaks. Skill strength is what peers vouch for."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/og.svg" />
+    <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -37,7 +48,7 @@
 
     <main id="app"></main>
 
-    <div id="drawer" class="drawer hidden">
+    <div id="drawer" class="drawer hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Details">
       <div class="drawer-panel">
         <button class="drawer-close" id="drawer-close" aria-label="Close">✕</button>
         <div id="drawer-body"></div>

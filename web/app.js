@@ -351,16 +351,44 @@ function builderCard(b) {
 }
 
 // ---- drawer: builder + guild detail ---------------------------------------
+let lastFocused = null;
 function openDrawer(html) {
+  lastFocused = document.activeElement;
   drawerBody.innerHTML = html;
   drawer.classList.remove("hidden");
+  drawer.setAttribute("aria-hidden", "false");
+  // Move focus into the panel for keyboard + screen-reader users.
+  const first = drawer.querySelector(".drawer-close");
+  if (first) first.focus();
 }
 function closeDrawer() {
   drawer.classList.add("hidden");
+  drawer.setAttribute("aria-hidden", "true");
+  if (lastFocused && lastFocused.focus) lastFocused.focus();
+  lastFocused = null;
 }
 document.getElementById("drawer-close").addEventListener("click", closeDrawer);
 drawer.addEventListener("click", (e) => {
   if (e.target === drawer) closeDrawer();
+});
+// Esc closes; Tab is trapped within the open drawer.
+document.addEventListener("keydown", (e) => {
+  if (drawer.classList.contains("hidden")) return;
+  if (e.key === "Escape") return closeDrawer();
+  if (e.key !== "Tab") return;
+  const focusables = drawer.querySelectorAll(
+    'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  );
+  if (!focusables.length) return;
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
 });
 
 const ENDORSEMENT_COLLECTION = "org.buildguild.endorsement";
@@ -368,12 +396,39 @@ const ENDORSEMENT_COLLECTION = "org.buildguild.endorsement";
 // A skill row in a builder's drawer: the bar plus an endorsement count and, for
 // other people's skills, an Endorse / Endorsed✓ toggle. Whether *you* endorsed
 // it is computed from the endorsement list against your own DID.
+// Relationship-tier presentation. Stronger ties read with more weight/colour;
+// "none" (a stranger's vouch) stays quiet so it doesn't overclaim.
+const TIER_META = {
+  client: { label: "client", cls: "tier-client" },
+  guild_leader: { label: "guild leader", cls: "tier-leader" },
+  guildmate: { label: "guildmate", cls: "tier-guildmate" },
+  none: { label: "", cls: "tier-none" },
+};
+
+// Summarize who endorsed, grouped by relationship tier (strongest first).
+function endorserSummary(list) {
+  if (!list.length) return "";
+  const order = ["client", "guild_leader", "guildmate", "none"];
+  const counts = {};
+  for (const e of list) counts[e.tier || "none"] = (counts[e.tier || "none"] || 0) + 1;
+  const parts = order
+    .filter((t) => counts[t])
+    .map((t) =>
+      t === "none"
+        ? `${counts[t]} other${counts[t] === 1 ? "" : "s"}`
+        : `<span class="tier-chip ${TIER_META[t].cls}">${counts[t]} ${TIER_META[t].label}${counts[t] === 1 ? "" : "s"}</span>`
+    );
+  return parts.join(" ");
+}
+
 function drawerSkill(s, builder, mine) {
   const list = s.endorsements || [];
   const youEndorsed = state.auth.authenticated && list.some((e) => e.endorser_did === state.auth.did);
   const count = s.endorsement_count ?? list.length;
   const canEndorse = state.auth.authenticated && !mine && builder.did;
-  const countLabel = count ? `${count} endorsement${count === 1 ? "" : "s"}` : "no endorsements yet";
+  const countLabel = count
+    ? `${count} endorsement${count === 1 ? "" : "s"} · ${endorserSummary(list)}`
+    : "no endorsements yet";
   return `
     ${skillBar(s)}
     <div class="endorse-row">
@@ -917,13 +972,26 @@ document.addEventListener("submit", async (e) => {
   }
 });
 
+// Skeleton placeholder shown while the first data load is in flight, so the
+// initial paint has structure instead of a blank page.
+function showLoadingSkeleton() {
+  const card = `<div class="skeleton-card" aria-hidden="true">
+    <div class="sk-line head"></div><div class="sk-line"></div><div class="sk-line sm"></div></div>`;
+  app.innerHTML = `<div class="section-head"><div><div class="sk-line head" style="width:160px"></div></div></div>
+    <div class="grid">${card.repeat(6)}</div>`;
+  app.setAttribute("aria-busy", "true");
+}
+
 (async () => {
   try {
+    showLoadingSkeleton();
     await initAtprotoAuth();
     await refresh();
     renderAuthBar();
+    app.removeAttribute("aria-busy");
     render();
   } catch (e) {
+    app.removeAttribute("aria-busy");
     app.innerHTML = `<p class="empty">Couldn't reach the guild hall: ${esc(e.message)}</p>`;
   }
 })();
