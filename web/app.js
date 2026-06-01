@@ -351,16 +351,44 @@ function builderCard(b) {
 }
 
 // ---- drawer: builder + guild detail ---------------------------------------
+let lastFocused = null;
 function openDrawer(html) {
+  lastFocused = document.activeElement;
   drawerBody.innerHTML = html;
   drawer.classList.remove("hidden");
+  drawer.setAttribute("aria-hidden", "false");
+  // Move focus into the panel for keyboard + screen-reader users.
+  const first = drawer.querySelector(".drawer-close");
+  if (first) first.focus();
 }
 function closeDrawer() {
   drawer.classList.add("hidden");
+  drawer.setAttribute("aria-hidden", "true");
+  if (lastFocused && lastFocused.focus) lastFocused.focus();
+  lastFocused = null;
 }
 document.getElementById("drawer-close").addEventListener("click", closeDrawer);
 drawer.addEventListener("click", (e) => {
   if (e.target === drawer) closeDrawer();
+});
+// Esc closes; Tab is trapped within the open drawer.
+document.addEventListener("keydown", (e) => {
+  if (drawer.classList.contains("hidden")) return;
+  if (e.key === "Escape") return closeDrawer();
+  if (e.key !== "Tab") return;
+  const focusables = drawer.querySelectorAll(
+    'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  );
+  if (!focusables.length) return;
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
 });
 
 const ENDORSEMENT_COLLECTION = "org.buildguild.endorsement";
@@ -917,13 +945,26 @@ document.addEventListener("submit", async (e) => {
   }
 });
 
+// Skeleton placeholder shown while the first data load is in flight, so the
+// initial paint has structure instead of a blank page.
+function showLoadingSkeleton() {
+  const card = `<div class="skeleton-card" aria-hidden="true">
+    <div class="sk-line head"></div><div class="sk-line"></div><div class="sk-line sm"></div></div>`;
+  app.innerHTML = `<div class="section-head"><div><div class="sk-line head" style="width:160px"></div></div></div>
+    <div class="grid">${card.repeat(6)}</div>`;
+  app.setAttribute("aria-busy", "true");
+}
+
 (async () => {
   try {
+    showLoadingSkeleton();
     await initAtprotoAuth();
     await refresh();
     renderAuthBar();
+    app.removeAttribute("aria-busy");
     render();
   } catch (e) {
+    app.removeAttribute("aria-busy");
     app.innerHTML = `<p class="empty">Couldn't reach the guild hall: ${esc(e.message)}</p>`;
   }
 })();
