@@ -6,12 +6,13 @@ import {
   consensusPeak,
   rankPartiesForQuest,
 } from "./logic.js";
-import { skillSlug, endorsementTier } from "./skills.js";
+import { skillSlug, endorsementTier, classifyRepo } from "./skills.js";
 import { resolveDidToPds } from "./oauth.js";
 
 // atproto collections in a builder's own PDS (source of truth; D1 indexes them).
 const SKILL_COLLECTION = "org.buildguild.skill";
 const ENDORSEMENT_COLLECTION = "org.buildguild.endorsement";
+const REPO_COLLECTION = "org.buildguild.repo";
 
 const groupBy = (rows, key) => {
   const out = {};
@@ -73,6 +74,52 @@ export async function syncBuilderSkills(env, builderId) {
         ).bind(escoUri, escoLabel, slug)
       );
     }
+  }
+  await env.DB.batch(stmts);
+  return getBuilder(env, builderId);
+}
+
+/**
+ * Rebuild a builder's linked-repo index from org.buildguild.repo records in
+ * their own atproto repo (read via public listRecords; never trust the client).
+ * Tangled repos under the builder's own DID/handle are marked verified.
+ */
+export async function syncBuilderRepos(env, builderId) {
+  const builder = await env.DB.prepare("SELECT id, did, handle FROM builders WHERE id = ?").bind(builderId).first();
+  if (!builder) throw new Error("builder not found");
+  if (!builder.did) throw new Error("builder has no verified DID");
+
+  const pds = await resolveDidToPds(builder.did);
+  const url =
+    `${pds}/xrpc/com.atproto.repo.listRecords?repo=${encodeURIComponent(builder.did)}` +
+    `&collection=${REPO_COLLECTION}&limit=100`;
+  const res = await fetch(url, { headers: { accept: "application/json" } });
+  if (!res.ok) throw new Error(`listRecords failed: ${res.status}`);
+  const { records = [] } = await res.json();
+
+  const stmts = [env.DB.prepare("DELETE FROM repos WHERE builder_id = ?").bind(builderId)];
+  for (const rec of records) {
+    const v = rec?.value || {};
+    const repoUrl = String(v.url || "").trim();
+    const name = String(v.name || "").trim();
+    if (!repoUrl || !name) continue;
+    // Trust the record's host hint, but recompute verification from identity.
+    const { host, verified } = classifyRepo(repoUrl, { handle: builder.handle, did: builder.did });
+    stmts.push(
+      env.DB.prepare(
+        `INSERT INTO repos (builder_id, host, name, url, description, verified, at_uri, cid)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(
+        builderId,
+        host || String(v.host || ""),
+        name,
+        repoUrl,
+        String(v.description || "").slice(0, 300),
+        verified ? 1 : 0,
+        rec.uri || "",
+        rec.cid || ""
+      )
+    );
   }
   await env.DB.batch(stmts);
   return getBuilder(env, builderId);
@@ -212,13 +259,15 @@ export async function listBuilders(env) {
 export async function getBuilder(env, id) {
   const builder = await env.DB.prepare("SELECT * FROM builders WHERE id = ?").bind(id).first();
   if (!builder) return null;
-  const [{ results: skills }, { results: projects }, { results: guilds }] = await env.DB.batch([
-    env.DB.prepare("SELECT * FROM skills WHERE builder_id = ? ORDER BY peak DESC").bind(id),
-    env.DB.prepare("SELECT * FROM projects WHERE builder_id = ?").bind(id),
-    env.DB.prepare(
-      "SELECT g.id, g.name, gm.role FROM guilds g JOIN guild_members gm ON gm.guild_id = g.id WHERE gm.builder_id = ?"
-    ).bind(id),
-  ]);
+  const [{ results: skills }, { results: projects }, { results: guilds }, { results: repos }] =
+    await env.DB.batch([
+      env.DB.prepare("SELECT * FROM skills WHERE builder_id = ? ORDER BY peak DESC").bind(id),
+      env.DB.prepare("SELECT * FROM projects WHERE builder_id = ?").bind(id),
+      env.DB.prepare(
+        "SELECT g.id, g.name, gm.role FROM guilds g JOIN guild_members gm ON gm.guild_id = g.id WHERE gm.builder_id = ?"
+      ).bind(id),
+      env.DB.prepare("SELECT * FROM repos WHERE builder_id = ? ORDER BY verified DESC, id").bind(id),
+    ]);
   // Attach peer endorsements (indexed from endorsers' repos) to each skill, and
   // derive its consensus peak from them — strength is what peers vouch for, not
   // a self-rating. self_peak is kept for reference/debugging.
@@ -233,7 +282,7 @@ export async function getBuilder(env, id) {
       endorsement_count: list.length,
     };
   });
-  return { ...builder, skills: skillsWithEndorsements, projects, guilds };
+  return { ...builder, skills: skillsWithEndorsements, projects, guilds, repos };
 }
 
 export async function createBuilder(env, body) {

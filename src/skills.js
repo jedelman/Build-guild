@@ -75,3 +75,39 @@ export function endorsementTier({ endorserDid, subjectDid, memberships = [], cli
   if (shared) return "guildmate";
   return "none";
 }
+
+/**
+ * Classify a linked repo URL: its host, and whether ownership is self-evident.
+ * A Tangled repo under the builder's own handle/DID is owned by the same atproto
+ * identity, so it's verified without a second OAuth; other hosts are unverified
+ * (self-asserted) until a later contribution-history check.
+ * Pure + unit-testable.
+ *
+ * @param {string} url
+ * @param {object} [ctx] { handle, did } of the builder
+ * @returns {{host:string, verified:boolean}}
+ */
+export function classifyRepo(url, { handle = "", did = "" } = {}) {
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return { host: "", verified: false };
+  }
+  const hostname = u.hostname.toLowerCase().replace(/^www\./, "");
+  const path = u.pathname.toLowerCase();
+  let host = "other";
+  if (hostname === "tangled.sh" || hostname === "tangled.org") host = "tangled";
+  else if (hostname === "github.com") host = "github";
+  else if (hostname.endsWith("gitlab.com")) host = "gitlab";
+
+  // Tangled paths are /@handle/repo or /did:plc:.../repo — owned iff that owner
+  // segment matches the builder's identity.
+  let verified = false;
+  if (host === "tangled") {
+    const owner = path.split("/").filter(Boolean)[0] || "";
+    const h = handle.toLowerCase();
+    if (owner === `@${h}` || owner === h || (did && owner === did.toLowerCase())) verified = true;
+  }
+  return { host, verified };
+}
