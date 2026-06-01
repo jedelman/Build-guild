@@ -55,20 +55,27 @@ Build Guild is handle-first: a builder's identity *is* their Bluesky handle.
 
 See `src/atproto.js`. No auth or API key is needed for this — it's all public reads.
 
-### Auth (Bluesky OAuth)
-Identity is gated behind **Bluesky OAuth** — you log in with your handle (no password
-shared) and can only create/edit/delete *your own* builder, so no one can impersonate
-anyone. Implemented in `src/oauth.js` (hand-rolled for Workers: PKCE + DPoP + PAR, public
-client) and `src/index.js` (`/api/auth/login`, `/api/auth/callback`, `/api/auth/me`,
-`/api/auth/logout`). The OAuth client id is `/client-metadata.json`, served dynamically so
-it resolves on prod *and* every per-PR preview origin. We mint our own session cookie once
-the handshake proves DID ownership; no atproto tokens are persisted yet, and **no new
-secrets are required** (public client).
+### Auth (Bluesky OAuth, browser-only / on-device)
+Identity is gated behind **Bluesky OAuth**, run **entirely in the browser** with
+[`@atproto/oauth-client-browser`](https://www.npmjs.com/package/@atproto/oauth-client-browser):
+the tokens and DPoP key live **on-device** (IndexedDB) and never touch our server — so there
+is no credential for the per-PR preview D1 clone to leak. You can still only
+create/edit/delete *your own* builder.
 
-Next step:
-- **PDS storage** — store each builder's skill-peaks/projects as records in *their own*
-  atproto repo under a custom lexicon (`build.guild.*`), making profiles user-owned and
-  portable, with D1 as a cache/index. (This is when atproto token storage gets added.)
+To authenticate to our API, the browser mints a short-lived **Service Auth** JWT
+(`com.atproto.server.getServiceAuth` — signed by the user's atproto key, `aud` = our
+`did:web`) and posts it to `POST /api/auth/establish`. The server **verifies the signature**
+(`src/serviceauth.js`, via `@atproto/crypto`) to learn the DID, then mints its own session
+cookie (`/api/auth/me`, `/api/auth/logout`). Both the OAuth `client_id`
+(`/client-metadata.json`) and our `did:web` identity (`/.well-known/did.json`) are served
+dynamically, so they resolve on prod *and* every preview origin. **No secrets required**
+(public client; the server holds no atproto tokens).
+
+Next step (PDS-native writes — see issue #8):
+- Write each builder's skills/endorsements as records in *their own* atproto repo (custom
+  lexicons), referenced by `com.atproto.repo.strongRef`, with D1 as a verify/index layer.
+  Those writes happen client-side via the on-device session, so the server still stores
+  nothing sensitive.
 
 ## Data & privacy
 
@@ -110,10 +117,12 @@ applied with `wrangler d1 migrations apply` (non-destructive, unlike `schema.sql
 preview — a throwaway Worker and D1 database, torn down when the PR closes:
 
 - Runs the test suite (forks included).
-- Provisions a per-PR database `build_guild_pr_<N>`. On first creation it's a **full
-  copy of production** (`wrangler d1 export build_guild` → import), then branch
-  migrations are applied on top, so the preview runs the PR's code against
-  production-shaped data.
+- Provisions a per-PR database `build_guild_pr_<N>`. Its **schema is built from
+  migrations**, then on first creation production's **data** is copied in
+  (`wrangler d1 export build_guild --no-schema` → import), so the preview runs the
+  PR's code against production-shaped data. (We build the schema from migrations
+  rather than importing prod's schema dump because the dump emits a forward
+  foreign-key reference — `skills` → `skill_catalog` — that D1 rejects on import.)
 - Renders a per-PR wrangler config from `.github/preview/wrangler.template.jsonc` and
   deploys a `build-guild-pr-<N>` Worker bound to that database.
 - Comments the unique preview URL on the PR, redeployed on every push.

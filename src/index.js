@@ -12,8 +12,6 @@ import {
   joinGuild,
   leaveGuild,
   suggestSkills,
-  saveAuthState,
-  takeAuthState,
   createSession,
   getSession,
   deleteSession,
@@ -22,21 +20,14 @@ import {
 import { recommendRecruits } from "./logic.js";
 import { fetchBlueskyProfile, suggestSkillsFromProfile } from "./atproto.js";
 import { ingestTelemetry, scrub } from "./telemetry.js";
-import {
-  clientMetadata,
-  createPkce,
-  generateDpopKey,
-  randomToken,
-  resolveHandleToDid,
-  resolveDidToPds,
-  resolveAuthServer,
-  pushedAuthorizationRequest,
-  exchangeCode,
-  parseCookies,
-  serializeCookie,
-} from "./oauth.js";
+import { clientMetadata, parseCookies, serializeCookie } from "./oauth.js";
+import { serviceDidForOrigin, didWebDocument, verifyServiceAuthJwt } from "./serviceauth.js";
 
 const SESSION_COOKIE = "bg_session";
+// Lexicon-method the browser binds its Service Auth token to when establishing a
+// session. Verified server-side so a token minted for us can't be replayed at a
+// different service.
+const ESTABLISH_LXM = "org.buildguild.establishSession";
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -64,6 +55,13 @@ export default {
     // whatever origin the app is deployed to (prod or a per-PR preview).
     if (url.pathname === "/client-metadata.json") {
       return json(clientMetadata(url.origin));
+    }
+
+    // Our did:web service identity — used as the `aud` of the Service Auth JWT
+    // the browser presents at /api/auth/establish. Per-origin so it resolves on
+    // prod and every preview.
+    if (url.pathname === "/.well-known/did.json") {
+      return json(didWebDocument(url.origin));
     }
 
     if (url.pathname.startsWith("/api/")) {
@@ -186,13 +184,10 @@ async function sessionBuilder(request, env) {
   return session ? getBuilderByDid(env, session.did) : null;
 }
 
-// ---------- OAuth routes ----------
+// ---------- auth routes (browser-only) ----------
 
 async function authRoute(request, env, url, action) {
-  // POST (the login form's method) is never served from cache; GET still works.
-  if (action === "login" && (request.method === "POST" || request.method === "GET"))
-    return authLogin(request, env, url);
-  if (action === "callback" && request.method === "GET") return authCallback(env, url);
+  if (action === "establish" && request.method === "POST") return authEstablish(request, env, url);
   if (action === "me" && request.method === "GET") {
     const session = await currentSession(request, env);
     if (!session) return json({ authenticated: false });
@@ -218,159 +213,46 @@ async function authRoute(request, env, url, action) {
   return null;
 }
 
-async function authLogin(request, env, url) {
-  let handle = url.searchParams.get("handle");
-  if (!handle && request.method === "POST") {
-    try {
-      handle = (await request.formData()).get("handle");
-    } catch {
-      /* fall through to missing-handle */
-    }
-  }
-  handle = (handle || "").trim();
-  if (!handle) return loginErrorRedirect("missing handle");
+/**
+ * Establish a session from a Service Auth JWT. The SPA logs in on-device via
+ * @atproto/oauth-client-browser, then mints a short-lived JWT (signed by the
+ * user's atproto key, aud = our did:web) and posts it here. We verify the
+ * signature to learn the DID and mint our own cookie — no atproto credential is
+ * ever stored server-side, so the per-PR preview D1 clone leaks nothing.
+ */
+async function authEstablish(request, env, url) {
+  const auth = request.headers.get("authorization") || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice("Bearer ".length) : "";
+  if (!token) return fail("missing service-auth token", 401);
 
-  const cm = clientMetadata(url.origin);
-  const pkce = await createPkce();
-  const dpopJwk = await generateDpopKey();
-  const state = randomToken(24);
-
+  let id;
   try {
-    // The resolution + PAR chain is several network hops to external services;
-    // retry once to absorb a transient blip (cold start, momentary DNS/PDS
-    // hiccup) rather than dead-ending the user on a JSON error.
-    const { meta, did, par, nonce } = await withRetry(async () => {
-      const did = await resolveHandleToDid(handle);
-      const meta = await resolveAuthServer(await resolveDidToPds(did));
-      const { json: par, nonce } = await pushedAuthorizationRequest(
-        meta,
-        {
-          client_id: cm.client_id,
-          response_type: "code",
-          redirect_uri: cm.redirect_uris[0],
-          scope: "atproto transition:generic",
-          state,
-          code_challenge: pkce.challenge,
-          code_challenge_method: "S256",
-          login_hint: handle,
-        },
-        dpopJwk
-      );
-      return { meta, did, par, nonce };
+    id = await verifyServiceAuthJwt(token, {
+      serviceDid: serviceDidForOrigin(url.origin),
+      lxm: ESTABLISH_LXM,
     });
-
-    await saveAuthState(env, {
-      state,
-      handle,
-      did,
-      pkce_verifier: pkce.verifier,
-      dpop_jwk: JSON.stringify(dpopJwk),
-      token_endpoint: meta.token_endpoint,
-      issuer: meta.issuer,
-      dpop_nonce: nonce,
-    });
-
-    await logAuthEvent(env, "login_init", { handle, did, detail: "redirect to consent" });
-    const authUrl = `${meta.authorization_endpoint}?client_id=${encodeURIComponent(
-      cm.client_id
-    )}&request_uri=${encodeURIComponent(par.request_uri)}`;
-    return redirectHome(authUrl); // generic no-store 302
   } catch (e) {
-    // Redirect (not raw JSON) so the user lands on a real page and the
-    // client telemetry uploads the failure trace.
-    await logAuthEvent(env, "login_error", { handle, detail: scrub(e.message) });
-    return loginErrorRedirect(`couldn't start login: ${e.message}`);
-  }
-}
-
-async function authCallback(env, url) {
-  const state = url.searchParams.get("state");
-  const code = url.searchParams.get("code");
-  const iss = url.searchParams.get("iss");
-  const err = url.searchParams.get("error");
-  // Surface every failure as a clean redirect with the reason in the query
-  // string, so it's visible to the user (and shareable for debugging) rather
-  // than a raw JSON 500.
-  const oops = loginErrorRedirect;
-  await logAuthEvent(env, "callback_recv", {
-    detail: `code=${!!code} state=${!!state} iss=${iss || ""} err=${err || ""}`,
-  });
-  if (err) return oops(url.searchParams.get("error_description") || err);
-  if (!state || !code) return oops("missing state or code");
-
-  const st = await takeAuthState(env, state);
-  if (!st) {
-    await logAuthEvent(env, "callback_nostate", { detail: "state not found or expired" });
-    return oops("invalid or expired login state");
-  }
-  const norm = (s) => (s || "").replace(/\/+$/, "");
-  if (iss && norm(iss) !== norm(st.issuer)) {
-    await logAuthEvent(env, "callback_error", {
-      handle: st.handle,
-      detail: `issuer mismatch (${iss} vs ${st.issuer})`,
-    });
-    return oops(`issuer mismatch (${iss} vs ${st.issuer})`);
+    await logAuthEvent(env, "establish_error", { detail: scrub(e.message) });
+    return fail(`could not verify identity: ${e.message}`, 401);
   }
 
-  const cm = clientMetadata(url.origin);
-  let tok;
-  try {
-    ({ json: tok } = await exchangeCode(
-      { token_endpoint: st.token_endpoint },
-      {
-        client_id: cm.client_id,
-        grant_type: "authorization_code",
-        code,
-        redirect_uri: cm.redirect_uris[0],
-        code_verifier: st.pkce_verifier,
+  const session = await createSession(env, { did: id.did, handle: id.handle });
+  const builder = await getBuilderByDid(env, id.did);
+  await logAuthEvent(env, "establish_ok", { handle: id.handle, did: id.did, detail: "session created" });
+  return new Response(
+    JSON.stringify({
+      authenticated: true,
+      did: id.did,
+      handle: id.handle,
+      builder_id: builder?.id || null,
+    }),
+    {
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        "cache-control": "no-store",
+        "set-cookie": serializeCookie(SESSION_COOKIE, session.id, { maxAge: 60 * 60 * 24 * 30 }),
       },
-      JSON.parse(st.dpop_jwk),
-      st.dpop_nonce
-    ));
-  } catch (e) {
-    await logAuthEvent(env, "callback_error", {
-      handle: st.handle,
-      did: st.did,
-      detail: scrub(`token exchange failed: ${e.message}`),
-    });
-    return oops(`token exchange failed: ${e.message}`);
-  }
-
-  const did = tok.sub || st.did;
-  if (!did) {
-    await logAuthEvent(env, "callback_error", { handle: st.handle, detail: "no DID in token response" });
-    return oops("login did not yield a DID");
-  }
-
-  await logAuthEvent(env, "callback_ok", { handle: st.handle, did, detail: "session created" });
-  const session = await createSession(env, { did, handle: st.handle });
-  const headers = new Headers({ location: "/?login=ok", "cache-control": "no-store" });
-  headers.append(
-    "set-cookie",
-    serializeCookie(SESSION_COOKIE, session.id, { maxAge: 60 * 60 * 24 * 30 })
-  );
-  return new Response(null, { status: 302, headers });
-}
-
-// All auth redirects are no-store: OAuth endpoints must never be cached, or a
-// browser can replay a stale response instead of hitting the server.
-const redirectHome = (location) =>
-  new Response(null, { status: 302, headers: { location, "cache-control": "no-store" } });
-
-// Every login failure (initiation or callback) lands here: a clean redirect
-// with the reason in the query string, so it's visible to the user and the
-// client telemetry uploads the failure trace.
-const loginErrorRedirect = (reason) =>
-  redirectHome(`/?login=error&reason=${encodeURIComponent(reason)}`);
-
-async function withRetry(fn, attempts = 2) {
-  let last;
-  for (let i = 0; i < attempts; i++) {
-    try {
-      return await fn();
-    } catch (e) {
-      last = e;
     }
-  }
-  throw last;
+  );
 }

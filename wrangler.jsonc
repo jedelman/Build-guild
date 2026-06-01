@@ -12,7 +12,8 @@
     //  - /api/*  (assets 405s a POST under SPA not_found_handling)
     //  - /client-metadata.json (assets would serve index.html as text/html,
     //    which Bluesky rejects when fetching the OAuth client metadata)
-    "run_worker_first": ["/api/*", "/client-metadata.json"]
+    //  - /.well-known/did.json (our did:web service identity, same reason)
+    "run_worker_first": ["/api/*", "/client-metadata.json", "/.well-known/did.json"]
   },
   "d1_databases": [
     {
