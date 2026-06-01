@@ -63,20 +63,32 @@ Tokens (no ad-hoc sizes):
 - **Earnings pulse** (`.pulse` / `.stat`) — job-board vitals in mono numerics.
 - **Ranked ledger** (`.ledger` / `.lrow`) — the roster as a leaderboard (not a card
   grid), ranked by top peer-endorsed peak.
+- **Navigation** (`.shell` / `.rail` / `.bottomnav` / `.navitem`) — a Material-style
+  shell: a collapsible left rail on desktop (icon+label, toggle persisted in
+  `localStorage`), a fixed bottom bar on mobile (`≤760px`), both rendered from one
+  destination list. The 4th destination swaps **Enlist → Character** once you have a
+  sheet. Top bar holds brand (left) + status cluster (right).
+- **Status menu** (`.usermenu` / `.usermenu-btn` / `.menu-pop`) — GitHub-style: avatar
+  button → dropdown (your sheet, log out). Logged-out shows the inline login widget.
 - **Icons** — crafted inline SVG via `icon(name)` + the `.icon` class (`currentColor`,
-  ~1.6 stroke, matches the `.sigil`). Set: crest, quest, reward, link, check, bluesky.
-  No emoji as iconography.
+  ~1.6 stroke, matches the `.sigil`). Set: crest, quest, reward, link, check, bluesky,
+  roster, sheet, caret, logout. No emoji as iconography.
 - **Utilities** — `.mono`, `.caption`, `.hint`, `.tight`, `.row.between/.gap-sm/.my-2/.my-3`,
   `.field-pair`, `.center-pad`. Use these instead of inline `style=`.
 - **Drawer** — right-side dialog: `role="dialog"`/`aria-modal`, Esc to close,
-  focus trap + restore, slide-in.
+  focus trap + restore, slide-in. Drawer-to-drawer cross-links via `entityLink()`
+  (`[data-go="builder|guild"]`, wired centrally in `openDrawer`).
+- **Modals** (`.modal` / `.modal-panel`) — `formDialog()` and `confirmDialog()` replace
+  native `prompt`/`confirm`/`alert`: focus-trapped, Esc/backdrop to cancel, returns a
+  Promise. Destructive actions use `.btn.danger`.
 - **Toasts** — `role=status`/`alert`, animated in/out, auto-dismiss.
 - **Skeletons** — `.skeleton-card` + `.sk-line` shimmer for first paint.
 
 ## Accessibility
 
 - Focus is always visible (`:focus-visible` ring via `--ring`).
-- Tabs follow the WAI-ARIA tabs pattern (roving tabindex, Left/Right arrows).
+- Drawers and modals trap Tab and restore focus to the opener on close; a modal
+  over a drawer stops key propagation so only the top layer responds to Esc/Tab.
 - All animation is disabled under `prefers-reduced-motion`.
 - Avatars fall back to initials on image error.
 
@@ -90,4 +102,6 @@ Tokens (no ad-hoc sizes):
 ## Responsive
 
 - Grid auto-fills `minmax(290px, 1fr)`; eases to 240px ≤820px and a single
-  column ≤520px. Topbar + tabs wrap.
+  column ≤520px. At ≤760px the left rail gives way to a fixed bottom nav, the
+  brand sub-tagline and the status handle hide, and `main` reserves bottom padding
+  (with `safe-area-inset`) so content clears the bar.

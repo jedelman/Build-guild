@@ -30,24 +30,25 @@
   </head>
   <body>
     <header class="topbar">
-      <div class="brand">
+      <button class="rail-toggle" id="rail-toggle" aria-label="Collapse navigation" aria-expanded="true" title="Toggle navigation">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <a class="brand" href="/" id="brand-home">
         <span class="sigil" aria-hidden="true"></span>
         <div>
           <h1>Build Guild</h1>
           <p class="sub">The team job board. Post the work, rally a party, split the bounty.</p>
         </div>
-      </div>
+      </a>
       <div class="playing-as" id="authbar"></div>
     </header>
 
-    <nav class="tabs">
-      <button class="tab active" data-view="quests" aria-selected="true">Quest Board</button>
-      <button class="tab" data-view="guilds" aria-selected="false" tabindex="-1">Guild Hall</button>
-      <button class="tab" data-view="roster" aria-selected="false" tabindex="-1">Roster</button>
-      <button class="tab" data-view="enlist" aria-selected="false" tabindex="-1">Enlist</button>
-    </nav>
+    <div class="shell">
+      <nav class="rail" id="rail" aria-label="Primary"></nav>
+      <main id="app"></main>
+    </div>
 
-    <main id="app"></main>
+    <nav class="bottomnav" id="bottomnav" aria-label="Primary"></nav>
 
     <div id="drawer" class="drawer hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Details">
       <div class="drawer-panel">

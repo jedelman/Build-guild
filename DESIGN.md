@@ -51,6 +51,13 @@ peaks, Guild Power, bounties, the earnings pulse, @handles).
   `--shadow-glow-gold` for the sigil. Cards add a 1px top-edge highlight, no fill.
 
 ## 5. Components
+- **App shell**: collapsible left **rail** (`.rail`/`.navitem`, desktop) + fixed
+  **bottom nav** (`.bottomnav`, ≤760px), both from one destination list; Enlist→
+  Character swaps when enlisted. Top bar = brand (left) + **status menu**
+  (`.usermenu`/`.menu-pop`, GitHub-style avatar dropdown) right.
+- **Modals** (`.modal`/`.modal-panel`): `formDialog`/`confirmDialog` replace native
+  prompt/confirm; focus-trapped, Esc/backdrop cancel. `.btn.danger` for destructive.
+- **Cross-links** (`.entity-link`): builder↔guild↔quest navigation inside drawers.
 - **Quest row** (`.quest`/`.reward`/`.qstatus`/`.qmatch`): reward leads in mono
   gold; status pill; `.feat` gold-tint for high-value open quests; consensus-peak
   party match. The job board's hero component.
@@ -63,7 +70,8 @@ peaks, Guild Power, bounties, the earnings pulse, @handles).
   guildmate = teal). **Skill bars** gold fill on inset trough. **Drawer** = dialog
   (Esc, focus trap, slide-in). **Toast** role=status/alert, animated.
 - **Icons**: crafted inline SVG via `icon(name)` + `.icon` (currentColor, ~1.6
-  stroke, matches `.sigil`). Set: crest, quest, reward, link, check, bluesky.
+  stroke, matches `.sigil`). Set: crest, quest, reward, link, check, bluesky,
+  roster, sheet, caret, logout.
 
 ## 6. Do's and Don'ts
 

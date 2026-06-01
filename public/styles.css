@@ -129,13 +129,15 @@ h1, h2, h3 { line-height: 1.15; }
 
 /* ---- top bar --------------------------------------------------------------*/
 .topbar {
-  display: flex; justify-content: space-between; align-items: center;
+  display: flex; align-items: center;
   gap: var(--s4); flex-wrap: wrap;
   padding: var(--s4) var(--s5);
   border-bottom: 1px solid var(--line);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent);
 }
-.brand { display: flex; align-items: center; gap: var(--s3); }
+.topbar #authbar { margin-left: auto; }
+.brand { display: flex; align-items: center; gap: var(--s3); color: inherit; text-decoration: none; }
+.brand:hover { text-decoration: none; }
 .brand h1 {
   font-family: Cinzel, serif; font-weight: 600; margin: 0;
   font-size: var(--fs-2xl); letter-spacing: var(--ls-wide); color: var(--gold-soft);
@@ -177,25 +179,49 @@ select:focus, input:focus, textarea:focus {
   box-shadow: 0 0 0 3px var(--ring);
 }
 
-/* ---- tabs (editorial underline) ------------------------------------------*/
-.tabs {
-  display: flex; gap: var(--s5);
-  padding: var(--s4) var(--s5) 0;
-  border-bottom: 1px solid var(--line);
-  flex-wrap: wrap;
+/* ---- app shell: collapsible left rail + main -----------------------------*/
+.rail-toggle {
+  background: none; border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+  color: var(--ink-dim); padding: var(--s2); cursor: pointer; display: inline-flex; flex: none;
+  transition: color 0.15s var(--ease), border-color 0.15s var(--ease);
 }
-.tab {
-  background: none; border: none; cursor: pointer;
-  color: var(--faint); font: 600 var(--fs-base) Inter, sans-serif;
-  letter-spacing: var(--ls-wide);
-  padding: 0 0 var(--s3); margin-bottom: -1px;
-  border-bottom: 2px solid transparent;
-  transition: color 0.15s var(--ease);
-}
-.tab:hover { color: var(--ink-dim); }
-.tab.active { color: var(--gold-soft); border-bottom-color: var(--gold); }
+.rail-toggle:hover { color: var(--ink); border-color: var(--gold-deep); }
+.rail-toggle .icon { width: 1.25rem; height: 1.25rem; }
 
-main { max-width: var(--maxw); margin: 0 auto; padding: var(--s6) var(--s5); }
+.shell { display: flex; align-items: flex-start; }
+main { flex: 1 1 auto; min-width: 0; max-width: var(--maxw); margin: 0 auto; padding: var(--s6) var(--s5); }
+
+/* Material-style navigation rail (desktop). Collapses to icons. */
+.rail {
+  position: sticky; top: 0; align-self: flex-start; flex: none;
+  width: 232px; height: 100vh; height: 100dvh;
+  padding: var(--s5) var(--s3);
+  border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: var(--s1);
+  transition: width 0.18s var(--ease);
+}
+.rail-collapsed .rail { width: 76px; }
+
+.navitem {
+  display: flex; align-items: center; gap: var(--s3);
+  width: 100%; text-align: left; cursor: pointer;
+  padding: var(--ctl-pad-y) var(--ctl-pad-x);
+  border: 1px solid transparent; border-radius: var(--r-sm);
+  background: none; color: var(--faint);
+  font: 600 var(--fs-base) Inter, sans-serif; letter-spacing: var(--ls-wide);
+  transition: background 0.15s var(--ease), color 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+.navitem .icon { width: 1.25rem; height: 1.25rem; flex: none; }
+.navitem:hover { color: var(--ink); background: var(--surface); }
+.navitem.active {
+  color: var(--gold-soft); border-color: var(--gold-deep);
+  background: linear-gradient(90deg, rgba(216, 177, 90, 0.12), transparent 80%);
+}
+.rail-collapsed .rail .navlabel { display: none; }
+.rail-collapsed .rail .navitem { justify-content: center; padding: var(--ctl-pad-y); }
+
+/* Mobile bottom navigation bar (hidden on desktop). */
+.bottomnav { display: none; }
 
 /* ---- section headers ------------------------------------------------------*/
 .section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s4); margin-bottom: var(--s5); }
@@ -442,16 +468,109 @@ form.enlist label input, form.enlist label textarea { text-transform: none; lett
   .lrow .lead-skills { display: none; }
 }
 
+/* ---- status menu (top-right, GitHub-style) -------------------------------*/
+.usermenu { position: relative; }
+.usermenu-btn {
+  display: flex; align-items: center; gap: var(--s2); cursor: pointer;
+  background: none; border: 1px solid var(--line-strong); border-radius: var(--r-pill);
+  padding: 3px var(--s2) 3px 3px; color: var(--ink-dim);
+  transition: border-color 0.15s var(--ease), color 0.15s var(--ease);
+}
+.usermenu-btn:hover { border-color: var(--gold-deep); color: var(--ink); }
+.usermenu-btn .avatar { width: 28px; height: 28px; font-size: 0.7rem; border-width: 1px; }
+.usermenu-btn .handle { font-size: var(--fs-sm); color: var(--ink-dim); }
+.usermenu-btn .icon.caret, .usermenu-btn > .icon { width: 1rem; height: 1rem; opacity: 0.7; }
+.menu-pop {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 60;
+  min-width: 210px; padding: var(--s2);
+  background: var(--surface); border: 1px solid var(--line-strong);
+  border-radius: var(--r); box-shadow: var(--shadow-lift);
+  display: grid; gap: 2px; animation: modal-pop 0.16s var(--ease);
+}
+.menu-head { display: grid; gap: 1px; padding: var(--ctl-pad-y-sm) var(--ctl-pad-x-sm); margin-bottom: 2px; border-bottom: 1px solid var(--line); }
+.menu-head .muted { font-size: var(--fs-xs); }
+.menu-head strong { color: var(--gold-soft); font-size: var(--fs-sm); }
+.menu-pop button {
+  display: flex; align-items: center; gap: var(--s2); width: 100%; text-align: left; cursor: pointer;
+  padding: var(--ctl-pad-y-sm) var(--ctl-pad-x-sm); border: none; border-radius: var(--r-sm);
+  background: none; color: var(--ink-dim); font: 500 var(--fs-base) Inter, sans-serif;
+}
+.menu-pop button:hover { background: var(--surface-2); color: var(--ink); }
+.menu-pop .icon { width: 1.05rem; height: 1.05rem; flex: none; }
+
+/* ---- modal dialogs --------------------------------------------------------*/
+.modal {
+  position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: var(--s4);
+  background: rgba(6, 5, 10, 0.66); backdrop-filter: blur(3px); animation: drawer-fade 0.2s var(--ease);
+}
+.modal-panel {
+  width: min(460px, 100%); max-height: 90vh; overflow-y: auto;
+  background: var(--bg-2); border: 1px solid var(--line-strong); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lift); padding: var(--s6); animation: modal-pop 0.2s var(--ease);
+}
+@keyframes modal-pop { from { transform: translateY(8px) scale(0.98); opacity: 0; } to { transform: none; opacity: 1; } }
+.modal-panel h2 { font-family: Cinzel, serif; font-weight: 600; color: var(--gold-soft); margin: 0; font-size: var(--fs-xl); letter-spacing: var(--ls-normal); }
+.modal-body { color: var(--ink-dim); font-size: var(--fs-base); margin: var(--s3) 0 0; }
+.modal-form { display: grid; gap: var(--s4); margin-top: var(--s5); }
+.modal-field { display: grid; gap: var(--s1); }
+.modal-field > span { font-size: var(--fs-xs); color: var(--faint); text-transform: uppercase; letter-spacing: var(--ls-caps); }
+.modal-field .req { color: var(--gold); font-style: normal; }
+.modal-field input, .modal-field textarea { font-size: var(--fs-md); color: var(--ink); }
+.modal-actions { display: flex; justify-content: flex-end; gap: var(--s3); margin-top: var(--s2); }
+@keyframes field-shake { 0%, 100% { transform: none; } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+.shake { animation: field-shake 0.3s var(--ease); border-color: var(--danger) !important; }
+
+/* danger action (destructive confirm) */
+.btn.danger { background: transparent; color: var(--danger); border-color: var(--danger); }
+.btn.danger:hover { background: rgba(215, 124, 114, 0.12); border-color: var(--danger); }
+
+/* ---- cross-links (entity → entity navigation) ----------------------------*/
+.entity-link {
+  background: none; border: none; padding: 0; margin: 0; cursor: pointer;
+  font: inherit; color: var(--accent); text-align: left;
+  text-decoration: none; text-underline-offset: 2px;
+}
+.entity-link:hover { text-decoration: underline; color: var(--gold-soft); }
+.entity-link.strong-link { font-weight: 700; color: var(--ink); }
+.entity-link.strong-link:hover { color: var(--gold-soft); }
+/* badge variant keeps badge chrome but gains hover affordance */
+.entity-link.badge { cursor: pointer; }
+.entity-link.badge:hover { text-decoration: none; border-color: var(--gold); color: var(--gold-soft); }
+
 /* Tablet: ease the grid's min column so two cards sit comfortably side by side,
    and tighten main padding. */
 @media (max-width: 820px) {
   .grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
   main { padding: var(--s5) var(--s4); }
 }
+
+/* ---- mobile: bottom nav replaces the rail --------------------------------*/
+@media (max-width: 760px) {
+  .rail, .rail-toggle { display: none; }
+  .topbar .sub { display: none; }
+  .usermenu-btn .handle { display: none; }
+  main { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+  .bottomnav {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    background: var(--bg-2); border-top: 1px solid var(--line);
+    padding: var(--s1) var(--s2) calc(var(--s1) + env(safe-area-inset-bottom));
+    box-shadow: 0 -10px 24px -18px rgba(0, 0, 0, 0.8);
+  }
+  .bottomnav .navitem {
+    flex: 1; flex-direction: column; gap: 2px; align-items: center; justify-content: center;
+    padding: var(--s2) var(--s1); border: none; background: none;
+    font-size: var(--fs-xs); letter-spacing: var(--ls-normal);
+  }
+  .bottomnav .navitem .icon { width: 1.4rem; height: 1.4rem; }
+  .bottomnav .navitem.active { color: var(--gold-soft); background: none; }
+  .bottomnav .navlabel { display: block; }
+}
+
 /* Phone: single column, full-width drawer. */
 @media (max-width: 520px) {
   .grid { grid-template-columns: 1fr; }
   .drawer-panel { padding: var(--s5) var(--s4); }
+  .modal-panel { padding: var(--s5) var(--s4); }
 }
 
 @media (prefers-reduced-motion: reduce) {

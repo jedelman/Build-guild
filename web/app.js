@@ -35,6 +35,11 @@ const ICON = {
   link: '<path d="M10 14a4 4 0 0 0 6 .5l2-2a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6-.5l-2 2a4 4 0 0 0 6 6l1-1"/>',
   check: '<path d="M5 12.5 10 17 19 7"/>',
   bluesky: '<path d="M12 11c-1.6-3-5-5.5-6.5-5.5C4 5.5 4 7 4 8c0 1.3.8 4 2 5 .7.6 1.7.8 3 .5-2 .4-2.5 1.7-2 3 .6 1.4 2 .8 3-1 .4-.7.8-1.7 1-2.2.2.5.6 1.5 1 2.2 1 1.8 2.4 2.4 3 1 .5-1.3 0-2.6-2-3 1.3.3 2.3.1 3-.5 1.2-1 2-3.7 2-5 0-1 0-2.5-1.5-2.5C17 5.5 13.6 8 12 11Z"/>',
+  // navigation + status icons
+  roster: '<path d="M4 7h10M4 12h10M4 17h7"/><circle cx="18.5" cy="8" r="1.6"/><circle cx="18.5" cy="15" r="1.6"/>',
+  sheet: '<rect x="5" y="3" width="14" height="18" rx="2"/><circle cx="12" cy="9" r="2.2"/><path d="M8.5 16.5c.6-2 1.9-3 3.5-3s2.9 1 3.5 3"/>',
+  caret: '<path d="M6 9l6 6 6-6"/>',
+  logout: '<path d="M14 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7"/><path d="M18 8l4 4-4 4"/><path d="M22 12H10"/>',
 };
 const icon = (name, cls = "") =>
   `<svg class="icon${cls ? " " + cls : ""}" viewBox="0 0 24 24" aria-hidden="true">${ICON[name] || ""}</svg>`;
@@ -82,6 +87,126 @@ function toast(msg, isErr = false) {
     t.classList.remove("show");
     setTimeout(() => t.remove(), 250);
   }, 2600);
+}
+
+// ---- modal dialogs (replace native prompt/confirm/alert) ------------------
+// Keyboard-trap a container for Tab cycling (shared by drawer + modals).
+function trapTab(e, container) {
+  if (e.key !== "Tab") return;
+  const f = container.querySelectorAll(
+    'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  );
+  if (!f.length) return;
+  const first = f[0];
+  const last = f[f.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
+// Mount a modal dialog; `wire(panel, close)` attaches handlers and calls
+// close(result) to resolve. Esc / backdrop close with the default result.
+function openModal(innerHTML, wire, { onCancel = null } = {}) {
+  const prevFocus = document.activeElement;
+  const host = document.createElement("div");
+  host.className = "modal";
+  host.innerHTML = `<div class="modal-panel" role="dialog" aria-modal="true" aria-label="Dialog">${innerHTML}</div>`;
+  const panel = host.firstElementChild;
+  let resolver;
+  const done = new Promise((r) => (resolver = r));
+  const close = (result) => {
+    document.removeEventListener("keydown", onKey, true);
+    host.remove();
+    if (prevFocus && prevFocus.focus) prevFocus.focus();
+    resolver(result);
+  };
+  const onKey = (e) => {
+    // Capture-phase + stopImmediatePropagation so an underlying drawer's own
+    // Esc/Tab handlers don't also fire while the modal is on top.
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      close(onCancel);
+    } else if (e.key === "Tab") {
+      e.stopImmediatePropagation();
+      trapTab(e, host);
+    }
+  };
+  host.addEventListener("mousedown", (e) => {
+    if (e.target === host) close(onCancel);
+  });
+  document.body.appendChild(host);
+  document.addEventListener("keydown", onKey, true);
+  wire(panel, close);
+  (panel.querySelector("[autofocus]") || panel.querySelector("input, textarea, button"))?.focus();
+  return done;
+}
+
+// Confirmation dialog → resolves true/false. Replaces window.confirm.
+function confirmDialog({ title, body = "", confirmLabel = "Confirm", cancelLabel = "Cancel", danger = false }) {
+  return openModal(
+    `<h2>${esc(title)}</h2>
+     ${body ? `<p class="modal-body">${esc(body)}</p>` : ""}
+     <div class="modal-actions">
+       <button type="button" class="btn ghost" data-act="cancel">${esc(cancelLabel)}</button>
+       <button type="button" class="btn ${danger ? "danger" : "gold"}" data-act="ok" autofocus>${esc(confirmLabel)}</button>
+     </div>`,
+    (panel, close) => {
+      panel.querySelector('[data-act="cancel"]').onclick = () => close(false);
+      panel.querySelector('[data-act="ok"]').onclick = () => close(true);
+    },
+    { onCancel: false }
+  );
+}
+
+// Form dialog → resolves an object of field values, or null if cancelled.
+// Replaces stacked window.prompt calls. `fields`: [{name,label,type,placeholder,
+// required,hint,value,rows}].
+function formDialog({ title, description = "", fields, submitLabel = "Save", cancelLabel = "Cancel" }) {
+  const fieldHTML = fields
+    .map((f) => {
+      const ctrl =
+        f.type === "textarea"
+          ? `<textarea name="${esc(f.name)}" rows="${f.rows || 3}" placeholder="${esc(f.placeholder || "")}"${f.required ? " required" : ""}>${esc(f.value || "")}</textarea>`
+          : `<input name="${esc(f.name)}" type="text" placeholder="${esc(f.placeholder || "")}" value="${esc(f.value || "")}"${f.required ? " required" : ""} autocomplete="off" />`;
+      return `<label class="modal-field"><span>${esc(f.label)}${f.required ? ' <em class="req" aria-hidden="true">*</em>' : ""}</span>
+        ${ctrl}${f.hint ? `<small class="hint">${esc(f.hint)}</small>` : ""}</label>`;
+    })
+    .join("");
+  return openModal(
+    `<h2>${esc(title)}</h2>
+     ${description ? `<p class="modal-body">${esc(description)}</p>` : ""}
+     <form class="modal-form" novalidate>
+       ${fieldHTML}
+       <div class="modal-actions">
+         <button type="button" class="btn ghost" data-act="cancel">${esc(cancelLabel)}</button>
+         <button type="submit" class="btn gold">${esc(submitLabel)}</button>
+       </div>
+     </form>`,
+    (panel, close) => {
+      const form = panel.querySelector("form");
+      panel.querySelector('[data-act="cancel"]').onclick = () => close(null);
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const values = {};
+        for (const f of fields) values[f.name] = form.elements[f.name].value.trim();
+        const missing = fields.find((f) => f.required && !values[f.name]);
+        if (missing) {
+          const el = form.elements[missing.name];
+          el.focus();
+          el.classList.add("shake");
+          setTimeout(() => el.classList.remove("shake"), 400);
+          return;
+        }
+        close(values);
+      });
+    },
+    { onCancel: null }
+  );
 }
 
 const skillBar = (s) => `
@@ -309,15 +434,54 @@ async function logout() {
   window.location.href = "/";
 }
 
+// Your own builder record (for the status avatar), matched by verified DID.
+const myBuilder = () => (state.auth.did ? state.builders.find((b) => b.did === state.auth.did) : null);
+
+// GitHub-style status cluster: a login widget when signed out, an avatar button
+// with a dropdown menu when signed in.
 function renderAuthBar() {
-  if (state.auth.authenticated) {
-    authbar.innerHTML = `
-      <span class="muted">${icon("bluesky")} @${esc(state.auth.handle)}</span>
-      <button class="btn ghost" id="logout-btn">Log out</button>`;
-    document.getElementById("logout-btn").addEventListener("click", logout);
-  } else {
+  if (!state.auth.authenticated) {
     authbar.innerHTML = loginFormHTML();
+    return;
   }
+  const me = myBuilder();
+  const handle = esc(state.auth.handle);
+  const av = me ? avatarEl(me) : `<div class="avatar">${esc(initials(state.auth.handle))}</div>`;
+  authbar.innerHTML = `
+    <div class="usermenu">
+      <button class="usermenu-btn" id="usermenu-btn" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu">
+        ${av}<span class="handle mono">@${handle}</span>${icon("caret")}
+      </button>
+      <div class="menu-pop hidden" id="usermenu-pop" role="menu" aria-label="Account">
+        <div class="menu-head"><span class="muted">Signed in as</span><strong class="mono">@${handle}</strong></div>
+        ${
+          me
+            ? `<button type="button" role="menuitem" data-act="sheet">${icon("sheet")} Your character sheet</button>`
+            : `<button type="button" role="menuitem" data-act="enlist">${icon("sheet")} Enlist</button>`
+        }
+        <button type="button" role="menuitem" data-act="logout">${icon("logout")} Log out</button>
+      </div>
+    </div>`;
+  const btn = document.getElementById("usermenu-btn");
+  const pop = document.getElementById("usermenu-pop");
+  const setOpen = (open) => {
+    pop.classList.toggle("hidden", !open);
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+  };
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setOpen(pop.classList.contains("hidden"));
+  });
+  pop.addEventListener("click", (e) => {
+    const act = e.target.closest("[data-act]")?.dataset.act;
+    if (!act) return;
+    setOpen(false);
+    if (act === "logout") logout();
+    else if (act === "sheet" && state.me) openBuilder(state.me);
+    else if (act === "enlist") setView("enlist");
+  });
+  document.addEventListener("click", () => setOpen(false));
+  document.addEventListener("keydown", (e) => e.key === "Escape" && setOpen(false));
 }
 
 const requireLogin = (why) => {
@@ -334,35 +498,75 @@ async function refresh() {
   ]);
 }
 
-// ---- views -----------------------------------------------------------------
+// ---- navigation ------------------------------------------------------------
+// Material-style shell: a collapsible left rail on desktop, a fixed bottom bar
+// on mobile (both render from the same destination list), and a GitHub-style
+// status menu in the top bar.
 let currentView = "quests"; // job-board-first: Quest Board is the landing view
-const tabs = document.querySelectorAll(".tab");
-const activateTab = (t) => {
-  tabs.forEach((x) => {
-    const on = x === t;
-    x.classList.toggle("active", on);
-    x.setAttribute("aria-selected", on ? "true" : "false");
-    x.tabIndex = on ? 0 : -1;
-  });
-  currentView = t.dataset.view;
+const rail = document.getElementById("rail");
+const bottomnav = document.getElementById("bottomnav");
+
+// Primary destinations. The 4th swaps Enlist → Character once you have a sheet.
+function navItems() {
+  const enlisted = state.auth.authenticated && state.me;
+  return [
+    { view: "quests", label: "Quests", icon: "quest" },
+    { view: "guilds", label: "Guilds", icon: "crest" },
+    { view: "roster", label: "Roster", icon: "roster" },
+    enlisted
+      ? { view: "character", label: "Character", icon: "sheet", title: "Your character sheet" }
+      : { view: "enlist", label: "Enlist", icon: "sheet" },
+  ];
+}
+
+function renderNav() {
+  const markup = navItems()
+    .map((it) => {
+      const active = it.view === currentView;
+      return `<button class="navitem${active ? " active" : ""}" data-view="${it.view}"
+        title="${esc(it.title || it.label)}"${active ? ' aria-current="page"' : ""}>
+        ${icon(it.icon)}<span class="navlabel">${esc(it.label)}</span></button>`;
+    })
+    .join("");
+  rail.innerHTML = markup;
+  bottomnav.innerHTML = markup;
+  [rail, bottomnav].forEach((host) =>
+    host.querySelectorAll(".navitem").forEach((b) => (b.onclick = () => navTo(b.dataset.view)))
+  );
+}
+
+// "character" opens your own sheet (drawer) rather than swapping the main view;
+// everything else is a top-level view.
+function navTo(view) {
+  if (view === "character") return state.me ? openBuilder(state.me) : setView("enlist");
+  setView(view);
+}
+
+// Switch the main view + refresh nav highlighting.
+function setView(view) {
+  currentView = view;
+  renderNav();
   render();
+}
+
+// Collapsible rail (desktop). Persisted so it survives reloads.
+const railToggle = document.getElementById("rail-toggle");
+const applyRailCollapsed = (collapsed) => {
+  document.body.classList.toggle("rail-collapsed", collapsed);
+  railToggle?.setAttribute("aria-expanded", collapsed ? "false" : "true");
 };
-const tabList = [...tabs];
-tabs.forEach((t) => {
-  t.setAttribute("role", "tab");
-  t.addEventListener("click", () => activateTab(t));
-  // Left/Right arrows move between tabs (WAI-ARIA tabs pattern).
-  t.addEventListener("keydown", (e) => {
-    const i = tabList.indexOf(t);
-    if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
-      e.preventDefault();
-      const next = tabList[(i + (e.key === "ArrowRight" ? 1 : tabList.length - 1)) % tabList.length];
-      next.focus();
-      activateTab(next);
-    }
-  });
+applyRailCollapsed(localStorage.getItem("bg-rail") === "collapsed");
+railToggle?.addEventListener("click", () => {
+  const collapsed = !document.body.classList.contains("rail-collapsed");
+  applyRailCollapsed(collapsed);
+  localStorage.setItem("bg-rail", collapsed ? "collapsed" : "open");
 });
-document.querySelector(".tabs")?.setAttribute("role", "tablist");
+
+// Brand returns to the Quest Board without a full reload.
+document.getElementById("brand-home")?.addEventListener("click", (e) => {
+  e.preventDefault();
+  setView("quests");
+});
 
 // Make a non-button element keyboard-operable (Enter/Space) as well as clickable.
 function onActivate(el, fn) {
@@ -453,6 +657,17 @@ function renderQuests() {
   );
 }
 
+// Link a quest's patron to their builder sheet when we can resolve the DID;
+// otherwise fall back to their Bluesky profile.
+function patronLink(q) {
+  const b = q.patron_did ? state.builders.find((x) => x.did === q.patron_did) : null;
+  const label = "@" + (q.patron_handle || "patron");
+  if (b) return entityLink("builder", b.id, label, "mono");
+  if (q.patron_handle)
+    return `<a class="mono" href="https://bsky.app/profile/${esc(q.patron_handle)}" target="_blank" rel="noopener">${esc(label)}</a>`;
+  return `<span class="mono">${esc(label)}</span>`;
+}
+
 async function openQuest(id) {
   const q = await api(`/quests/${id}`);
   const meId = state.me;
@@ -461,7 +676,7 @@ async function openQuest(id) {
   openDrawer(`
     <div class="builder-head"><span class="crest">${icon("quest")}</span>
       <div><h2>${esc(q.title)}</h2>
-      <div class="klass">by @${esc(q.patron_handle || "patron")} · ${esc(q.status)}</div></div></div>
+      <div class="klass">by ${patronLink(q)} · ${esc(q.status)}</div></div></div>
     <p class="tagline">${esc(q.brief || "")}</p>
     <div class="badges">
       ${q.reward ? badgeRaw(`${icon("reward")} ${esc(q.reward)}`, "role") : ""}
@@ -486,7 +701,7 @@ async function openQuest(id) {
         ? q.suggested_parties
             .map(
               (p) => `<div class="subform"><div class="row between">
-                <strong>${esc(p.name)}</strong><span class="badge ${p.coverage >= 100 ? "ok" : ""}">${p.coverage}% match</span></div>
+                ${entityLink(p.kind === "guild" ? "guild" : "builder", p.id, p.name, "strong-link")}<span class="badge ${p.coverage >= 100 ? "ok" : ""}">${p.coverage}% match</span></div>
                 <div class="klass">${p.kind}</div>
                 ${p.covered.length ? `<div class="hint">Covers: ${p.covered.map(esc).join(", ")}</div>` : ""}
                 ${p.missing.length ? `<div class="hint">Gaps: ${p.missing.map(esc).join(", ")}</div>` : ""}</div>`
@@ -525,14 +740,21 @@ async function openQuest(id) {
 
 async function postQuestPrompt() {
   if (!state.auth.authenticated) return requireLogin("Log in with Bluesky to post a quest");
-  const title = prompt("Quest title:");
-  if (!title) return;
-  const brief = prompt("Brief — what needs doing?") || "";
-  const reward = prompt("Reward (e.g. 'revenue share', '$500', 'kudos'):") || "";
-  const skillsRaw = prompt("Required skills (comma-separated, e.g. Rust, Design):") || "";
-  const skills = skillsRaw.split(",").map((s) => ({ name: s.trim() })).filter((s) => s.name);
+  const v = await formDialog({
+    title: "Post a quest",
+    description: "Describe the work and the reward. You'll be matched to parties by their peer-endorsed peaks.",
+    submitLabel: "Post quest",
+    fields: [
+      { name: "title", label: "Quest title", required: true, placeholder: "Ship a Stripe checkout flow" },
+      { name: "brief", label: "Brief", type: "textarea", placeholder: "What needs doing?" },
+      { name: "reward", label: "Reward", placeholder: "$500, revenue share, kudos…", hint: "Free text for now — real escrow is coming." },
+      { name: "skills", label: "Required skills", placeholder: "Rust, Design, Payments", hint: "Comma-separated." },
+    ],
+  });
+  if (!v) return;
+  const skills = v.skills.split(",").map((s) => ({ name: s.trim() })).filter((s) => s.name);
   try {
-    const q = await api("/quests", { method: "POST", body: { title, brief, reward, skills } });
+    const q = await api("/quests", { method: "POST", body: { title: v.title, brief: v.brief, reward: v.reward, skills } });
     await refresh();
     renderQuests();
     toast("Quest posted!");
@@ -627,14 +849,28 @@ function ledgerRow(b, rank) {
 // ---- drawer: builder + guild detail ---------------------------------------
 let lastFocused = null;
 function openDrawer(html) {
-  lastFocused = document.activeElement;
+  // Only capture the opener the first time; drawer-to-drawer cross-links keep it
+  // so closing returns focus to where the journey began (not a removed node).
+  if (drawer.classList.contains("hidden")) lastFocused = document.activeElement;
   drawerBody.innerHTML = html;
   drawer.classList.remove("hidden");
   drawer.setAttribute("aria-hidden", "false");
+  // Cross-links: any [data-go="builder|guild"] swaps the drawer to that entity.
+  drawerBody.querySelectorAll("[data-go]").forEach((el) =>
+    el.addEventListener("click", () => {
+      const id = Number(el.dataset.id);
+      if (el.dataset.go === "guild") openGuild(id);
+      else if (el.dataset.go === "builder") openBuilder(id);
+    })
+  );
   // Move focus into the panel for keyboard + screen-reader users.
   const first = drawer.querySelector(".drawer-close");
   if (first) first.focus();
 }
+
+// A cross-link button to another entity's drawer (wired centrally in openDrawer).
+const entityLink = (kind, id, label, cls = "") =>
+  `<button type="button" class="entity-link${cls ? " " + cls : ""}" data-go="${kind}" data-id="${id}">${esc(label)}</button>`;
 function closeDrawer() {
   drawer.classList.add("hidden");
   drawer.setAttribute("aria-hidden", "true");
@@ -783,7 +1019,7 @@ async function openBuilder(id) {
     <div class="badges">
       ${b.seeking ? `<span class="badge">seeking: ${esc(b.seeking)}</span>` : ""}
       ${b.ai_augmented ? `<span class="badge ai">AI-augmented</span>` : ""}
-      ${(b.guilds || []).map((g) => `<span class="badge role">${esc(g.name)} · ${esc(g.role)}</span>`).join("")}
+      ${(b.guilds || []).map((g) => entityLink("guild", g.id, `${g.name} · ${g.role}`, "badge role")).join("")}
     </div>
     <h3>Skill peaks</h3>
     <p class="caption">Peaks reflect peer endorsements, not self-rating — endorse the skills you've seen firsthand.</p>
@@ -824,19 +1060,25 @@ async function openBuilder(id) {
   if (mine) {
     document.getElementById("edit-me").addEventListener("click", () => {
       closeDrawer();
-      tabs.forEach((x) => x.classList.toggle("active", x.dataset.view === "enlist"));
       currentView = "enlist";
+      renderNav();
       renderEnlist(b);
     });
     document.getElementById("delete-me").addEventListener("click", async () => {
-      if (!confirm("Delete your builder? This can't be undone.")) return;
+      const ok = await confirmDialog({
+        title: "Delete your character?",
+        body: "This removes your builder profile from the guild hall and can't be undone. Your skill records stay in your own PDS.",
+        confirmLabel: "Delete",
+        danger: true,
+      });
+      if (!ok) return;
       try {
         await api(`/builders/${b.id}`, { method: "DELETE" });
         await refresh();
         state.me = null;
         closeDrawer();
-        toast("Your builder was deleted.");
-        render();
+        toast("Your character was deleted.");
+        setView("roster");
       } catch (e) {
         toast(e.message, true);
       }
@@ -881,7 +1123,7 @@ async function openGuild(id) {
       .map((m) => {
         const champs = championOf[m.display_name] || [];
         return `<div class="subform"><div class="row between">
-          <strong>${esc(m.display_name)}</strong><span class="badge role">${esc(m.role)}</span></div>
+          ${entityLink("builder", m.id, m.display_name, "strong-link")}<span class="badge role">${esc(m.role)}</span></div>
           <div class="klass">${esc(m.klass)}</div>
           ${
             champs.length
@@ -902,7 +1144,7 @@ async function openGuild(id) {
         ? recruits
             .map(
               (r) => `<div class="subform"><div class="row between">
-        <strong>${esc(r.builder.display_name)}</strong>
+        ${entityLink("builder", r.builder.id, r.builder.display_name, "strong-link")}
         ${inGuild ? `<button class="btn ghost recruit" data-id="${r.builder.id}">Recruit</button>` : ""}</div>
         <div class="hint">Fills: ${r.fills.map(esc).join(", ")}</div></div>`
             )
@@ -944,11 +1186,18 @@ async function openGuild(id) {
 async function foundGuildPrompt() {
   if (!state.auth.authenticated) return requireLogin("Log in with Bluesky to found a guild");
   if (!state.me) return toast("Create your builder (Enlist) first", true);
-  const name = prompt("Name your guild:");
-  if (!name) return;
-  const charter = prompt("Guild charter (one line):") || "";
+  const v = await formDialog({
+    title: "Found a guild",
+    description: "Rally a suitably diverse party. You'll be its founder.",
+    submitLabel: "Found guild",
+    fields: [
+      { name: "name", label: "Guild name", required: true, placeholder: "The Cartographers" },
+      { name: "charter", label: "Charter", placeholder: "One line on what you're about" },
+    ],
+  });
+  if (!v) return;
   try {
-    const g = await api("/guilds", { method: "POST", body: { name, charter } });
+    const g = await api("/guilds", { method: "POST", body: { name: v.name, charter: v.charter } });
     await refresh();
     renderGuilds();
     toast("Guild founded!");
@@ -1256,9 +1505,8 @@ function renderEnlist(existing) {
       await refresh();
       state.me = b.id;
       toast(editing ? "Sheet updated!" : `Welcome, ${b.display_name}!`);
-      tabs.forEach((x) => x.classList.toggle("active", x.dataset.view === "roster"));
-      currentView = "roster";
-      render();
+      renderAuthBar(); // status avatar now resolves to your builder
+      setView("roster");
     } catch (err) {
       toast(err.message, true);
     } finally {
@@ -1299,6 +1547,7 @@ function showLoadingSkeleton() {
     await initAtprotoAuth();
     await refresh();
     renderAuthBar();
+    renderNav();
     app.removeAttribute("aria-busy");
     render();
   } catch (e) {
@@ -1309,8 +1558,13 @@ function showLoadingSkeleton() {
 
 // "Report a bug" — upload the recent trace with an optional note.
 document.getElementById("report-bug")?.addEventListener("click", async () => {
-  const note = prompt("What went wrong? (optional — a diagnostic trace is sent either way)");
-  if (note === null) return; // cancelled
-  await reportBug(note);
+  const v = await formDialog({
+    title: "Report a bug",
+    description: "A diagnostic trace is sent either way. Add a note if you can.",
+    submitLabel: "Send report",
+    fields: [{ name: "note", label: "What went wrong?", type: "textarea", placeholder: "Optional — what you expected vs. what happened" }],
+  });
+  if (v === null) return; // cancelled
+  await reportBug(v.note);
   toast("Thanks — diagnostics sent 🛠️");
 });
