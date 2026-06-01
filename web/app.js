@@ -25,6 +25,20 @@ const state = { builders: [], guilds: [], auth: { authenticated: false }, me: nu
 let oauthClient = null;
 let atprotoSession = null;
 
+// ---- crafted inline-SVG icon set ------------------------------------------
+// Line-art matching the heraldic .sigil / favicon (currentColor, ~1.6 stroke).
+// Replaces emoji-as-iconography; restyled centrally via the .icon class.
+const ICON = {
+  crest: '<path d="M12 3 5 6v5c0 4 3 6.5 7 9 4-2.5 7-5 7-9V6l-7-3Z"/>',
+  quest: '<path d="M7 4h7l4 4v11a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"/><path d="M14 4v4h4"/><path d="M9 12h6M9 15h6"/>',
+  reward: '<rect x="4" y="9" width="16" height="11" rx="1"/><path d="M4 13h16M12 9v11"/><path d="M12 9c-2-4-6-3-6 0M12 9c2-4 6-3 6 0"/>',
+  link: '<path d="M10 14a4 4 0 0 0 6 .5l2-2a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6-.5l-2 2a4 4 0 0 0 6 6l1-1"/>',
+  check: '<path d="M5 12.5 10 17 19 7"/>',
+  bluesky: '<path d="M12 11c-1.6-3-5-5.5-6.5-5.5C4 5.5 4 7 4 8c0 1.3.8 4 2 5 .7.6 1.7.8 3 .5-2 .4-2.5 1.7-2 3 .6 1.4 2 .8 3-1 .4-.7.8-1.7 1-2.2.2.5.6 1.5 1 2.2 1 1.8 2.4 2.4 3 1 .5-1.3 0-2.6-2-3 1.3.3 2.3.1 3-.5 1.2-1 2-3.7 2-5 0-1 0-2.5-1.5-2.5C17 5.5 13.6 8 12 11Z"/>',
+};
+const icon = (name, cls = "") =>
+  `<svg class="icon${cls ? " " + cls : ""}" viewBox="0 0 24 24" aria-hidden="true">${ICON[name] || ""}</svg>`;
+
 // ---- helpers ---------------------------------------------------------------
 const esc = (s = "") =>
   String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -35,7 +49,13 @@ const avatarEl = (b) =>
       `<img class="avatar" src="${esc(b.avatar)}" alt="" loading="lazy"
         onerror="this.outerHTML='<div class=\\'avatar\\'>${esc(initials(b.display_name))}</div>'" />`
     : `<div class="avatar">${esc(initials(b.display_name))}</div>`;
-const verified = (b) => (b.did ? ` <span class="badge ai" title="Bluesky handle verified">🦋 verified</span>` : "");
+const verified = (b) =>
+  b.did ? ` <span class="badge ai" title="Bluesky handle verified">${icon("check")} verified</span>` : "";
+
+// Render helpers (DRY the markup duplicated across views)
+const badge = (label, variant = "") => `<span class="badge${variant ? " " + variant : ""}">${esc(label)}</span>`;
+const badgeRaw = (html, variant = "") => `<span class="badge${variant ? " " + variant : ""}">${html}</span>`;
+const sectionHeading = (text) => `<h3>${esc(text)}</h3>`;
 
 async function api(path, opts = {}) {
   const res = await fetch("/api" + path, {
@@ -67,7 +87,7 @@ function toast(msg, isErr = false) {
 const skillBar = (s) => `
   <div class="bar-row"><span>${esc(s.name)}${
     s.esco_uri
-      ? ` <a class="esco-tag" href="${esc(s.esco_uri)}" target="_blank" rel="noopener" title="ESCO: ${esc(s.esco_label || "linked concept")}">🔗</a>`
+      ? ` <a class="esco-tag" href="${esc(s.esco_uri)}" target="_blank" rel="noopener" title="ESCO: ${esc(s.esco_label || "linked concept")}">${icon("link")}</a>`
       : ""
   }</span><span class="peak-num">${s.peak}</span></div>
   <div class="bar"><span style="width:${s.peak}%"></span></div>`;
@@ -292,7 +312,7 @@ async function logout() {
 function renderAuthBar() {
   if (state.auth.authenticated) {
     authbar.innerHTML = `
-      <span class="muted">🦋 @${esc(state.auth.handle)}</span>
+      <span class="muted">${icon("bluesky")} @${esc(state.auth.handle)}</span>
       <button class="btn ghost" id="logout-btn">Log out</button>`;
     document.getElementById("logout-btn").addEventListener("click", logout);
   } else {
@@ -315,7 +335,7 @@ async function refresh() {
 }
 
 // ---- views -----------------------------------------------------------------
-let currentView = "guilds";
+let currentView = "quests"; // job-board-first: Quest Board is the landing view
 const tabs = document.querySelectorAll(".tab");
 const activateTab = (t) => {
   tabs.forEach((x) => {
@@ -344,6 +364,14 @@ tabs.forEach((t) => {
 });
 document.querySelector(".tabs")?.setAttribute("role", "tablist");
 
+// Make a non-button element keyboard-operable (Enter/Space) as well as clickable.
+function onActivate(el, fn) {
+  el.addEventListener("click", fn);
+  el.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fn(); }
+  });
+}
+
 function render() {
   if (currentView === "guilds") return renderGuilds();
   if (currentView === "roster") return renderRoster();
@@ -351,42 +379,77 @@ function render() {
   if (currentView === "enlist") return renderEnlist();
 }
 
-// ---- quest board -----------------------------------------------------------
-function questCard(q) {
-  const statusCls = { open: "ok", claimed: "role", delivered: "ai", closed: "" }[q.status] || "";
+// ---- quest board (the team job board) --------------------------------------
+// Parse a free-text reward into a display amount + qualifier. "$12,000" → mono
+// money; "rev share" / "kudos" → worded. (Real escrow is issue #18.)
+function parseReward(reward = "") {
+  const m = String(reward).match(/\$?\s?([\d][\d,]*\.?\d*)\s?([kKmM])?/);
+  if (m && /[\d]/.test(m[1])) {
+    let n = parseFloat(m[1].replace(/,/g, ""));
+    if (/[kK]/.test(m[2] || "")) n *= 1000;
+    if (/[mM]/.test(m[2] || "")) n *= 1e6;
+    return { amount: n, label: reward.replace(/[\d$,.\skKmM]+/g, " ").trim() || "bounty" };
+  }
+  return { amount: null, label: reward || "" };
+}
+const money = (n) =>
+  n >= 1000 ? "$" + (n / 1000).toFixed(n % 1000 ? 1 : 0).replace(/\.0$/, "") + "k" : "$" + n;
+
+function questRow(q) {
+  const r = parseReward(q.reward);
+  const feat = q.status === "open" && r.amount >= 5000 ? " feat" : "";
+  const rewardEl = r.amount != null
+    ? `<div class="amt">${money(r.amount)}<small>${esc(r.label || "bounty")}</small></div>`
+    : r.label
+      ? `<div class="amt" style="font-size:1.05rem">${esc(r.label)}</div>`
+      : "";
+  const top = (q.suggested_parties || [])[0];
+  const matchEl = top
+    ? `<div class="qmatch">${q.status === "open" ? "best match" : "claimed by"}: <b>${esc(top.name)}${top.coverage != null ? " · " + top.coverage + "%" : ""}</b></div>`
+    : "";
   return `
-    <div class="card click" data-quest="${q.id}">
-      <div class="builder-head"><span class="crest">📜</span>
-        <div><div class="name">${esc(q.title)}</div>
-        <div class="klass">by @${esc(q.patron_handle || "patron")}</div></div></div>
-      <p class="tagline">${esc(q.brief || "")}</p>
-      <div class="badges">
-        <span class="badge ${statusCls}">${esc(q.status)}</span>
-        ${q.reward ? `<span class="badge role">🎁 ${esc(q.reward)}</span>` : ""}
-        ${(q.skills || []).map((s) => `<span class="badge">${esc(s.name)}</span>`).join("")}
+    <div class="quest${feat}" data-quest="${q.id}" role="button" tabindex="0" aria-label="Open quest ${esc(q.title)}">
+      <div>
+        <span class="qstatus ${esc(q.status)}">${esc(q.status)}</span>
+        <div class="title">${esc(q.title)}</div>
+        <div class="by">by <span class="mono">@${esc(q.patron_handle || "patron")}</span></div>
+        ${q.brief ? `<div class="brief">${esc(q.brief)}</div>` : ""}
+        <div class="badges">${(q.skills || []).map((s) => badge(s.name)).join("")}</div>
       </div>
+      <div class="reward">${rewardEl}${matchEl}</div>
     </div>`;
 }
 
 function renderQuests() {
   const loggedIn = state.auth.authenticated;
+  const quests = state.quests || [];
+  const open = quests.filter((q) => q.status === "open");
+  const board = open.reduce((sum, q) => sum + (parseReward(q.reward).amount || 0), 0);
+  const paid = quests
+    .filter((q) => q.status === "delivered" || q.status === "closed")
+    .reduce((sum, q) => sum + (parseReward(q.reward).amount || 0), 0);
+
   app.innerHTML = `
-    <div class="section-head">
-      <div><h2>Quest Board</h2><p>Patrons post work; a suitably diverse party takes it on.</p></div>
-      ${loggedIn ? '<button class="btn" id="new-quest">+ Post a quest</button>' : ""}
+    <div class="pulse">
+      <div class="stat live"><div class="n">${open.length}</div><div class="l">open quests right now</div></div>
+      <div class="stat"><div class="n">${board ? money(board) : "—"}</div><div class="l">bounties on the board</div></div>
+      <div class="stat"><div class="n">${paid ? money(paid) : "—"}</div><div class="l">paid out to date</div></div>
     </div>
-    <div class="grid" id="quest-grid"></div>`;
+    <div class="section-head">
+      <div><h2>Open Quests</h2><p>Post the work, rally a party, split the bounty. Quests are matched to your party by peer-endorsed peaks.</p></div>
+      ${loggedIn ? '<button class="btn gold" id="new-quest">Post a quest</button>' : ""}
+    </div>
+    <div class="quests-list" id="quest-list"></div>`;
   if (loggedIn) document.getElementById("new-quest").addEventListener("click", postQuestPrompt);
 
-  const grid = document.getElementById("quest-grid");
-  const quests = state.quests || [];
+  const list = document.getElementById("quest-list");
   if (!quests.length) {
-    grid.innerHTML = `<p class="empty">No quests yet. ${loggedIn ? "Post the first one." : "Log in to post one."}</p>`;
+    list.innerHTML = `<p class="empty">No quests posted yet. ${loggedIn ? "Be the first to post one." : "Log in with Bluesky to post the first one."}</p>`;
     return;
   }
-  grid.innerHTML = quests.map(questCard).join("");
-  grid.querySelectorAll("[data-quest]").forEach((el) =>
-    el.addEventListener("click", () => openQuest(Number(el.dataset.quest)))
+  list.innerHTML = quests.map(questRow).join("");
+  list.querySelectorAll("[data-quest]").forEach((el) =>
+    onActivate(el, () => openQuest(Number(el.dataset.quest)))
   );
 }
 
@@ -396,37 +459,37 @@ async function openQuest(id) {
   const isPatron = state.auth.authenticated && q.patron_did === state.auth.did;
   const canClaim = state.auth.authenticated && meId && q.status === "open" && !isPatron;
   openDrawer(`
-    <div class="builder-head"><span class="crest">📜</span>
-      <div><h2 style="margin:0">${esc(q.title)}</h2>
+    <div class="builder-head"><span class="crest">${icon("quest")}</span>
+      <div><h2>${esc(q.title)}</h2>
       <div class="klass">by @${esc(q.patron_handle || "patron")} · ${esc(q.status)}</div></div></div>
     <p class="tagline">${esc(q.brief || "")}</p>
     <div class="badges">
-      ${q.reward ? `<span class="badge role">🎁 ${esc(q.reward)}</span>` : ""}
+      ${q.reward ? badgeRaw(`${icon("reward")} ${esc(q.reward)}`, "role") : ""}
       ${(q.skills || []).map((s) => `<span class="badge">${esc(s.name)}</span>`).join("")}
     </div>
     ${
       canClaim
-        ? `<div class="row" style="margin:.9rem 0"><button class="btn gold" id="claim-quest">Claim this quest</button></div>`
+        ? `<div class="row my-3"><button class="btn gold" id="claim-quest">Claim this quest</button></div>`
         : ""
     }
     ${
       isPatron && q.status !== "closed"
-        ? `<div class="row" style="margin:.9rem 0;gap:.5rem">
+        ? `<div class="row my-3 gap-sm">
              ${q.status === "claimed" ? '<button class="btn" id="q-delivered">Mark delivered</button>' : ""}
              <button class="btn ghost" id="q-closed">Close quest</button></div>`
         : ""
     }
-    <h3 style="color:var(--gold);font-family:Cinzel,serif">Suggested parties</h3>
-    <p class="muted" style="font-size:.8rem;margin-top:-.4rem">Ranked by how well their combined, peer-endorsed skill-peaks cover this quest.</p>
+    <h3>Suggested parties</h3>
+    <p class="caption">Ranked by how well their combined, peer-endorsed skill-peaks cover this quest.</p>
     ${
       (q.suggested_parties || []).length
         ? q.suggested_parties
             .map(
-              (p) => `<div class="subform"><div class="row" style="justify-content:space-between">
+              (p) => `<div class="subform"><div class="row between">
                 <strong>${esc(p.name)}</strong><span class="badge ${p.coverage >= 100 ? "ok" : ""}">${p.coverage}% match</span></div>
                 <div class="klass">${p.kind}</div>
-                ${p.covered.length ? `<div class="muted" style="font-size:.82rem">Covers: ${p.covered.map(esc).join(", ")}</div>` : ""}
-                ${p.missing.length ? `<div class="muted" style="font-size:.82rem">Gaps: ${p.missing.map(esc).join(", ")}</div>` : ""}</div>`
+                ${p.covered.length ? `<div class="hint">Covers: ${p.covered.map(esc).join(", ")}</div>` : ""}
+                ${p.missing.length ? `<div class="hint">Gaps: ${p.missing.map(esc).join(", ")}</div>` : ""}</div>`
             )
             .join("")
         : '<p class="muted">No parties cover these skills yet — recruit some builders!</p>'
@@ -511,48 +574,53 @@ function renderGuilds() {
   grid.innerHTML = state.guilds
     .map(
       (g) => `
-    <div class="card click" data-guild="${g.id}">
-      <div class="builder-head"><span class="crest">🛡️</span>
+    <div class="card click" data-guild="${g.id}" role="button" tabindex="0" aria-label="Open guild ${esc(g.name)}">
+      <div class="builder-head"><span class="crest">${icon("crest")}</span>
         <div><div class="name">${esc(g.name)}</div>
         <div class="klass">${g.member_count} member${g.member_count === 1 ? "" : "s"}</div></div></div>
       <p class="tagline">${esc(g.charter || "")}</p>
-      <span class="muted" style="font-size:.82rem">Open the war room →</span>
+      <span class="hint">Open the war room →</span>
     </div>`
     )
     .join("");
   grid.querySelectorAll("[data-guild]").forEach((el) =>
-    el.addEventListener("click", () => openGuild(Number(el.dataset.guild)))
+    onActivate(el, () => openGuild(Number(el.dataset.guild)))
   );
 }
 
+// Roster is a RANKED LEDGER (not another card grid) — ranked by top peer-endorsed
+// peak, with a scaled-up lead row. Differentiates roster from guild/quest views.
 function renderRoster() {
+  const ranked = [...state.builders].sort((a, b) => topPeak(b) - topPeak(a));
   app.innerHTML = `
     <div class="section-head"><div><h2>Roster</h2>
-      <p>Every builder and the peaks they bring to a party.</p></div></div>
-    <div class="grid">${
-      state.builders.length
-        ? state.builders.map(builderCard).join("")
+      <p>Every builder, ranked by the peaks their peers vouched for.</p></div></div>
+    ${
+      ranked.length
+        ? `<div class="ledger" id="roster-ledger">${ranked.map((b, i) => ledgerRow(b, i + 1)).join("")}</div>`
         : `<p class="empty">No builders yet — head to Enlist.</p>`
-    }</div>`;
+    }`;
   app.querySelectorAll("[data-builder]").forEach((el) =>
-    el.addEventListener("click", () => openBuilder(Number(el.dataset.builder)))
+    onActivate(el, () => openBuilder(Number(el.dataset.builder)))
   );
 }
 
-function builderCard(b) {
-  const top = (b.skills || []).slice(0, 3);
+const topPeak = (b) => (b.skills || []).reduce((m, s) => Math.max(m, s.peak || 0), 0);
+
+function ledgerRow(b, rank) {
+  const peaks = (b.skills || []).slice(0, 2);
   return `
-  <div class="card click" data-builder="${b.id}">
-    <div class="builder-head">
-      ${avatarEl(b)}
-      <div><div class="name">${esc(b.display_name)}${verified(b)}</div><div class="klass">${esc(b.klass)}</div></div>
+  <div class="lrow" data-builder="${b.id}" role="button" tabindex="0" aria-label="Open ${esc(b.display_name)}">
+    <div class="rank">${rank}</div>
+    ${avatarEl(b)}
+    <div>
+      <div class="name">${esc(b.display_name)}${verified(b)}</div>
+      <div class="klass">${esc(b.klass)}</div>
+      ${b.tagline ? `<div class="hint" style="margin-top:2px">${esc(b.tagline)}</div>` : ""}
     </div>
-    <p class="tagline">${esc(b.tagline || "")}</p>
-    ${top.map(skillBar).join("")}
-    <div class="badges">
-      ${b.seeking ? `<span class="badge">seeking: ${esc(b.seeking)}</span>` : ""}
-      ${b.ai_augmented ? `<span class="badge ai">AI-augmented</span>` : ""}
-    </div>
+    <div class="lead-skills">${peaks
+      .map((s) => badgeRaw(`${esc(s.name)} <b class="mono" style="color:var(--gold-soft)">${s.peak}</b>`, "role"))
+      .join("")}</div>
   </div>`;
 }
 
@@ -700,12 +768,12 @@ async function openBuilder(id) {
   openDrawer(`
     <div class="builder-head">
       ${avatarEl(b)}
-      <div><h2 style="margin:0">${esc(b.display_name)}${verified(b)}</h2>
+      <div><h2>${esc(b.display_name)}${verified(b)}</h2>
       <div class="klass">${esc(b.klass)} · <a href="https://bsky.app/profile/${esc(b.handle)}" target="_blank" rel="noopener">@${esc(b.handle)}</a></div></div>
     </div>
     ${
       mine
-        ? `<div class="row" style="gap:.5rem;margin:.4rem 0">
+        ? `<div class="row my-2 gap-sm">
              <button class="btn" id="edit-me">Edit my sheet</button>
              <button class="btn ghost" id="delete-me">Delete</button></div>`
         : ""
@@ -717,15 +785,15 @@ async function openBuilder(id) {
       ${b.ai_augmented ? `<span class="badge ai">AI-augmented</span>` : ""}
       ${(b.guilds || []).map((g) => `<span class="badge role">${esc(g.name)} · ${esc(g.role)}</span>`).join("")}
     </div>
-    <h3 style="color:var(--gold);font-family:Cinzel,serif">Skill peaks</h3>
-    <p class="muted" style="font-size:.78rem;margin:-.2rem 0 .6rem">Peaks reflect peer endorsements, not self-rating — endorse the skills you've seen firsthand.</p>
+    <h3>Skill peaks</h3>
+    <p class="caption">Peaks reflect peer endorsements, not self-rating — endorse the skills you've seen firsthand.</p>
     ${(b.skills || []).map((s) => drawerSkill(s, b, mine)).join("") || '<p class="muted">No skills listed.</p>'}
-    <h3 style="color:var(--gold);font-family:Cinzel,serif">Projects</h3>
+    <h3>Projects</h3>
     ${
       (b.projects || [])
         .map(
           (p) => `<div class="subform"><h3>${esc(p.name)}</h3>
-        <p class="muted" style="margin:0">${esc(p.description || "")}</p>
+        <p class="tight muted">${esc(p.description || "")}</p>
         ${p.help_wanted ? `<p style="margin:.2rem 0 0"><strong>Wants:</strong> ${esc(p.help_wanted)}</p>` : ""}
         ${p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.url)}</a>` : ""}</div>`
         )
@@ -733,10 +801,10 @@ async function openBuilder(id) {
     }
     ${
       (b.repos || []).length
-        ? `<h3 style="color:var(--gold);font-family:Cinzel,serif">Repos</h3>` +
+        ? `<h3>Repos</h3>` +
           b.repos
             .map(
-              (r) => `<div class="row" style="justify-content:space-between;gap:.5rem;margin:.3rem 0">
+              (r) => `<div class="row between gap-sm my-2">
                 <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a>
                 <span class="badge ${r.verified ? "ok" : ""}">${esc(r.host || "repo")}${r.verified ? " ✓" : ""}</span></div>`
             )
@@ -783,20 +851,20 @@ async function openGuild(id) {
   const championOf = Object.fromEntries(g.champions.map((c) => [c.display_name, c.champions]));
 
   openDrawer(`
-    <div class="builder-head"><span class="crest">🛡️</span>
-      <div><h2 style="margin:0">${esc(g.name)}</h2>
+    <div class="builder-head"><span class="crest">${icon("crest")}</span>
+      <div><h2>${esc(g.name)}</h2>
       <div class="klass">${g.members.length} member${g.members.length === 1 ? "" : "s"}</div></div></div>
     <p class="tagline">${esc(g.charter || "")}</p>
 
-    <h3 style="color:var(--gold);font-family:Cinzel,serif">Guild Power</h3>
+    <h3>Guild Power</h3>
     <div class="power">
       <div class="meter"><span style="width:${Math.min(100, g.diversity)}%"></span></div>
       <span class="val">${g.diversity}</span>
     </div>
-    <p class="muted" style="font-size:.8rem;margin-top:-.4rem">
+    <p class="caption">
       Rewards complementary, peer-endorsed peaks across the party; redundant overlap drags it down.</p>
 
-    <div class="row" style="margin:.8rem 0">
+    <div class="row my-3">
       ${
         state.auth.authenticated && meId
           ? `<button class="btn ${inGuild ? "ghost" : "gold"}" id="join-toggle">${
@@ -808,35 +876,35 @@ async function openGuild(id) {
       }
     </div>
 
-    <h3 style="color:var(--gold);font-family:Cinzel,serif">Party</h3>
+    <h3>Party</h3>
     ${g.members
       .map((m) => {
         const champs = championOf[m.display_name] || [];
-        return `<div class="subform"><div class="row" style="justify-content:space-between">
+        return `<div class="subform"><div class="row between">
           <strong>${esc(m.display_name)}</strong><span class="badge role">${esc(m.role)}</span></div>
           <div class="klass">${esc(m.klass)}</div>
           ${
             champs.length
-              ? `<div class="muted" style="font-size:.82rem">Carries: ${champs.map(esc).join(", ")}</div>`
-              : `<div class="muted" style="font-size:.82rem">Supporting — no top peak yet</div>`
+              ? `<div class="hint">Carries: ${champs.map(esc).join(", ")}</div>`
+              : `<div class="hint">Supporting — no top peak yet</div>`
           }</div>`;
       })
       .join("")}
 
-    <h3 style="color:var(--gold);font-family:Cinzel,serif">Combined skill-map</h3>
+    <h3>Combined skill-map</h3>
     ${g.skill_map.map((s) => skillBar({ name: `${s.name} · ${s.champion}`, peak: s.peak })).join("") ||
       '<p class="muted">No skills yet.</p>'}
 
-    <h3 style="color:var(--gold);font-family:Cinzel,serif">Recommended recruits</h3>
-    <p class="muted" style="font-size:.8rem;margin-top:-.4rem">Builders who'd fill the party's current gaps. Guild members can recruit them.</p>
+    <h3>Recommended recruits</h3>
+    <p class="caption">Builders who'd fill the party's current gaps. Guild members can recruit them.</p>
     ${
       recruits.length
         ? recruits
             .map(
-              (r) => `<div class="subform"><div class="row" style="justify-content:space-between">
+              (r) => `<div class="subform"><div class="row between">
         <strong>${esc(r.builder.display_name)}</strong>
         ${inGuild ? `<button class="btn ghost recruit" data-id="${r.builder.id}">Recruit</button>` : ""}</div>
-        <div class="muted" style="font-size:.82rem">Fills: ${r.fills.map(esc).join(", ")}</div></div>`
+        <div class="hint">Fills: ${r.fills.map(esc).join(", ")}</div></div>`
             )
             .join("")
         : '<p class="muted">This party already covers the candidate pool. Enlist more builders!</p>'
@@ -897,7 +965,7 @@ function renderEnlist(existing) {
     app.innerHTML = `
       <div class="section-head"><div><h2>Enlist</h2>
         <p>Your character sheet is tied to your Bluesky identity, so no one can impersonate you.</p></div></div>
-      <div class="subform" style="text-align:center;padding:2rem">
+      <div class="subform center-pad">
         <p>Log in with Bluesky to create your builder.</p>
         ${loginFormHTML()}
       </div>`;
@@ -907,7 +975,7 @@ function renderEnlist(existing) {
     // Already enlisted — point them at their sheet rather than a second one.
     app.innerHTML = `
       <div class="section-head"><div><h2>Enlist</h2></div></div>
-      <div class="subform" style="text-align:center;padding:2rem">
+      <div class="subform center-pad">
         <p>You're already enlisted as <strong>@${esc(state.auth.handle)}</strong>.</p>
         <button class="btn gold" id="open-mine">View / edit my sheet</button>
       </div>`;
@@ -922,9 +990,9 @@ function renderEnlist(existing) {
       not a self-rated slider, will speak to how strong. You're verified as
       <strong>@${esc(state.auth.handle)}</strong>.</p></div></div>
     <form class="enlist" id="enlist-form">
-      <div class="row" style="gap:.9rem">
-        <label style="flex:1">Display name<input name="display_name" required placeholder="Ada Lovelace" /></label>
-        <label style="flex:1">Class / archetype<input name="klass" placeholder="Architect, Bard, Druid…" /></label>
+      <div class="field-pair">
+        <label>Display name<input name="display_name" required placeholder="Ada Lovelace" /></label>
+        <label>Class / archetype<input name="klass" placeholder="Architect, Bard, Druid…" /></label>
       </div>
       <label>Seeking<input name="seeking" placeholder="income, collaborators, both" /></label>
       <label>Tagline<input name="tagline" placeholder="One line on what you bring" /></label>
@@ -947,7 +1015,7 @@ function renderEnlist(existing) {
 
       <div class="subform" id="repos">
         <h3>Linked repos (optional)</h3>
-        <p class="muted" style="margin:0;font-size:.8rem">Paste a repo URL. Tangled repos under your own handle verify automatically (same atproto identity).</p>
+        <p class="hint tight">Paste a repo URL. Tangled repos under your own handle verify automatically (same atproto identity).</p>
         <div id="repo-rows"></div>
         <button type="button" class="btn ghost" id="add-repo">+ Link a repo</button>
       </div>
@@ -1043,7 +1111,7 @@ function renderEnlist(existing) {
       const term = row.querySelector(".s-name").value.trim();
       if (!term) return toast("Type the skill name first.", true);
       panel.classList.remove("hidden");
-      panel.innerHTML = `<p class="muted" style="margin:.2rem 0">Searching ESCO…</p>`;
+      panel.innerHTML = `<p class="hint">Searching ESCO…</p>`;
       let items = [];
       try {
         items = await api(`/skills/esco?q=${encodeURIComponent(term)}`);
@@ -1051,7 +1119,7 @@ function renderEnlist(existing) {
         /* best-effort */
       }
       if (!items.length) {
-        panel.innerHTML = `<p class="muted" style="margin:.2rem 0">No ESCO match — that's fine, leave it unlinked.</p>`;
+        panel.innerHTML = `<p class="hint">No ESCO match — that's fine, leave it unlinked.</p>`;
         return;
       }
       panel.innerHTML = items
@@ -1075,7 +1143,7 @@ function renderEnlist(existing) {
     const toggle = row.querySelector(".esco-toggle");
     if (row._esco?.uri) {
       chosen.classList.remove("hidden");
-      chosen.innerHTML = `<a href="${esc(row._esco.uri)}" target="_blank" rel="noopener" title="ESCO concept">🔗 ${esc(row._esco.label || "linked")}</a>
+      chosen.innerHTML = `<a href="${esc(row._esco.uri)}" target="_blank" rel="noopener" title="ESCO concept">${icon("link")} ${esc(row._esco.label || "linked")}</a>
         <button type="button" class="linklike esco-clear">clear</button>`;
       chosen.querySelector(".esco-clear").addEventListener("click", () => {
         row._esco = null;

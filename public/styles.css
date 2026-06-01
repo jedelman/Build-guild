@@ -13,15 +13,18 @@
   --surface-2: #1c1926;
   --inset: #0e0c13;
 
-  /* text — high contrast, warm white → faint label */
+  /* text — high contrast, warm white → faint label.
+     --faint lightened from #7c7689 → #8f88a0 so muted text passes WCAG AA on
+     card/drawer surfaces (was 3.95:1 on surface-2; now 5.09:1). */
   --ink: #f4f1ea;
   --ink-dim: #bbb4c6;
-  --faint: #7c7689;
+  --faint: #8f88a0;
 
   /* signature + accents (no generic violet) */
   --gold: #d8b15a;
   --gold-soft: #ecd49a;
   --gold-deep: #6f5727;
+  --gold-ink: #1a1304;        /* ink on gold fills (buttons) */
   --accent: #67bcb3;
   --accent-deep: #2c5651;
   --good: #6cbf95;
@@ -33,14 +36,43 @@
   --ring: rgba(103, 188, 179, 0.4);
   --shadow: 0 1px 0 rgba(255, 255, 255, 0.025), 0 14px 32px -18px rgba(0, 0, 0, 0.7);
   --shadow-lift: 0 1px 0 rgba(255, 255, 255, 0.04), 0 22px 40px -22px rgba(0, 0, 0, 0.8);
+  --shadow-glow-gold: 0 0 14px -3px var(--gold);
+  --shadow-crest: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.55));
+  --shadow-drawer: -30px 0 60px -30px rgba(0, 0, 0, 0.8);
 
   /* spacing scale (4px base) */
   --s1: 0.25rem; --s2: 0.5rem; --s3: 0.75rem; --s4: 1rem;
   --s5: 1.5rem; --s6: 2rem; --s7: 3rem;
 
+  /* type scale — one confident ramp (collapses 11 ad-hoc sizes) */
+  --fs-root: 15px;
+  --fs-xs: 0.72rem;   /* badges, klass, chips, captions-tight */
+  --fs-sm: 0.8rem;    /* captions, hints, foot, bar-row, meta */
+  --fs-base: 0.86rem; /* btn, tab, tagline, section-head p */
+  --fs-md: 0.95rem;   /* form inputs, panel headings */
+  --fs-lg: 1.15rem;   /* power value */
+  --fs-xl: 1.3rem;    /* section h2 */
+  --fs-2xl: 1.4rem;   /* brand wordmark */
+
+  /* control sizing (unifies button/input/chip paddings) */
+  --ctl-pad-y: 0.55rem;  --ctl-pad-x: 1rem;
+  --ctl-pad-y-sm: 0.3rem; --ctl-pad-x-sm: 0.7rem;
+  --ctl-pad-y-xs: 0.25rem; --ctl-pad-x-xs: 0.6rem;
+  --field-pad-y: 0.5rem;  --field-pad-x: 0.65rem;
+
+  /* component sizing */
+  --bar-h: 6px; --meter-h: 9px;
+
+  /* letter-spacing scale */
+  --ls-tight: -0.01em; --ls-normal: 0.01em; --ls-wide: 0.02em;
+  --ls-caps: 0.04em; --ls-caps-wide: 0.08em;
+
   --r-sm: 8px; --r: 12px; --r-lg: 16px; --r-pill: 999px;
   --maxw: 1080px;
   --ease: cubic-bezier(0.2, 0.6, 0.2, 1);
+
+  /* Instrument: mono numerics for stats, money, peaks */
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 * { box-sizing: border-box; }
@@ -49,7 +81,7 @@ html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
   font-family: Inter, system-ui, -apple-system, sans-serif;
-  font-size: 15px;
+  font-size: var(--fs-root);
   line-height: 1.55;
   color: var(--ink);
   background:
@@ -69,6 +101,32 @@ h1, h2, h3 { line-height: 1.15; }
 /* tabular figures wherever we show stats */
 .peak-num, .power .val, output, .bar-row { font-variant-numeric: tabular-nums; }
 
+/* ---- Instrument primitives + utilities -----------------------------------*/
+/* Mono numerics carry stats, money, peaks — the "data instrument" voice. */
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+
+/* small-text utilities (absorb the inline font-size:.8/.82rem + tight margins) */
+.caption { font-size: var(--fs-sm); color: var(--faint); margin: -0.3rem 0 var(--s3); max-width: 60ch; }
+.hint { font-size: var(--fs-sm); color: var(--faint); }
+.tight { margin: 0; }
+
+/* row spacing modifiers (absorb inline style="margin/justify/gap" on .row) */
+.row.between { justify-content: space-between; }
+.row.gap-sm { gap: var(--s2); }
+.row.my-2 { margin: var(--s2) 0; }
+.row.my-3 { margin: var(--s3) 0; }
+
+/* enlist two-up field pair + centered subform states */
+.field-pair { display: flex; gap: var(--s4); flex-wrap: wrap; }
+.field-pair > label { flex: 1; min-width: 12rem; }
+.center-pad { text-align: center; padding: var(--s6); }
+.enlist input[type="checkbox"] { width: auto; }
+
+/* crafted inline-SVG icon (replaces emoji iconography) */
+.icon { width: 1em; height: 1em; display: inline-block; vertical-align: -0.125em;
+  fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.icon-lg { width: 1.5rem; height: 1.5rem; }
+
 /* ---- top bar --------------------------------------------------------------*/
 .topbar {
   display: flex; justify-content: space-between; align-items: center;
@@ -80,9 +138,9 @@ h1, h2, h3 { line-height: 1.15; }
 .brand { display: flex; align-items: center; gap: var(--s3); }
 .brand h1 {
   font-family: Cinzel, serif; font-weight: 600; margin: 0;
-  font-size: 1.4rem; letter-spacing: 0.02em; color: var(--gold-soft);
+  font-size: var(--fs-2xl); letter-spacing: var(--ls-wide); color: var(--gold-soft);
 }
-.sub { margin: 2px 0 0; color: var(--faint); font-size: 0.82rem; letter-spacing: 0.01em; }
+.sub { margin: var(--s1) 0 0; color: var(--faint); font-size: var(--fs-sm); letter-spacing: var(--ls-normal); }
 
 /* crafted heraldic sigil — replaces the emoji logo */
 .sigil { width: 30px; height: 30px; flex: none; position: relative; }
@@ -94,11 +152,12 @@ h1, h2, h3 { line-height: 1.15; }
 .sigil::after {
   content: ""; position: absolute; inset: 9px; transform: rotate(45deg);
   background: linear-gradient(145deg, var(--gold-soft), var(--gold)); border-radius: 2px;
-  box-shadow: 0 0 14px -3px var(--gold);
+  box-shadow: var(--shadow-glow-gold);
 }
 
-/* guild crest (contextual emoji, made intentional) */
-.crest { font-size: 1.45rem; line-height: 1; filter: saturate(0.85) drop-shadow(0 2px 5px rgba(0, 0, 0, 0.55)); }
+/* crest mark — crafted SVG icon (gold), replaces the emoji crest */
+.crest { color: var(--gold-soft); display: inline-flex; filter: var(--shadow-crest); }
+.crest .icon { width: 1.5rem; height: 1.5rem; stroke-width: 1.5; }
 
 /* ---- form controls --------------------------------------------------------*/
 select, input, textarea {
@@ -106,10 +165,12 @@ select, input, textarea {
   color: var(--ink);
   border: 1px solid var(--line-strong);
   border-radius: var(--r-sm);
-  padding: 0.5rem 0.65rem;
+  padding: var(--field-pad-y) var(--field-pad-x);
   font: inherit;
   transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
 }
+/* invalid only after the user has typed (don't shout on first paint) */
+input:invalid:not(:placeholder-shown), textarea:invalid:not(:placeholder-shown) { border-color: var(--danger); }
 select::placeholder, input::placeholder, textarea::placeholder { color: var(--faint); }
 select:focus, input:focus, textarea:focus {
   outline: none; border-color: var(--accent);
@@ -125,8 +186,8 @@ select:focus, input:focus, textarea:focus {
 }
 .tab {
   background: none; border: none; cursor: pointer;
-  color: var(--faint); font: 600 0.88rem Inter, sans-serif;
-  letter-spacing: 0.02em;
+  color: var(--faint); font: 600 var(--fs-base) Inter, sans-serif;
+  letter-spacing: var(--ls-wide);
   padding: 0 0 var(--s3); margin-bottom: -1px;
   border-bottom: 2px solid transparent;
   transition: color 0.15s var(--ease);
@@ -138,9 +199,9 @@ main { max-width: var(--maxw); margin: 0 auto; padding: var(--s6) var(--s5); }
 
 /* ---- section headers ------------------------------------------------------*/
 .section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s4); margin-bottom: var(--s5); }
-.section-head h2 { font-family: Cinzel, serif; font-weight: 600; color: var(--gold-soft); margin: 0; font-size: 1.3rem; letter-spacing: 0.01em; text-wrap: balance; }
+.section-head h2 { font-family: Cinzel, serif; font-weight: 600; color: var(--gold-soft); margin: 0; font-size: var(--fs-xl); letter-spacing: var(--ls-normal); text-wrap: balance; }
 .hero h2, .drawer-panel h2 { text-wrap: balance; }
-.section-head p { margin: var(--s1) 0 0; color: var(--faint); font-size: 0.85rem; max-width: 52ch; }
+.section-head p { margin: var(--s1) 0 0; color: var(--faint); font-size: var(--fs-base); max-width: 52ch; }
 
 /* ---- cards ----------------------------------------------------------------*/
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: var(--s4); }
@@ -169,34 +230,35 @@ main { max-width: var(--maxw); margin: 0 auto; padding: var(--s6) var(--s5); }
   border: 1px solid var(--gold-deep); color: var(--gold-soft);
   font-weight: 600; font-size: 0.9rem; object-fit: cover;
 }
-.builder-head .name { font-weight: 600; letter-spacing: -0.01em; }
-.builder-head .klass { font-size: 0.7rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 1px; }
-.tagline { color: var(--ink-dim); font-size: 0.88rem; margin: var(--s1) 0 var(--s4); min-height: 1.1em; }
+.builder-head .name { font-weight: 600; letter-spacing: var(--ls-tight); }
+.builder-head .klass { font-size: var(--fs-xs); color: var(--accent); text-transform: uppercase; letter-spacing: var(--ls-caps-wide); margin-top: 1px; }
+.tagline { color: var(--ink-dim); font-size: var(--fs-base); margin: var(--s1) 0 var(--s4); min-height: 1.1em; }
 
 /* ---- skill bars -----------------------------------------------------------*/
-.bar-row { display: grid; grid-template-columns: 1fr auto; gap: var(--s2); align-items: center; margin: 0.4rem 0 0.25rem; font-size: 0.82rem; }
-.bar { grid-column: 1 / -1; height: 6px; background: var(--inset); border-radius: var(--r-pill); overflow: hidden; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); }
+.bar-row { display: grid; grid-template-columns: 1fr auto; gap: var(--s2); align-items: center; margin: 0.4rem 0 0.25rem; font-size: var(--fs-sm); }
+.bar { grid-column: 1 / -1; height: var(--bar-h); background: var(--inset); border-radius: var(--r-pill); overflow: hidden; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); }
 .bar > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--gold-deep), var(--gold)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25); }
-.peak-num { color: var(--faint); }
+.peak-num { color: var(--faint); font-family: var(--mono); }
 
 /* ---- badges ---------------------------------------------------------------*/
 .badges { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s3); }
-.badge { font-size: 0.7rem; padding: 0.22rem 0.55rem; border-radius: var(--r-pill); border: 1px solid var(--line-strong); color: var(--ink-dim); letter-spacing: 0.01em; }
+.badge { font-size: var(--fs-xs); padding: 0.22rem 0.55rem; border-radius: var(--r-pill); border: 1px solid var(--line-strong); color: var(--ink-dim); letter-spacing: var(--ls-normal); transition: border-color 0.15s var(--ease); }
+.badge:hover { border-color: var(--gold-deep); }
 .badge.ai { color: var(--good); border-color: var(--accent-deep); }
 .badge.ok { color: var(--good); border-color: #2f5a44; }
 .badge.role { color: var(--gold-soft); border-color: var(--gold-deep); }
 
 /* ---- guild power meter ----------------------------------------------------*/
 .power { display: flex; align-items: center; gap: var(--s3); margin: var(--s2) 0 var(--s4); }
-.power .meter { flex: 1; height: 9px; background: var(--inset); border-radius: var(--r-pill); overflow: hidden; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); }
+.power .meter { flex: 1; height: var(--meter-h); background: var(--inset); border-radius: var(--r-pill); overflow: hidden; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); }
 .power .meter > span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--gold)); }
-.power .val { font-family: Cinzel, serif; color: var(--gold-soft); font-size: 1.15rem; }
+.power .val { font-family: var(--mono); font-weight: 700; color: var(--gold-soft); font-size: var(--fs-lg); }
 
 /* ---- buttons --------------------------------------------------------------*/
 .btn {
   background: var(--surface-2); color: var(--ink);
   border: 1px solid var(--line-strong); border-radius: var(--r-sm);
-  padding: 0.55rem 1rem; font: 600 0.86rem Inter, sans-serif; letter-spacing: 0.01em;
+  padding: var(--ctl-pad-y) var(--ctl-pad-x); font: 600 var(--fs-base) Inter, sans-serif; letter-spacing: var(--ls-normal);
   white-space: nowrap; cursor: pointer;
   transition: transform 0.1s var(--ease), background 0.15s var(--ease), border-color 0.15s var(--ease), filter 0.15s var(--ease);
 }
@@ -205,7 +267,7 @@ main { max-width: var(--maxw); margin: 0 auto; padding: var(--s6) var(--s5); }
 .btn.ghost { background: transparent; }
 .btn.gold {
   background: linear-gradient(180deg, var(--gold-soft), var(--gold));
-  color: #1a1304; border-color: transparent; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset;
+  color: var(--gold-ink); border-color: transparent; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset;
 }
 .btn.gold:hover { filter: brightness(1.05); border-color: transparent; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
@@ -232,62 +294,63 @@ main { max-width: var(--maxw); margin: 0 auto; padding: var(--s6) var(--s5); }
 .drawer-panel {
   width: min(560px, 100%); height: 100%; background: var(--bg-2);
   border-left: 1px solid var(--line-strong); padding: var(--s6); overflow-y: auto; position: relative;
-  box-shadow: -30px 0 60px -30px rgba(0, 0, 0, 0.8);
+  box-shadow: var(--shadow-drawer);
   animation: drawer-slide 0.24s var(--ease);
 }
 @keyframes drawer-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes drawer-slide { from { transform: translateX(24px); opacity: 0.6; } to { transform: none; opacity: 1; } }
-.drawer-panel h2 { letter-spacing: -0.01em; }
-.drawer-panel h3 { font-family: Cinzel, serif; font-weight: 600; color: var(--gold-soft); font-size: 0.98rem; margin: var(--s5) 0 var(--s3); letter-spacing: 0.01em; }
+.drawer-panel h2 { margin: 0; letter-spacing: var(--ls-tight); }
+.drawer-panel h3 { font-family: Cinzel, serif; font-weight: 600; color: var(--gold-soft); font-size: var(--fs-md); margin: var(--s5) 0 var(--s3); letter-spacing: var(--ls-normal); }
 .drawer-close { position: absolute; top: var(--s4); right: var(--s4); background: transparent; border: none; color: var(--faint); font-size: 1.1rem; cursor: pointer; line-height: 1; padding: var(--s2); }
 .drawer-close:hover { color: var(--ink); }
 
 /* ---- forms ----------------------------------------------------------------*/
 form.enlist { display: grid; gap: var(--s4); max-width: 640px; }
-form.enlist label { display: grid; gap: var(--s1); font-size: 0.78rem; color: var(--faint); text-transform: uppercase; letter-spacing: 0.04em; }
-form.enlist label input, form.enlist label textarea { text-transform: none; letter-spacing: normal; font-size: 0.95rem; color: var(--ink); }
+form.enlist label { display: grid; gap: var(--s1); font-size: var(--fs-xs); color: var(--faint); text-transform: uppercase; letter-spacing: var(--ls-caps); }
+form.enlist label input, form.enlist label textarea { text-transform: none; letter-spacing: normal; font-size: var(--fs-md); color: var(--ink); }
 .subform { border: 1px solid var(--line); border-radius: var(--r); padding: var(--s4); background: var(--surface); display: grid; gap: var(--s3); }
-.subform h3 { margin: 0; font-size: 0.9rem; color: var(--gold-soft); font-family: Cinzel, serif; font-weight: 600; }
+.subform h3 { margin: 0; font-size: var(--fs-md); color: var(--gold-soft); font-family: Cinzel, serif; font-weight: 600; }
 .skill-line, .project-line { display: grid; gap: var(--s2); }
 .skill-line { grid-template-columns: 1fr auto; align-items: center; }
 
 /* PDS skill row: name line + optional ESCO concept link */
 .skill-row { display: grid; gap: var(--s1); padding-bottom: var(--s2); border-bottom: 1px solid var(--line); }
 .skill-row:last-child { border-bottom: none; }
-.skill-meta { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s2); font-size: 0.78rem; }
-.skill-meta .esco-toggle { font-size: 0.78rem; }
+.skill-meta { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s2); font-size: var(--fs-sm); }
+.skill-meta .esco-toggle { font-size: var(--fs-sm); }
 .esco-chosen { display: inline-flex; align-items: center; gap: var(--s2); color: var(--ink-dim); }
 .esco-chosen a { color: var(--accent); }
 .esco-panel { display: flex; flex-wrap: wrap; gap: var(--s2); width: 100%; }
 .esco-opt {
   background: var(--surface-2); color: var(--ink-dim); border: 1px solid var(--line-strong);
-  border-radius: var(--r-pill); padding: 0.25rem 0.6rem; font-size: 0.78rem; cursor: pointer;
+  border-radius: var(--r-pill); padding: var(--ctl-pad-y-xs) var(--ctl-pad-x-xs); font-size: var(--fs-sm); cursor: pointer;
+  transition: border-color 0.15s var(--ease), color 0.15s var(--ease);
 }
 .esco-opt:hover { border-color: var(--accent); color: var(--ink); }
 .esco-tag { text-decoration: none; opacity: 0.7; font-size: 0.8em; }
 .esco-tag:hover { opacity: 1; }
 
 /* Endorsement row under a skill bar in the builder drawer */
-.endorse-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); margin: 0.2rem 0 var(--s3); }
-.endorse-count { font-size: 0.76rem; }
-.endorse-btn { padding: 0.3rem 0.7rem; font-size: 0.78rem; }
+.endorse-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); margin: var(--s1) 0 var(--s3); }
+.endorse-count { font-size: var(--fs-xs); }
+.endorse-btn { padding: var(--ctl-pad-y-sm) var(--ctl-pad-x-sm); font-size: var(--fs-sm); }
 .endorse-btn.endorsed { color: var(--good); border-color: var(--accent-deep); }
 
 /* Endorser relationship-tier chips (stronger ties read with more colour) */
-.tier-chip { display: inline-block; font-size: 0.7rem; padding: 0.05rem 0.4rem; border-radius: var(--r-pill); border: 1px solid var(--line-strong); }
+.tier-chip { display: inline-block; font-size: var(--fs-xs); padding: 0.05rem 0.4rem; border-radius: var(--r-pill); border: 1px solid var(--line-strong); }
 .tier-chip.tier-client { color: var(--gold-soft); border-color: var(--gold-deep); background: rgba(216, 177, 90, 0.08); }
 .tier-chip.tier-leader { color: var(--gold-soft); border-color: var(--gold-deep); }
 .tier-chip.tier-guildmate { color: var(--accent); border-color: var(--accent-deep); }
 
 /* ---- footer ---------------------------------------------------------------*/
-.foot { text-align: center; color: var(--faint); font-size: 0.8rem; padding: var(--s6) var(--s4) var(--s7); border-top: 1px solid var(--line); margin-top: var(--s7); }
+.foot { text-align: center; color: var(--faint); font-size: var(--fs-sm); padding: var(--s6) var(--s4) var(--s7); border-top: 1px solid var(--line); margin-top: var(--s7); }
 .foot a { color: var(--ink-dim); }
 
 /* ---- auth bar + login widget ---------------------------------------------*/
 #authbar { display: flex; align-items: center; gap: var(--s3); }
-#authbar .muted { font-size: 0.82rem; color: var(--ink-dim); }
+#authbar .muted { font-size: var(--fs-sm); color: var(--ink-dim); }
 .login-form { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
-.login-form .login-handle { flex: 1 1 12rem; min-width: 9rem; max-width: 18rem; margin: 0; padding: 0.45rem 0.6rem; font-size: 0.85rem; }
+.login-form .login-handle { flex: 1 1 12rem; min-width: 9rem; max-width: 18rem; margin: 0; padding: var(--ctl-pad-y-xs) var(--ctl-pad-x-xs); font-size: var(--fs-base); }
 .subform .login-form { justify-content: center; margin-top: var(--s2); }
 .subform .login-form .login-handle { width: 16rem; }
 
@@ -324,6 +387,60 @@ form.enlist label input, form.enlist label textarea { text-transform: none; lett
   transform: translateX(-100%); animation: shimmer 1.3s infinite;
 }
 @keyframes shimmer { to { transform: translateX(100%); } }
+
+/* ============================================================================
+   INSTRUMENT LAYER — the team job board reads like a precise data instrument.
+   Mono numerics carry money/peaks; teal = open/active, gold = value/standing.
+   ========================================================================= */
+
+/* Earnings pulse strip (job-board vitals) */
+.pulse { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s3); margin-bottom: var(--s5); }
+.stat { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); padding: var(--s3) var(--s4); }
+.stat .n { font: 700 1.6rem var(--mono); color: var(--gold-soft); letter-spacing: -0.02em; }
+.stat .l { font-size: var(--fs-sm); color: var(--faint); margin-top: var(--s1); }
+.stat.live .n { color: var(--accent); }
+
+/* Quest board — open contracts; reward leads in mono gold */
+.quests-list { display: flex; flex-direction: column; gap: var(--s2); }
+.quest {
+  display: grid; grid-template-columns: 1fr auto; gap: var(--s3) var(--s5);
+  padding: var(--s4); border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--surface); transition: border-color 0.15s var(--ease);
+}
+.quest:hover, .quest:focus-visible { border-color: var(--gold-deep); }
+.quest.feat { background: linear-gradient(115deg, rgba(216, 177, 90, 0.06), var(--surface) 55%); border-color: var(--gold-deep); }
+.quest .title { font-weight: 700; font-size: var(--fs-md); letter-spacing: var(--ls-tight); margin-top: var(--s2); }
+.quest .by { color: var(--faint); font-size: var(--fs-sm); margin-top: var(--s1); }
+.quest .by .mono { color: var(--ink-dim); }
+.quest .brief { color: var(--ink-dim); font-size: var(--fs-base); margin: var(--s2) 0 var(--s3); max-width: 60ch; }
+.reward { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: var(--s2); }
+.reward .amt { font: 700 1.5rem var(--mono); color: var(--gold-soft); letter-spacing: -0.02em; white-space: nowrap; }
+.reward .amt small { display: block; font: 500 var(--fs-xs) Inter, sans-serif; color: var(--faint); letter-spacing: var(--ls-caps); text-transform: uppercase; margin-top: 2px; }
+.qstatus { font: 600 var(--fs-xs) var(--mono); letter-spacing: var(--ls-caps-wide); text-transform: uppercase; padding: 0.2rem 0.5rem; border-radius: var(--r-sm); border: 1px solid var(--accent-deep); color: var(--accent); display: inline-block; }
+.qstatus.claimed { border-color: var(--gold-deep); color: var(--gold-soft); }
+.qstatus.delivered { border-color: var(--accent-deep); color: var(--good); }
+.qmatch { font-size: var(--fs-sm); color: var(--faint); white-space: nowrap; }
+.qmatch b { color: var(--accent); font-family: var(--mono); }
+@media (max-width: 560px) {
+  .quest { grid-template-columns: 1fr; }
+  .reward { align-items: flex-start; text-align: left; }
+}
+
+/* Ranked-ledger roster (differentiates roster from guild/quest grids) */
+.ledger { display: flex; flex-direction: column; gap: var(--s2); }
+.lrow {
+  display: grid; grid-template-columns: 2rem 44px 1fr auto; gap: var(--s4); align-items: center;
+  padding: var(--s3) var(--s4); border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--surface); cursor: pointer;
+  transition: border-color 0.15s var(--ease), transform 0.15s var(--ease);
+}
+.lrow:hover, .lrow:focus-visible { border-color: var(--gold-deep); transform: translateX(2px); }
+.lrow .rank { font: 700 1.3rem var(--mono); color: var(--gold); text-align: center; }
+.lrow .lead-skills { display: flex; gap: var(--s2); flex-wrap: wrap; justify-content: flex-end; max-width: 16rem; }
+@media (max-width: 600px) {
+  .lrow { grid-template-columns: 1.6rem 40px 1fr; }
+  .lrow .lead-skills { display: none; }
+}
 
 /* Tablet: ease the grid's min column so two cards sit comfortably side by side,
    and tighten main padding. */

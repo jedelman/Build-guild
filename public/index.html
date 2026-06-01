@@ -23,7 +23,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/styles.css" />
@@ -34,16 +34,16 @@
         <span class="sigil" aria-hidden="true"></span>
         <div>
           <h1>Build Guild</h1>
-          <p class="sub">Don't job-hunt alone. Team up and combine your skill-peaks.</p>
+          <p class="sub">The team job board. Post the work, rally a party, split the bounty.</p>
         </div>
       </div>
       <div class="playing-as" id="authbar"></div>
     </header>
 
     <nav class="tabs">
-      <button class="tab active" data-view="guilds" aria-selected="true">Guild Hall</button>
+      <button class="tab active" data-view="quests" aria-selected="true">Quest Board</button>
+      <button class="tab" data-view="guilds" aria-selected="false" tabindex="-1">Guild Hall</button>
       <button class="tab" data-view="roster" aria-selected="false" tabindex="-1">Roster</button>
-      <button class="tab" data-view="quests" aria-selected="false" tabindex="-1">Quest Board</button>
       <button class="tab" data-view="enlist" aria-selected="false" tabindex="-1">Enlist</button>
     </nav>
 
@@ -51,7 +51,9 @@
 
     <div id="drawer" class="drawer hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Details">
       <div class="drawer-panel">
-        <button class="drawer-close" id="drawer-close" aria-label="Close">✕</button>
+        <button class="drawer-close" id="drawer-close" aria-label="Close">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
         <div id="drawer-body"></div>
       </div>
     </div>
