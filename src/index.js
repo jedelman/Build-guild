@@ -13,6 +13,7 @@ import {
   leaveGuild,
   suggestSkills,
   syncBuilderSkills,
+  syncBuilderRepos,
   syncEndorsements,
   listQuests,
   getQuest,
@@ -165,6 +166,15 @@ async function route(request, env, url) {
       if (!target) return fail("builder not found", 404);
       if (!target.did || target.did !== session.did) return fail("that isn't your builder", 403);
       return json(await syncBuilderSkills(env, gid));
+    }
+    // Re-index this builder's linked repos from their PDS records (owner only).
+    if (id && action === "repos" && method === "POST") {
+      const session = await currentSession(request, env);
+      if (!session) return fail("log in to sync your repos", 401);
+      const target = await getBuilder(env, gid);
+      if (!target) return fail("builder not found", 404);
+      if (!target.did || target.did !== session.did) return fail("that isn't your builder", 403);
+      return json(await syncBuilderRepos(env, gid));
     }
   }
 

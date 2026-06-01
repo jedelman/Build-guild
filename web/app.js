@@ -200,6 +200,50 @@ function slugToRkey(slug) {
   return k || "skill";
 }
 
+const REPO_COLLECTION = "org.buildguild.repo";
+
+// Reconcile linked-repo records in the builder's own PDS to match `repos`
+// (each {url, name, host?, description?}). Same on-device, source-of-truth model
+// as skills; we load existing records and only delete ones the user removed.
+async function writeRepoRecordsToPds(repos) {
+  if (!atprotoSession) throw new Error("not logged in on-device");
+  const agent = new Agent(atprotoSession);
+  const repo = atprotoSession.did;
+
+  let existing = [];
+  try {
+    const { data } = await agent.com.atproto.repo.listRecords({ repo, collection: REPO_COLLECTION, limit: 100 });
+    existing = data.records || [];
+  } catch {
+    /* none yet */
+  }
+  const loadedKeys = existing.map((r) => r.uri.split("/").pop());
+
+  const want = new Map();
+  for (const r of repos) {
+    const url = (r.url || "").trim();
+    if (!url) continue;
+    const rkey = slugToRkey(url.replace(/^https?:\/\//, ""));
+    want.set(rkey, {
+      $type: REPO_COLLECTION,
+      host: r.host || "",
+      name: r.name || url,
+      url,
+      description: r.description || "",
+      createdAt: r.createdAt || new Date().toISOString(),
+    });
+  }
+  for (const [rkey, record] of want) {
+    await agent.com.atproto.repo.putRecord({ repo, collection: REPO_COLLECTION, rkey, record });
+  }
+  // Safe deletion: only remove records we loaded that are no longer wanted.
+  for (const rkey of loadedKeys) {
+    if (!want.has(rkey)) {
+      await agent.com.atproto.repo.deleteRecord({ repo, collection: REPO_COLLECTION, rkey }).catch(() => {});
+    }
+  }
+}
+
 // Inline handle widget. Submitting starts the on-device atproto OAuth flow (see
 // the delegated submit handler near boot), which redirects to the user's PDS.
 function loginFormHTML(btnLabel = "Log in with Bluesky") {
@@ -657,6 +701,18 @@ async function openBuilder(id) {
         ${p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.url)}</a>` : ""}</div>`
         )
         .join("") || '<p class="muted">No projects yet.</p>'
+    }
+    ${
+      (b.repos || []).length
+        ? `<h3 style="color:var(--gold);font-family:Cinzel,serif">Repos</h3>` +
+          b.repos
+            .map(
+              (r) => `<div class="row" style="justify-content:space-between;gap:.5rem;margin:.3rem 0">
+                <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a>
+                <span class="badge ${r.verified ? "ok" : ""}">${esc(r.host || "repo")}${r.verified ? " ✓" : ""}</span></div>`
+            )
+            .join("")
+        : ""
     }`);
 
   // Endorse buttons (on other builders' skills). Re-open the drawer after, so
@@ -860,6 +916,13 @@ function renderEnlist(existing) {
         <button type="button" class="btn ghost" id="add-project">+ Add project</button>
       </div>
 
+      <div class="subform" id="repos">
+        <h3>Linked repos (optional)</h3>
+        <p class="muted" style="margin:0;font-size:.8rem">Paste a repo URL. Tangled repos under your own handle verify automatically (same atproto identity).</p>
+        <div id="repo-rows"></div>
+        <button type="button" class="btn ghost" id="add-repo">+ Link a repo</button>
+      </div>
+
       <button class="btn gold" type="submit">${editing ? "Save changes" : "Join the Build Guild"}</button>
     </form>`;
 
@@ -904,8 +967,19 @@ function renderEnlist(existing) {
     div.querySelector(".rm").addEventListener("click", () => div.remove());
     projectRows.appendChild(div);
   };
+  const repoRows = document.getElementById("repo-rows");
+  const addRepo = (r = {}) => {
+    const div = document.createElement("div");
+    div.className = "skill-line";
+    div.innerHTML = `
+      <input class="r-url" placeholder="https://tangled.sh/@you/repo" value="${esc(r.url || "")}" inputmode="url" autocapitalize="none" />
+      <button type="button" class="btn ghost rm" aria-label="Remove repo">✕</button>`;
+    div.querySelector(".rm").addEventListener("click", () => div.remove());
+    repoRows.appendChild(div);
+  };
   document.getElementById("add-skill").addEventListener("click", () => addSkill());
   document.getElementById("add-project").addEventListener("click", () => addProject());
+  document.getElementById("add-repo").addEventListener("click", () => addRepo());
 
   // Canonical-skill autocomplete: one shared <datalist> the skill inputs read
   // from (via list="skill-options"), refreshed from /api/skills/suggest as the
@@ -1025,6 +1099,7 @@ function renderEnlist(existing) {
     form.bio.value = existing.bio || "";
     form.ai_augmented.checked = !!existing.ai_augmented;
     (existing.projects || []).forEach(addProject);
+    (existing.repos || []).forEach(addRepo);
   } else if (!form.display_name.value) {
     // New builder: prefill name/bio from the public Bluesky profile.
     api(`/atproto/profile?handle=${encodeURIComponent(state.auth.handle)}`)
@@ -1053,6 +1128,9 @@ function renderEnlist(existing) {
         help_wanted: r.querySelector(".p-help").value.trim(),
       }))
       .filter((p) => p.name);
+    const repos = [...repoRows.querySelectorAll(".skill-line")]
+      .map((r) => ({ url: r.querySelector(".r-url").value.trim() }))
+      .filter((r) => r.url);
     // Profile fields go to D1 via the server; skills are PDS-native.
     const body = {
       display_name: form.display_name.value,
@@ -1075,6 +1153,9 @@ function renderEnlist(existing) {
       // if the repo read failed, it's null and nothing is ever deleted.
       await writeSkillRecordsToPds(skills, loadedSkillKeys);
       await api(`/builders/${b.id}/skills`, { method: "POST" });
+      // Linked repos: write records on-device, then re-index from the repo.
+      await writeRepoRecordsToPds(repos);
+      await api(`/builders/${b.id}/repos`, { method: "POST" });
       await refresh();
       state.me = b.id;
       toast(editing ? "Sheet updated!" : `Welcome, ${b.display_name}!`);

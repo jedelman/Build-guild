@@ -1,0 +1,28 @@
+{
+  "lexicon": 1,
+  "id": "org.buildguild.repo",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A code repository a builder links to their profile, owned by the builder's atproto repo. Tangled repos are owned by the same DID as the builder, so ownership is self-evident; other hosts (e.g. GitHub) are self-asserted until verified. Build Guild's D1 only indexes these.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["host", "name", "url", "createdAt"],
+        "properties": {
+          "host": { "type": "string", "description": "Code host, e.g. 'tangled' or 'github'." },
+          "name": { "type": "string", "maxLength": 200, "description": "Repository name or owner/name." },
+          "url": { "type": "string", "format": "uri", "description": "Canonical URL of the repository." },
+          "description": { "type": "string", "maxLength": 300 },
+          "skills": {
+            "type": "array",
+            "maxLength": 20,
+            "items": { "type": "string", "maxLength": 120 },
+            "description": "Canonical skill names this repo evidences (builder-asserted; later corroborated from contribution history)."
+          },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}
