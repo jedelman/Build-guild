@@ -7,6 +7,28 @@
 
 const STRONG = 70; // peak at or above this counts as a real, relied-upon strength.
 
+// Consensus peak: a skill's strength is no longer self-rated — it's how strongly
+// peers vouch for it. A declared-but-unendorsed skill sits at BASELINE; each
+// endorsement lifts it toward 100 with diminishing returns, weighted by the
+// endorser's relationship tier (a client's vouch counts more than a stranger's).
+const BASELINE_PEAK = 55;
+const TIER_WEIGHT = { none: 1, guildmate: 2, guild_leader: 3, client: 4 };
+const SATURATION = 5; // higher → more endorsements needed to approach 100
+
+/**
+ * Consensus peak (1–100) for one skill from its endorsements.
+ * peak = baseline + (100 - baseline) * S / (S + SATURATION), where S is the
+ * sum of endorser tier weights. Monotonic, bounded, with diminishing returns.
+ * @param {Array<{tier?:string}>} endorsements
+ * @param {object} [opts] {baseline}
+ */
+export function consensusPeak(endorsements = [], { baseline = BASELINE_PEAK } = {}) {
+  const S = endorsements.reduce((sum, e) => sum + (TIER_WEIGHT[e?.tier] ?? TIER_WEIGHT.none), 0);
+  if (S <= 0) return baseline;
+  const peak = baseline + (100 - baseline) * (S / (S + SATURATION));
+  return Math.max(1, Math.min(100, Math.round(peak)));
+}
+
 /**
  * Collapse every member's skills into the guild's best-in-class map.
  * For each skill we keep the highest peak and remember who carries it.

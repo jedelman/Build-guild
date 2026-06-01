@@ -457,6 +457,7 @@ async function openBuilder(id) {
       ${(b.guilds || []).map((g) => `<span class="badge role">${esc(g.name)} · ${esc(g.role)}</span>`).join("")}
     </div>
     <h3 style="color:var(--gold);font-family:Cinzel,serif">Skill peaks</h3>
+    <p class="muted" style="font-size:.78rem;margin:-.2rem 0 .6rem">Peaks reflect peer endorsements, not self-rating — endorse the skills you've seen firsthand.</p>
     ${(b.skills || []).map((s) => drawerSkill(s, b, mine)).join("") || '<p class="muted">No skills listed.</p>'}
     <h3 style="color:var(--gold);font-family:Cinzel,serif">Projects</h3>
     ${
@@ -520,7 +521,7 @@ async function openGuild(id) {
       <span class="val">${g.diversity}</span>
     </div>
     <p class="muted" style="font-size:.8rem;margin-top:-.4rem">
-      Rewards complementary peaks across the party; redundant overlap drags it down.</p>
+      Rewards complementary, peer-endorsed peaks across the party; redundant overlap drags it down.</p>
 
     <div class="row" style="margin:.8rem 0">
       ${
