@@ -13,6 +13,7 @@ import {
   leaveGuild,
   suggestSkills,
   syncBuilderSkills,
+  syncEndorsements,
   createSession,
   getSession,
   deleteSession,
@@ -160,6 +161,14 @@ async function route(request, env, url) {
       if (!target.did || target.did !== session.did) return fail("that isn't your builder", 403);
       return json(await syncBuilderSkills(env, gid));
     }
+  }
+
+  // Re-index the logged-in user's own endorsements from their PDS records.
+  // Anyone logged in can endorse; you can only (re)index your own repo.
+  if (resource === "endorsements" && method === "POST" && !id) {
+    const session = await currentSession(request, env);
+    if (!session) return fail("log in to endorse", 401);
+    return json(await syncEndorsements(env, session.did));
   }
 
   if (resource === "guilds") {

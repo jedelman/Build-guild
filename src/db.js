@@ -3,8 +3,9 @@ import { guildSkillMap, diversityScore, championRoster } from "./logic.js";
 import { skillSlug } from "./skills.js";
 import { resolveDidToPds } from "./oauth.js";
 
-// atproto collection holding a builder's self-declared skills, in their own PDS.
+// atproto collections in a builder's own PDS (source of truth; D1 indexes them).
 const SKILL_COLLECTION = "org.buildguild.skill";
+const ENDORSEMENT_COLLECTION = "org.buildguild.endorsement";
 
 const groupBy = (rows, key) => {
   const out = {};
@@ -71,6 +72,81 @@ export async function syncBuilderSkills(env, builderId) {
   return getBuilder(env, builderId);
 }
 
+/**
+ * Re-index an endorser's endorsements from the records in THEIR atproto repo
+ * (org.buildguild.endorsement). Read directly via public listRecords — never
+ * trusting client-supplied data — then replace this endorser's rows in the D1
+ * index (their repo is authoritative for their own endorsements). Each row
+ * keeps the strongRef (uri+cid) to the exact endorsed skill-record version.
+ */
+export async function syncEndorsements(env, endorserDid) {
+  if (!endorserDid) throw new Error("endorser DID required");
+  const pds = await resolveDidToPds(endorserDid);
+  const url =
+    `${pds}/xrpc/com.atproto.repo.listRecords?repo=${encodeURIComponent(endorserDid)}` +
+    `&collection=${ENDORSEMENT_COLLECTION}&limit=100`;
+  const res = await fetch(url, { headers: { accept: "application/json" } });
+  if (!res.ok) throw new Error(`listRecords failed: ${res.status}`);
+  const { records = [] } = await res.json();
+
+  // Rebuild this endorser's slice of the index from their repo (source of truth).
+  const stmts = [env.DB.prepare("DELETE FROM endorsements WHERE endorser_did = ?").bind(endorserDid)];
+  for (const rec of records) {
+    const v = rec?.value || {};
+    const subject = String(v.subject || "");
+    const ref = v.subjectSkill || {};
+    const slug = skillSlug(v.skillSlug || v.skillName || "");
+    if (!subject || !slug) continue; // malformed record, skip
+    stmts.push(
+      env.DB.prepare(
+        `INSERT INTO endorsements
+           (endorser_did, subject_did, skill_slug, skill_name, skill_at_uri, skill_cid, at_uri, cid, note)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (endorser_did, subject_did, skill_slug) DO UPDATE SET
+           skill_name=excluded.skill_name, skill_at_uri=excluded.skill_at_uri,
+           skill_cid=excluded.skill_cid, at_uri=excluded.at_uri, cid=excluded.cid, note=excluded.note`
+      ).bind(
+        endorserDid,
+        subject,
+        slug,
+        String(v.skillName || ""),
+        String(ref.uri || ""),
+        String(ref.cid || ""),
+        rec.uri || "",
+        rec.cid || "",
+        String(v.note || "").slice(0, 300)
+      )
+    );
+  }
+  await env.DB.batch(stmts);
+  return { indexed: records.length };
+}
+
+/** Endorsements OF a builder, grouped by skill slug, with endorser handles
+ *  resolved where the endorser is also a builder here. For display + counts. */
+export async function getEndorsementsForBuilder(env, subjectDid) {
+  if (!subjectDid) return {};
+  const { results } = await env.DB.prepare(
+    `SELECT e.skill_slug, e.skill_name, e.endorser_did, e.note, e.created_at, b.handle AS endorser_handle
+       FROM endorsements e
+       LEFT JOIN builders b ON b.did = e.endorser_did
+      WHERE e.subject_did = ?
+      ORDER BY e.created_at ASC`
+  )
+    .bind(subjectDid)
+    .all();
+  const bySlug = {};
+  for (const r of results) {
+    (bySlug[r.skill_slug] ||= []).push({
+      endorser_did: r.endorser_did,
+      endorser_handle: r.endorser_handle || null,
+      note: r.note || "",
+      created_at: r.created_at,
+    });
+  }
+  return bySlug;
+}
+
 /** Canonical skills matching a query, prefix-first then by usage. For the
  *  Enlist autocomplete. Empty query returns the most-used skills. */
 export async function suggestSkills(env, q = "", limit = 20) {
@@ -113,7 +189,13 @@ export async function getBuilder(env, id) {
       "SELECT g.id, g.name, gm.role FROM guilds g JOIN guild_members gm ON gm.guild_id = g.id WHERE gm.builder_id = ?"
     ).bind(id),
   ]);
-  return { ...builder, skills, projects, guilds };
+  // Attach peer endorsements (indexed from endorsers' repos) to each skill.
+  const endorsementsBySlug = await getEndorsementsForBuilder(env, builder.did);
+  const skillsWithEndorsements = skills.map((s) => {
+    const list = endorsementsBySlug[skillSlug(s.name)] || [];
+    return { ...s, endorsements: list, endorsement_count: list.length };
+  });
+  return { ...builder, skills: skillsWithEndorsements, projects, guilds };
 }
 
 export async function createBuilder(env, body) {

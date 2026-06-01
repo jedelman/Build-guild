@@ -363,6 +363,76 @@ drawer.addEventListener("click", (e) => {
   if (e.target === drawer) closeDrawer();
 });
 
+const ENDORSEMENT_COLLECTION = "org.buildguild.endorsement";
+
+// A skill row in a builder's drawer: the bar plus an endorsement count and, for
+// other people's skills, an Endorse / Endorsed✓ toggle. Whether *you* endorsed
+// it is computed from the endorsement list against your own DID.
+function drawerSkill(s, builder, mine) {
+  const list = s.endorsements || [];
+  const youEndorsed = state.auth.authenticated && list.some((e) => e.endorser_did === state.auth.did);
+  const count = s.endorsement_count ?? list.length;
+  const canEndorse = state.auth.authenticated && !mine && builder.did;
+  const countLabel = count ? `${count} endorsement${count === 1 ? "" : "s"}` : "no endorsements yet";
+  return `
+    ${skillBar(s)}
+    <div class="endorse-row">
+      <span class="muted endorse-count">${countLabel}</span>
+      ${
+        canEndorse
+          ? `<button class="btn ghost endorse-btn${youEndorsed ? " endorsed" : ""}"
+               data-slug="${esc(skillSlugClient(s.name))}" data-name="${esc(s.name)}"
+               data-uri="${esc(s.at_uri || "")}" data-cid="${esc(s.cid || "")}"
+               ${youEndorsed ? 'data-endorsed="1"' : ""}>
+               ${youEndorsed ? "✓ Endorsed" : "+ Endorse"}</button>`
+          : ""
+      }
+    </div>`;
+}
+
+// Client-side slug matching src/skills.js skillSlug (kept in sync deliberately).
+const skillSlugClient = (name = "") => String(name).trim().replace(/\s+/g, " ").toLowerCase();
+
+// Write (or remove) an endorsement record in the ENDORSER's own PDS, strongRef-
+// ing the exact endorsee skill-record version, then ask the server to re-index.
+async function toggleEndorsement(btn, subjectDid) {
+  if (!atprotoSession) return toast("Log in to endorse.", true);
+  const { slug, name, uri, cid } = btn.dataset;
+  if (!uri || !cid) return toast("This skill isn't a PDS record yet — ask them to re-save it.", true);
+  const agent = new Agent(atprotoSession);
+  const repo = atprotoSession.did;
+  // Deterministic rkey: one endorsement per (subject, skill) from this endorser.
+  const rkey = slugToRkey(`${subjectDid}-${slug}`);
+  const undo = btn.dataset.endorsed === "1";
+  btn.disabled = true;
+  try {
+    if (undo) {
+      await agent.com.atproto.repo.deleteRecord({ repo, collection: ENDORSEMENT_COLLECTION, rkey });
+    } else {
+      await agent.com.atproto.repo.putRecord({
+        repo,
+        collection: ENDORSEMENT_COLLECTION,
+        rkey,
+        record: {
+          $type: ENDORSEMENT_COLLECTION,
+          subject: subjectDid,
+          subjectSkill: { uri, cid }, // strongRef → exact skill-record version
+          skillName: name,
+          skillSlug: slug,
+          createdAt: new Date().toISOString(),
+        },
+      });
+    }
+    await api("/endorsements", { method: "POST" }); // re-index my repo
+    await refresh();
+    toast(undo ? "Endorsement removed." : "Endorsed!");
+  } catch (e) {
+    toast(e.message || "Couldn't update endorsement", true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 async function openBuilder(id) {
   const b = await api(`/builders/${id}`);
   const mine = state.auth.authenticated && b.did && b.did === state.auth.did;
@@ -387,7 +457,7 @@ async function openBuilder(id) {
       ${(b.guilds || []).map((g) => `<span class="badge role">${esc(g.name)} · ${esc(g.role)}</span>`).join("")}
     </div>
     <h3 style="color:var(--gold);font-family:Cinzel,serif">Skill peaks</h3>
-    ${(b.skills || []).map(skillBar).join("") || '<p class="muted">No skills listed.</p>'}
+    ${(b.skills || []).map((s) => drawerSkill(s, b, mine)).join("") || '<p class="muted">No skills listed.</p>'}
     <h3 style="color:var(--gold);font-family:Cinzel,serif">Projects</h3>
     ${
       (b.projects || [])
@@ -399,6 +469,15 @@ async function openBuilder(id) {
         )
         .join("") || '<p class="muted">No projects yet.</p>'
     }`);
+
+  // Endorse buttons (on other builders' skills). Re-open the drawer after, so
+  // the count + toggle reflect the freshly indexed state.
+  drawerBody.querySelectorAll(".endorse-btn").forEach((btn) =>
+    btn.addEventListener("click", async () => {
+      await toggleEndorsement(btn, b.did);
+      openBuilder(id);
+    })
+  );
 
   if (mine) {
     document.getElementById("edit-me").addEventListener("click", () => {
