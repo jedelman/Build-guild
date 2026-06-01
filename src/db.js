@@ -1,6 +1,6 @@
 // D1 data access for Build Guild.
-import { guildSkillMap, diversityScore, championRoster } from "./logic.js";
-import { skillSlug } from "./skills.js";
+import { guildSkillMap, diversityScore, championRoster, consensusPeak } from "./logic.js";
+import { skillSlug, endorsementTier } from "./skills.js";
 import { resolveDidToPds } from "./oauth.js";
 
 // atproto collections in a builder's own PDS (source of truth; D1 indexes them).
@@ -122,8 +122,9 @@ export async function syncEndorsements(env, endorserDid) {
   return { indexed: records.length };
 }
 
-/** Endorsements OF a builder, grouped by skill slug, with endorser handles
- *  resolved where the endorser is also a builder here. For display + counts. */
+/** Endorsements OF a builder, grouped by skill slug, each tagged with the
+ *  endorser's computed relationship tier (none/guildmate/guild_leader/client).
+ *  Tiers are computed here from guild membership, never stored. */
 export async function getEndorsementsForBuilder(env, subjectDid) {
   if (!subjectDid) return {};
   const { results } = await env.DB.prepare(
@@ -135,16 +136,39 @@ export async function getEndorsementsForBuilder(env, subjectDid) {
   )
     .bind(subjectDid)
     .all();
+
+  // Guild memberships for the subject + every endorser, so endorsementTier() can
+  // classify each endorser's relationship to the subject (by DID).
+  const dids = [...new Set([subjectDid, ...results.map((r) => r.endorser_did)])];
+  const memberships = await membershipsForDids(env, dids);
+
   const bySlug = {};
   for (const r of results) {
+    const tier = endorsementTier({ endorserDid: r.endorser_did, subjectDid, memberships });
     (bySlug[r.skill_slug] ||= []).push({
       endorser_did: r.endorser_did,
       endorser_handle: r.endorser_handle || null,
+      tier,
       note: r.note || "",
       created_at: r.created_at,
     });
   }
   return bySlug;
+}
+
+/** {guild_id, did, role} rows for the given DIDs — input to endorsementTier. */
+async function membershipsForDids(env, dids) {
+  const list = [...new Set(dids)].filter(Boolean);
+  if (!list.length) return [];
+  const ph = list.map(() => "?").join(",");
+  const { results } = await env.DB.prepare(
+    `SELECT gm.guild_id, b.did, gm.role
+       FROM guild_members gm JOIN builders b ON b.id = gm.builder_id
+      WHERE b.did IN (${ph})`
+  )
+    .bind(...list)
+    .all();
+  return results;
 }
 
 /** Canonical skills matching a query, prefix-first then by usage. For the
@@ -189,11 +213,19 @@ export async function getBuilder(env, id) {
       "SELECT g.id, g.name, gm.role FROM guilds g JOIN guild_members gm ON gm.guild_id = g.id WHERE gm.builder_id = ?"
     ).bind(id),
   ]);
-  // Attach peer endorsements (indexed from endorsers' repos) to each skill.
+  // Attach peer endorsements (indexed from endorsers' repos) to each skill, and
+  // derive its consensus peak from them — strength is what peers vouch for, not
+  // a self-rating. self_peak is kept for reference/debugging.
   const endorsementsBySlug = await getEndorsementsForBuilder(env, builder.did);
   const skillsWithEndorsements = skills.map((s) => {
     const list = endorsementsBySlug[skillSlug(s.name)] || [];
-    return { ...s, endorsements: list, endorsement_count: list.length };
+    return {
+      ...s,
+      self_peak: s.peak,
+      peak: consensusPeak(list),
+      endorsements: list,
+      endorsement_count: list.length,
+    };
   });
   return { ...builder, skills: skillsWithEndorsements, projects, guilds };
 }
@@ -248,16 +280,18 @@ export async function listGuilds(env) {
 export async function getGuild(env, id) {
   const guild = await env.DB.prepare("SELECT * FROM guilds WHERE id = ?").bind(id).first();
   if (!guild) return null;
-  const [{ results: rows }, { results: skills }] = await env.DB.batch([
-    env.DB.prepare(
-      "SELECT b.*, gm.role FROM guild_members gm JOIN builders b ON b.id = gm.builder_id WHERE gm.guild_id = ?"
-    ).bind(id),
-    env.DB.prepare(
-      "SELECT s.* FROM skills s JOIN guild_members gm ON gm.builder_id = s.builder_id WHERE gm.guild_id = ?"
-    ).bind(id),
-  ]);
-  const skillsByBuilder = groupBy(skills, "builder_id");
-  const members = rows.map((b) => ({ ...b, skills: (skillsByBuilder[b.id] || []).sort(byPeak) }));
+  const { results: rows } = await env.DB.prepare(
+    "SELECT b.id, gm.role FROM guild_members gm JOIN builders b ON b.id = gm.builder_id WHERE gm.guild_id = ?"
+  )
+    .bind(id)
+    .all();
+  // Load each member via getBuilder so their skills carry CONSENSUS peaks (from
+  // endorsements) — Guild Power must reflect what peers vouch for, not self-rating.
+  const members = [];
+  for (const r of rows) {
+    const b = await getBuilder(env, r.id);
+    if (b) members.push({ ...b, role: r.role });
+  }
 
   return {
     ...guild,
