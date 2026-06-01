@@ -1,0 +1,27 @@
+{
+  "lexicon": 1,
+  "id": "org.buildguild.skill",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A skill a builder declares on themselves, owned by the builder's atproto repo. Build Guild's D1 is only an index of these records.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["name", "createdAt"],
+        "properties": {
+          "name": { "type": "string", "maxLength": 120, "description": "Display name of the skill." },
+          "slug": { "type": "string", "maxLength": 120, "description": "Normalized identity key (lowercased, trimmed, single-spaced)." },
+          "externalRef": {
+            "type": "string",
+            "format": "uri",
+            "description": "Optional canonical reference for the skill concept, e.g. an ESCO URI (http://data.europa.eu/esco/skill/<uuid>). Confirmed by the builder."
+          },
+          "externalScheme": { "type": "string", "description": "Scheme of externalRef, e.g. 'esco'." },
+          "externalLabel": { "type": "string", "maxLength": 200, "description": "Human label of the external concept, for display." },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

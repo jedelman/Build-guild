@@ -1,6 +1,10 @@
 // D1 data access for Build Guild.
 import { guildSkillMap, diversityScore, championRoster } from "./logic.js";
 import { skillSlug } from "./skills.js";
+import { resolveDidToPds } from "./oauth.js";
+
+// atproto collection holding a builder's self-declared skills, in their own PDS.
+const SKILL_COLLECTION = "org.buildguild.skill";
 
 const groupBy = (rows, key) => {
   const out = {};
@@ -16,31 +20,55 @@ const DEFAULT_PEAK = 70;
 const byPeak = (a, b) => b.peak - a.peak;
 
 /**
- * Statements that (idempotently) ensure each skill's canonical catalog entry
- * exists, then insert the builder's skill pointing at it and storing the
- * canonical display name. Returned as an ordered list for `DB.batch`, which
- * runs them in one transaction — so the catalog row is visible to the skill
- * insert that immediately follows it.
+ * Rebuild a builder's D1 skill index from the authoritative records in their
+ * atproto repo (collection org.buildguild.skill). We read the repo directly via
+ * public listRecords — never trusting client-supplied data — then mirror each
+ * record into the skills index with its AT-URI/CID and confirmed ESCO ref, and
+ * cache the ESCO ref on the shared catalog so others benefit.
  */
-function skillInsertStmts(env, builderId, skills = []) {
-  const stmts = [];
-  for (const s of skills) {
-    if (!s?.name?.trim()) continue;
-    const name = s.name.trim();
+export async function syncBuilderSkills(env, builderId) {
+  const builder = await env.DB.prepare("SELECT id, did FROM builders WHERE id = ?").bind(builderId).first();
+  if (!builder) throw new Error("builder not found");
+  if (!builder.did) throw new Error("builder has no verified DID");
+
+  const pds = await resolveDidToPds(builder.did);
+  const url =
+    `${pds}/xrpc/com.atproto.repo.listRecords?repo=${encodeURIComponent(builder.did)}` +
+    `&collection=${SKILL_COLLECTION}&limit=100`;
+  const res = await fetch(url, { headers: { accept: "application/json" } });
+  if (!res.ok) throw new Error(`listRecords failed: ${res.status}`);
+  const { records = [] } = await res.json();
+
+  // Rebuild this builder's index from scratch from the PDS source of truth.
+  const stmts = [env.DB.prepare("DELETE FROM skills WHERE builder_id = ?").bind(builderId)];
+  for (const rec of records) {
+    const v = rec?.value || {};
+    const name = String(v.name || "").trim();
+    if (!name) continue;
     const slug = skillSlug(name);
-    // peak is optional now (the slider is gone); fall back to the baseline.
-    const peak = s.peak == null ? DEFAULT_PEAK : clampPeak(s.peak);
+    const ref = String(v.externalRef || "");
+    const escoUri =
+      ref.includes("/esco/skill/") || String(v.externalScheme || "").toLowerCase() === "esco" ? ref : "";
+    const escoLabel = escoUri ? String(v.externalLabel || "") : "";
     stmts.push(
       env.DB.prepare("INSERT OR IGNORE INTO skill_catalog (slug, name) VALUES (?, ?)").bind(slug, name)
     );
     stmts.push(
       env.DB.prepare(
-        `INSERT INTO skills (builder_id, name, peak, skill_id)
-         SELECT ?, c.name, ?, c.id FROM skill_catalog c WHERE c.slug = ?`
-      ).bind(builderId, peak, slug)
+        `INSERT INTO skills (builder_id, name, peak, skill_id, at_uri, cid, esco_uri, esco_label)
+         SELECT ?, c.name, ?, c.id, ?, ?, ?, ? FROM skill_catalog c WHERE c.slug = ?`
+      ).bind(builderId, DEFAULT_PEAK, rec.uri || "", rec.cid || "", escoUri, escoLabel, slug)
     );
+    if (escoUri) {
+      stmts.push(
+        env.DB.prepare(
+          "UPDATE skill_catalog SET esco_uri = ?, esco_label = ? WHERE slug = ? AND esco_uri = ''"
+        ).bind(escoUri, escoLabel, slug)
+      );
+    }
   }
-  return stmts;
+  await env.DB.batch(stmts);
+  return getBuilder(env, builderId);
 }
 
 /** Canonical skills matching a query, prefix-first then by usage. For the
@@ -111,7 +139,9 @@ export async function createBuilder(env, body) {
     .run();
   const builderId = res.meta.last_row_id;
 
-  const stmts = skillInsertStmts(env, builderId, body.skills);
+  // Skills are PDS-native now: the client writes org.buildguild.skill records to
+  // the builder's repo and calls the skills-sync endpoint, which indexes them.
+  const stmts = [];
   for (const p of body.projects || []) {
     if (!p?.name?.trim()) continue;
     stmts.push(
@@ -181,7 +211,7 @@ export async function getBuilderByDid(env, did) {
   return row ? getBuilder(env, row.id) : null;
 }
 
-/** Update a builder's editable fields and replace its skills/projects. */
+/** Update a builder's editable fields and replace its projects. */
 export async function updateBuilder(env, id, body) {
   const { display_name, klass, tagline, bio, seeking, ai_augmented, avatar } = body;
   if (!display_name?.trim()) throw new Error("display_name is required");
@@ -201,12 +231,9 @@ export async function updateBuilder(env, id, body) {
     )
     .run();
 
-  // Replace skills/projects wholesale — simplest correct behaviour for an edit form.
-  const stmts = [
-    env.DB.prepare("DELETE FROM skills WHERE builder_id = ?").bind(id),
-    env.DB.prepare("DELETE FROM projects WHERE builder_id = ?").bind(id),
-    ...skillInsertStmts(env, id, body.skills),
-  ];
+  // Replace projects wholesale. Skills are PDS-native (synced separately from
+  // the builder's repo), so the profile edit no longer touches them.
+  const stmts = [env.DB.prepare("DELETE FROM projects WHERE builder_id = ?").bind(id)];
   for (const p of body.projects || []) {
     if (!p?.name?.trim()) continue;
     stmts.push(
