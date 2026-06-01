@@ -1,0 +1,27 @@
+{
+  "lexicon": 1,
+  "id": "org.buildguild.endorsement",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "One builder vouching for a skill another builder has declared. Written to the ENDORSER's atproto repo and references the exact skill-record version endorsed via a strongRef, so the attestation is tamper-evident. Build Guild's D1 only indexes these.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["subject", "subjectSkill", "createdAt"],
+        "properties": {
+          "subject": { "type": "string", "format": "did", "description": "DID of the builder being endorsed." },
+          "subjectSkill": {
+            "type": "ref",
+            "ref": "com.atproto.repo.strongRef",
+            "description": "Strong (uri+cid) reference to the endorsee's specific org.buildguild.skill record version."
+          },
+          "skillName": { "type": "string", "maxLength": 120, "description": "Denormalized skill display name, for readability." },
+          "skillSlug": { "type": "string", "maxLength": 120, "description": "Denormalized normalized skill key." },
+          "note": { "type": "string", "maxLength": 300, "description": "Optional context for the endorsement." },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}
