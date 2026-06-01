@@ -477,8 +477,8 @@ function renderAuthBar() {
     if (!act) return;
     setOpen(false);
     if (act === "logout") logout();
-    else if (act === "sheet" && state.me) openBuilder(state.me);
-    else if (act === "enlist") setView("enlist");
+    else if (act === "sheet" && state.me) go("#/character");
+    else if (act === "enlist") go("#/enlist");
   });
   document.addEventListener("click", () => setOpen(false));
   document.addEventListener("keydown", (e) => e.key === "Escape" && setOpen(false));
@@ -535,19 +535,69 @@ function renderNav() {
   );
 }
 
-// "character" opens your own sheet (drawer) rather than swapping the main view;
-// everything else is a top-level view.
-function navTo(view) {
-  if (view === "character") return state.me ? openBuilder(state.me) : setView("enlist");
-  setView(view);
+// ---- hash router -----------------------------------------------------------
+// URLs are shareable + deep-linkable: #/quests|guilds|roster|enlist for views,
+// #/quest|guild|builder/:id to open an entity drawer over its home view, and
+// #/character for your own sheet. A single applyRoute() reacts to hashchange, so
+// navigation is just "set the hash"; back/forward and cold loads work for free.
+let renderedView = null; // which view's DOM is currently in <main>
+let openEntityKey = null; // "quest/5" etc. currently in the drawer, or null
+const ENTITY_HOME = { quest: "quests", guild: "guilds", builder: "roster" };
+
+function parseHash() {
+  const [a = "", b] = location.hash.replace(/^#\/?/, "").split("/");
+  if (a === "character") return { view: "quests", entity: "character", id: null };
+  if (ENTITY_HOME[a] && b) return { view: ENTITY_HOME[a], entity: a, id: Number(b) };
+  const views = ["quests", "guilds", "roster", "enlist"];
+  return { view: views.includes(a) ? a : "quests", entity: null, id: null };
 }
 
-// Switch the main view + refresh nav highlighting.
-function setView(view) {
+// Render <main> for a view only when it actually changes, so opening a drawer
+// over the current view doesn't rebuild the list (and lose scroll position).
+function ensureView(view) {
+  if (renderedView === view) return;
   currentView = view;
   renderNav();
   render();
+  renderedView = view;
 }
+
+function applyRoute() {
+  const r = parseHash();
+  // Entity drawers layer over the current view in-session; a cold load (or a
+  // shared link) falls back to the entity's home view.
+  ensureView(r.entity ? renderedView || r.view : r.view);
+  const key = r.entity ? `${r.entity}/${r.id ?? ""}` : null;
+  if (key === openEntityKey) return;
+  openEntityKey = key;
+  if (!key) return closeDrawer();
+  // A shared link to a removed entity shouldn't throw — surface it and recover.
+  const fail = () => {
+    toast("Couldn't open that link — it may have been removed.", true);
+    openEntityKey = null;
+  };
+  if (r.entity === "character") {
+    if (state.me) return openBuilder(state.me).catch(fail);
+    openEntityKey = null; // no sheet yet → just show Enlist
+    return ensureView("enlist");
+  }
+  if (r.entity === "quest") return openQuest(r.id).catch(fail);
+  if (r.entity === "guild") return openGuild(r.id).catch(fail);
+  if (r.entity === "builder") return openBuilder(r.id).catch(fail);
+}
+
+// All navigation is "set the hash"; applyRoute does the rendering. `go` re-fires
+// when the hash is unchanged (e.g. re-selecting the current destination).
+function go(hash) {
+  if (location.hash === hash) applyRoute();
+  else location.hash = hash;
+}
+const navTo = (view) => go("#/" + view);
+// Close any open drawer by returning to the underlying view's URL (so Back/Esc
+// stay in sync with the history stack).
+const dismissDrawer = () => go("#/" + currentView);
+// After a data mutation, force the next view render to be fresh.
+const invalidateView = () => (renderedView = null);
 
 // Collapsible rail (desktop). Persisted so it survives reloads.
 const railToggle = document.getElementById("rail-toggle");
@@ -565,7 +615,7 @@ railToggle?.addEventListener("click", () => {
 // Brand returns to the Quest Board without a full reload.
 document.getElementById("brand-home")?.addEventListener("click", (e) => {
   e.preventDefault();
-  setView("quests");
+  go("#/quests");
 });
 
 // Make a non-button element keyboard-operable (Enter/Space) as well as clickable.
@@ -653,7 +703,7 @@ function renderQuests() {
   }
   list.innerHTML = quests.map(questRow).join("");
   list.querySelectorAll("[data-quest]").forEach((el) =>
-    onActivate(el, () => openQuest(Number(el.dataset.quest)))
+    onActivate(el, () => go(`#/quest/${el.dataset.quest}`))
   );
 }
 
@@ -716,6 +766,7 @@ async function openQuest(id) {
       try {
         await api(`/quests/${id}/claim`, { method: "POST", body: {} });
         await refresh();
+        invalidateView();
         toast("Quest claimed!");
         openQuest(id);
       } catch (e) {
@@ -729,6 +780,7 @@ async function openQuest(id) {
         try {
           await api(`/quests/${id}/status`, { method: "POST", body: { status } });
           await refresh();
+          invalidateView();
           toast(`Quest ${status}.`);
           openQuest(id);
         } catch (e) {
@@ -756,9 +808,9 @@ async function postQuestPrompt() {
   try {
     const q = await api("/quests", { method: "POST", body: { title: v.title, brief: v.brief, reward: v.reward, skills } });
     await refresh();
-    renderQuests();
+    invalidateView();
     toast("Quest posted!");
-    openQuest(q.id);
+    go(`#/quest/${q.id}`);
   } catch (e) {
     toast(e.message, true);
   }
@@ -806,7 +858,7 @@ function renderGuilds() {
     )
     .join("");
   grid.querySelectorAll("[data-guild]").forEach((el) =>
-    onActivate(el, () => openGuild(Number(el.dataset.guild)))
+    onActivate(el, () => go(`#/guild/${el.dataset.guild}`))
   );
 }
 
@@ -823,7 +875,7 @@ function renderRoster() {
         : `<p class="empty">No builders yet — head to Enlist.</p>`
     }`;
   app.querySelectorAll("[data-builder]").forEach((el) =>
-    onActivate(el, () => openBuilder(Number(el.dataset.builder)))
+    onActivate(el, () => go(`#/builder/${el.dataset.builder}`))
   );
 }
 
@@ -855,13 +907,10 @@ function openDrawer(html) {
   drawerBody.innerHTML = html;
   drawer.classList.remove("hidden");
   drawer.setAttribute("aria-hidden", "false");
-  // Cross-links: any [data-go="builder|guild"] swaps the drawer to that entity.
+  // Cross-links: any [data-go="builder|guild"] routes to that entity's drawer
+  // (a real history entry, so Back returns to where you came from).
   drawerBody.querySelectorAll("[data-go]").forEach((el) =>
-    el.addEventListener("click", () => {
-      const id = Number(el.dataset.id);
-      if (el.dataset.go === "guild") openGuild(id);
-      else if (el.dataset.go === "builder") openBuilder(id);
-    })
+    el.addEventListener("click", () => go(`#/${el.dataset.go}/${el.dataset.id}`))
   );
   // Move focus into the panel for keyboard + screen-reader users.
   const first = drawer.querySelector(".drawer-close");
@@ -877,14 +926,16 @@ function closeDrawer() {
   if (lastFocused && lastFocused.focus) lastFocused.focus();
   lastFocused = null;
 }
-document.getElementById("drawer-close").addEventListener("click", closeDrawer);
+// User-initiated dismissal routes back to the underlying view so Back/forward
+// stay in sync; applyRoute then performs the actual closeDrawer().
+document.getElementById("drawer-close").addEventListener("click", dismissDrawer);
 drawer.addEventListener("click", (e) => {
-  if (e.target === drawer) closeDrawer();
+  if (e.target === drawer) dismissDrawer();
 });
 // Esc closes; Tab is trapped within the open drawer.
 document.addEventListener("keydown", (e) => {
   if (drawer.classList.contains("hidden")) return;
-  if (e.key === "Escape") return closeDrawer();
+  if (e.key === "Escape") return dismissDrawer();
   if (e.key !== "Tab") return;
   const focusables = drawer.querySelectorAll(
     'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -1053,14 +1104,20 @@ async function openBuilder(id) {
   drawerBody.querySelectorAll(".endorse-btn").forEach((btn) =>
     btn.addEventListener("click", async () => {
       await toggleEndorsement(btn, b.did);
+      invalidateView(); // peaks changed → refresh roster on dismiss
       openBuilder(id);
     })
   );
 
   if (mine) {
     document.getElementById("edit-me").addEventListener("click", () => {
+      // Editing is a transient sub-state of Enlist: render the prefilled form
+      // directly and sync the URL silently (no route re-fire that would drop it).
       closeDrawer();
+      openEntityKey = null;
       currentView = "enlist";
+      renderedView = "enlist";
+      history.replaceState(null, "", "#/enlist");
       renderNav();
       renderEnlist(b);
     });
@@ -1076,9 +1133,10 @@ async function openBuilder(id) {
         await api(`/builders/${b.id}`, { method: "DELETE" });
         await refresh();
         state.me = null;
-        closeDrawer();
+        renderAuthBar(); // status menu reverts to Enlist
+        invalidateView();
         toast("Your character was deleted.");
-        setView("roster");
+        go("#/roster");
       } catch (e) {
         toast(e.message, true);
       }
@@ -1162,6 +1220,7 @@ async function openGuild(id) {
       try {
         await api(`/guilds/${id}/${action}`, { method: "POST", body: {} });
         await refresh();
+        invalidateView();
         toast(inGuild ? "Left the guild" : "Joined the guild!");
         openGuild(id);
       } catch (e) {
@@ -1174,6 +1233,7 @@ async function openGuild(id) {
       try {
         await api(`/guilds/${id}/join`, { method: "POST", body: { builder_id: Number(btn.dataset.id) } });
         await refresh();
+        invalidateView();
         toast("Recruit added to the party!");
         openGuild(id);
       } catch (e) {
@@ -1199,9 +1259,9 @@ async function foundGuildPrompt() {
   try {
     const g = await api("/guilds", { method: "POST", body: { name: v.name, charter: v.charter } });
     await refresh();
-    renderGuilds();
+    invalidateView();
     toast("Guild founded!");
-    openGuild(g.id);
+    go(`#/guild/${g.id}`);
   } catch (e) {
     toast(e.message, true);
   }
@@ -1228,7 +1288,7 @@ function renderEnlist(existing) {
         <p>You're already enlisted as <strong>@${esc(state.auth.handle)}</strong>.</p>
         <button class="btn gold" id="open-mine">View / edit my sheet</button>
       </div>`;
-    document.getElementById("open-mine").addEventListener("click", () => openBuilder(state.me));
+    document.getElementById("open-mine").addEventListener("click", () => go("#/character"));
     return;
   }
 
@@ -1506,7 +1566,8 @@ function renderEnlist(existing) {
       state.me = b.id;
       toast(editing ? "Sheet updated!" : `Welcome, ${b.display_name}!`);
       renderAuthBar(); // status avatar now resolves to your builder
-      setView("roster");
+      invalidateView();
+      go("#/roster");
     } catch (err) {
       toast(err.message, true);
     } finally {
@@ -1547,9 +1608,11 @@ function showLoadingSkeleton() {
     await initAtprotoAuth();
     await refresh();
     renderAuthBar();
-    renderNav();
     app.removeAttribute("aria-busy");
-    render();
+    // React to back/forward + manual hash edits, then resolve the current URL
+    // (which may be a shared deep link like #/quest/5).
+    window.addEventListener("hashchange", applyRoute);
+    applyRoute();
   } catch (e) {
     app.removeAttribute("aria-busy");
     app.innerHTML = `<p class="empty">Couldn't reach the guild hall: ${esc(e.message)}</p>`;

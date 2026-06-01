@@ -70,6 +70,11 @@ Tokens (no ad-hoc sizes):
   sheet. Top bar holds brand (left) + status cluster (right).
 - **Status menu** (`.usermenu` / `.usermenu-btn` / `.menu-pop`) — GitHub-style: avatar
   button → dropdown (your sheet, log out). Logged-out shows the inline login widget.
+- **Routing** — hash deep-links: `#/quests|guilds|roster|enlist` (views),
+  `#/quest|guild|builder/:id` (open that drawer over its home view), `#/character`
+  (your own sheet). All navigation just sets the hash; one `applyRoute()` reacts to
+  `hashchange`, so shared links, Back/forward, and cold loads all resolve. `<main>`
+  only re-renders when the underlying view changes (drawers preserve scroll).
 - **Icons** — crafted inline SVG via `icon(name)` + the `.icon` class (`currentColor`,
   ~1.6 stroke, matches the `.sigil`). Set: crest, quest, reward, link, check, bluesky,
   roster, sheet, caret, logout. No emoji as iconography.
