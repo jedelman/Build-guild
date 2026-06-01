@@ -31,7 +31,9 @@ const esc = (s = "") =>
 const initials = (n = "?") => n.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 const avatarEl = (b) =>
   b.avatar
-    ? `<img class="avatar" src="${esc(b.avatar)}" alt="" />`
+    ? // Fall back to initials if the avatar image fails to load (dead CDN link, etc.).
+      `<img class="avatar" src="${esc(b.avatar)}" alt="" loading="lazy"
+        onerror="this.outerHTML='<div class=\\'avatar\\'>${esc(initials(b.display_name))}</div>'" />`
     : `<div class="avatar">${esc(initials(b.display_name))}</div>`;
 const verified = (b) => (b.did ? ` <span class="badge ai" title="Bluesky handle verified">🦋 verified</span>` : "");
 
@@ -49,9 +51,17 @@ async function api(path, opts = {}) {
 function toast(msg, isErr = false) {
   const t = document.createElement("div");
   t.className = "toast" + (isErr ? " err" : "");
+  // Announce to assistive tech; errors are assertive, successes polite.
+  t.setAttribute("role", isErr ? "alert" : "status");
+  t.setAttribute("aria-live", isErr ? "assertive" : "polite");
   t.textContent = msg;
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), 2600);
+  // Enter/exit animation via a class the CSS transitions on.
+  requestAnimationFrame(() => t.classList.add("show"));
+  setTimeout(() => {
+    t.classList.remove("show");
+    setTimeout(() => t.remove(), 250);
+  }, 2600);
 }
 
 const skillBar = (s) => `
@@ -307,13 +317,32 @@ async function refresh() {
 // ---- views -----------------------------------------------------------------
 let currentView = "guilds";
 const tabs = document.querySelectorAll(".tab");
-tabs.forEach((t) =>
-  t.addEventListener("click", () => {
-    tabs.forEach((x) => x.classList.toggle("active", x === t));
-    currentView = t.dataset.view;
-    render();
-  })
-);
+const activateTab = (t) => {
+  tabs.forEach((x) => {
+    const on = x === t;
+    x.classList.toggle("active", on);
+    x.setAttribute("aria-selected", on ? "true" : "false");
+    x.tabIndex = on ? 0 : -1;
+  });
+  currentView = t.dataset.view;
+  render();
+};
+const tabList = [...tabs];
+tabs.forEach((t) => {
+  t.setAttribute("role", "tab");
+  t.addEventListener("click", () => activateTab(t));
+  // Left/Right arrows move between tabs (WAI-ARIA tabs pattern).
+  t.addEventListener("keydown", (e) => {
+    const i = tabList.indexOf(t);
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+      e.preventDefault();
+      const next = tabList[(i + (e.key === "ArrowRight" ? 1 : tabList.length - 1)) % tabList.length];
+      next.focus();
+      activateTab(next);
+    }
+  });
+});
+document.querySelector(".tabs")?.setAttribute("role", "tablist");
 
 function render() {
   if (currentView === "guilds") return renderGuilds();
