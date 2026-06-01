@@ -3,6 +3,7 @@
 import { initTelemetry, reportBug, flush } from "./telemetry.js";
 import { BrowserOAuthClient } from "@atproto/oauth-client-browser";
 import { Agent } from "@atproto/api";
+import { reconcileSkillKeys } from "../src/skills.js";
 // Telemetry must never be able to break the app.
 try {
   initTelemetry();
@@ -115,23 +116,59 @@ async function establishServerSession(session) {
 
 const SKILL_COLLECTION = "org.buildguild.skill";
 
+// Read the builder's skill records straight from their PDS — the source of
+// truth. Our D1 is only a per-deployment index, which can be stale or empty
+// relative to the user's real repo (e.g. records written from a preview, then
+// viewed on prod). Returns null if the read fails, so callers can refuse to
+// delete when they don't actually know the repo's contents.
+async function loadSkillRecordsFromPds() {
+  if (!atprotoSession) return null;
+  try {
+    const agent = new Agent(atprotoSession);
+    const { data } = await agent.com.atproto.repo.listRecords({
+      repo: atprotoSession.did,
+      collection: SKILL_COLLECTION,
+      limit: 100,
+    });
+    return (data.records || [])
+      .map((r) => ({
+        rkey: r.uri.split("/").pop(),
+        name: r.value?.name || "",
+        slug: r.value?.slug || "",
+        createdAt: r.value?.createdAt,
+        esco: r.value?.externalRef
+          ? { uri: r.value.externalRef, label: r.value.externalLabel || "" }
+          : null,
+      }))
+      .filter((r) => r.name);
+  } catch {
+    return null;
+  }
+}
+
 // Reconcile the builder's skill records in their own PDS to match `skills`
-// (each {name, slug, esco?:{uri,label}}). Writes are user-owned and on-device;
-// rkey = slug so a skill maps to exactly one record (idempotent re-declares).
-// Returns once the repo matches, so the caller can ask the server to re-index.
-async function writeSkillRecordsToPds(skills) {
+// (each {name, slug?, esco?, rkey?, createdAt?}). Writes are user-owned and
+// on-device.
+//
+// DATA SAFETY: we only delete records that were loaded from the PDS into this
+// form and the user then removed — `loadedKeys` minus the wanted set. If the
+// repo couldn't be read (loadedKeys == null) we NEVER delete, only upsert, so a
+// stale or empty D1 view can't wipe real records. createdAt is preserved for
+// records that already existed (no silent timestamp churn).
+async function writeSkillRecordsToPds(skills, loadedKeys) {
   if (!atprotoSession) throw new Error("not logged in on-device");
   const agent = new Agent(atprotoSession);
   const repo = atprotoSession.did;
+
   const want = new Map(); // rkey -> record value
   for (const s of skills) {
     const slug = (s.slug || s.name).toLowerCase().replace(/\s+/g, " ").trim();
-    const rkey = slugToRkey(slug);
+    const rkey = s.rkey || slugToRkey(slug);
     const value = {
       $type: SKILL_COLLECTION,
       name: s.name,
       slug,
-      createdAt: new Date().toISOString(),
+      createdAt: s.createdAt || new Date().toISOString(),
     };
     if (s.esco?.uri) {
       value.externalRef = s.esco.uri;
@@ -141,23 +178,19 @@ async function writeSkillRecordsToPds(skills) {
     want.set(rkey, value);
   }
 
-  // Existing records in the repo, so we can delete ones the builder removed.
-  let existing = [];
-  try {
-    const { data } = await agent.com.atproto.repo.listRecords({ repo, collection: SKILL_COLLECTION, limit: 100 });
-    existing = data.records || [];
-  } catch {
-    /* first time: no collection yet */
-  }
-  const haveKeys = new Set(existing.map((r) => r.uri.split("/").pop()));
+  // reconcileSkillKeys enforces the data-safety invariant (and is unit-tested):
+  // delete only records loaded from the repo into this form that the user
+  // removed; never delete when the repo state is unknown (loadedKeys == null).
+  const wantedRows = [...want.keys()].map((rkey) => ({ rkey }));
+  const { deleteKeys } = reconcileSkillKeys(wantedRows, loadedKeys);
 
   for (const [rkey, record] of want) {
     await agent.com.atproto.repo.putRecord({ repo, collection: SKILL_COLLECTION, rkey, record });
   }
-  for (const rkey of haveKeys) {
-    if (!want.has(rkey)) {
-      await agent.com.atproto.repo.deleteRecord({ repo, collection: SKILL_COLLECTION, rkey }).catch(() => {});
-    }
+  for (const rkey of deleteKeys) {
+    await agent.com.atproto.repo
+      .deleteRecord({ repo, collection: SKILL_COLLECTION, rkey })
+      .catch(() => {});
   }
 }
 
@@ -568,7 +601,7 @@ function renderEnlist(existing) {
   // Each skill row carries an optional, builder-confirmed ESCO concept in
   // `row._esco = {uri,label}`. ESCO is opt-in: a skill is complete with just a
   // name; linking a standard definition is an offered convenience, never a gate.
-  const addSkill = (name = "", esco = null) => {
+  const addSkill = (name = "", esco = null, rec = null) => {
     const div = document.createElement("div");
     div.className = "skill-row";
     div.innerHTML = `
@@ -583,6 +616,10 @@ function renderEnlist(existing) {
         <div class="esco-panel hidden"></div>
       </div>`;
     div._esco = esco || null;
+    // Preserve the PDS record identity so a re-save updates in place (no churn,
+    // no duplicate records).
+    div._rkey = rec?.rkey || null;
+    div._createdAt = rec?.createdAt || null;
     div.querySelector(".rm").addEventListener("click", () => div.remove());
     wireEsco(div);
     renderEscoChosen(div);
@@ -681,6 +718,37 @@ function renderEnlist(existing) {
     }
   }
 
+  // Which skill rkeys this form actually loaded from the PDS. Stays null until a
+  // successful repo read, so the submit handler knows whether deletes are safe.
+  let loadedSkillKeys = null;
+
+  // Seed the skill rows from the builder's PDS — the source of truth — NOT from
+  // D1 (which is a per-deployment index that may be stale/empty) and NOT from
+  // Bluesky suggestions (which would let a re-save delete real records). This is
+  // the core of the data-loss fix.
+  async function seedSkillsFromPds() {
+    const records = await loadSkillRecordsFromPds();
+    if (records) {
+      loadedSkillKeys = records.map((r) => r.rkey);
+      records
+        .sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")))
+        .forEach((r) => addSkill(r.name, r.esco, r));
+    }
+    // Suggestions are offered ONLY to a builder with no existing records, and
+    // only when we could actually read the repo (so we know it's truly empty).
+    if (records && records.length === 0 && !editing) {
+      try {
+        const p = await api(`/atproto/profile?handle=${encodeURIComponent(state.auth.handle)}`);
+        if (!form.display_name.value) form.display_name.value = p.display_name || "";
+        if (!form.bio.value) form.bio.value = p.bio || "";
+        (p.suggested_skills || []).forEach((s) => addSkill(s.name));
+      } catch {
+        /* suggestions are best-effort */
+      }
+    }
+    if (!skillRows.children.length) addSkill(""); // always leave one empty row
+  }
+
   if (editing) {
     form.display_name.value = existing.display_name || "";
     form.klass.value = existing.klass || "";
@@ -688,30 +756,27 @@ function renderEnlist(existing) {
     form.tagline.value = existing.tagline || "";
     form.bio.value = existing.bio || "";
     form.ai_augmented.checked = !!existing.ai_augmented;
-    (existing.skills || []).forEach((s) =>
-      addSkill(s.name, s.esco_uri ? { uri: s.esco_uri, label: s.esco_label } : null)
-    );
     (existing.projects || []).forEach(addProject);
-    if (!existing.skills?.length) addSkill("");
-  } else {
-    // Prefill from the logged-in user's own public Bluesky profile.
-    addSkill("");
+  } else if (!form.display_name.value) {
+    // New builder: prefill name/bio from the public Bluesky profile.
     api(`/atproto/profile?handle=${encodeURIComponent(state.auth.handle)}`)
       .then((p) => {
         if (!form.display_name.value) form.display_name.value = p.display_name || "";
         if (!form.bio.value) form.bio.value = p.bio || "";
-        if (p.suggested_skills?.length) {
-          skillRows.innerHTML = "";
-          p.suggested_skills.forEach((s) => addSkill(s.name));
-        }
       })
       .catch(() => {});
   }
+  seedSkillsFromPds();
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const skills = [...skillRows.querySelectorAll(".skill-row")]
-      .map((r) => ({ name: r.querySelector(".s-name").value.trim(), esco: r._esco || null }))
+      .map((r) => ({
+        name: r.querySelector(".s-name").value.trim(),
+        esco: r._esco || null,
+        rkey: r._rkey || null,
+        createdAt: r._createdAt || null,
+      }))
       .filter((s) => s.name);
     const projects = [...projectRows.querySelectorAll(".project-line")]
       .map((r) => ({
@@ -738,7 +803,9 @@ function renderEnlist(existing) {
         : await api("/builders", { method: "POST", body });
       // Write the skill records to the builder's own PDS, then have the server
       // re-index them from the repo (authoritative; never trusts the client).
-      await writeSkillRecordsToPds(skills);
+      // loadedSkillKeys (rkeys read from the PDS into this form) bounds deletes:
+      // if the repo read failed, it's null and nothing is ever deleted.
+      await writeSkillRecordsToPds(skills, loadedSkillKeys);
       await api(`/builders/${b.id}/skills`, { method: "POST" });
       await refresh();
       state.me = b.id;
