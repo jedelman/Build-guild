@@ -54,7 +54,11 @@ function toast(msg, isErr = false) {
 }
 
 const skillBar = (s) => `
-  <div class="bar-row"><span>${esc(s.name)}</span><span class="peak-num">${s.peak}</span></div>
+  <div class="bar-row"><span>${esc(s.name)}${
+    s.esco_uri
+      ? ` <a class="esco-tag" href="${esc(s.esco_uri)}" target="_blank" rel="noopener" title="ESCO: ${esc(s.esco_label || "linked concept")}">🔗</a>`
+      : ""
+  }</span><span class="peak-num">${s.peak}</span></div>
   <div class="bar"><span style="width:${s.peak}%"></span></div>`;
 
 // ---- auth ------------------------------------------------------------------
@@ -107,6 +111,60 @@ async function establishServerSession(session) {
     method: "POST",
     headers: { authorization: `Bearer ${data.token}` },
   });
+}
+
+const SKILL_COLLECTION = "org.buildguild.skill";
+
+// Reconcile the builder's skill records in their own PDS to match `skills`
+// (each {name, slug, esco?:{uri,label}}). Writes are user-owned and on-device;
+// rkey = slug so a skill maps to exactly one record (idempotent re-declares).
+// Returns once the repo matches, so the caller can ask the server to re-index.
+async function writeSkillRecordsToPds(skills) {
+  if (!atprotoSession) throw new Error("not logged in on-device");
+  const agent = new Agent(atprotoSession);
+  const repo = atprotoSession.did;
+  const want = new Map(); // rkey -> record value
+  for (const s of skills) {
+    const slug = (s.slug || s.name).toLowerCase().replace(/\s+/g, " ").trim();
+    const rkey = slugToRkey(slug);
+    const value = {
+      $type: SKILL_COLLECTION,
+      name: s.name,
+      slug,
+      createdAt: new Date().toISOString(),
+    };
+    if (s.esco?.uri) {
+      value.externalRef = s.esco.uri;
+      value.externalScheme = "esco";
+      if (s.esco.label) value.externalLabel = s.esco.label;
+    }
+    want.set(rkey, value);
+  }
+
+  // Existing records in the repo, so we can delete ones the builder removed.
+  let existing = [];
+  try {
+    const { data } = await agent.com.atproto.repo.listRecords({ repo, collection: SKILL_COLLECTION, limit: 100 });
+    existing = data.records || [];
+  } catch {
+    /* first time: no collection yet */
+  }
+  const haveKeys = new Set(existing.map((r) => r.uri.split("/").pop()));
+
+  for (const [rkey, record] of want) {
+    await agent.com.atproto.repo.putRecord({ repo, collection: SKILL_COLLECTION, rkey, record });
+  }
+  for (const rkey of haveKeys) {
+    if (!want.has(rkey)) {
+      await agent.com.atproto.repo.deleteRecord({ repo, collection: SKILL_COLLECTION, rkey }).catch(() => {});
+    }
+  }
+}
+
+// atproto record keys allow a limited charset; map a slug to a safe rkey.
+function slugToRkey(slug) {
+  const k = slug.replace(/[^a-zA-Z0-9._~-]/g, "-").replace(/^-+|-+$/g, "").slice(0, 100);
+  return k || "skill";
 }
 
 // Inline handle widget. Submitting starts the on-device atproto OAuth flow (see
@@ -507,14 +565,27 @@ function renderEnlist(existing) {
   const form = document.getElementById("enlist-form");
   const skillRows = document.getElementById("skill-rows");
   const projectRows = document.getElementById("project-rows");
-  const addSkill = (name = "") => {
+  // Each skill row carries an optional, builder-confirmed ESCO concept in
+  // `row._esco = {uri,label}`. ESCO is opt-in: a skill is complete with just a
+  // name; linking a standard definition is an offered convenience, never a gate.
+  const addSkill = (name = "", esco = null) => {
     const div = document.createElement("div");
-    div.className = "skill-line";
+    div.className = "skill-row";
     div.innerHTML = `
-      <input class="s-name" placeholder="Skill (e.g. Rust)" value="${esc(name)}"
-        list="skill-options" autocomplete="off" />
-      <button type="button" class="btn ghost rm" aria-label="Remove skill">✕</button>`;
+      <div class="skill-line">
+        <input class="s-name" placeholder="Skill (e.g. Rust)" value="${esc(name)}"
+          list="skill-options" autocomplete="off" />
+        <button type="button" class="btn ghost rm" aria-label="Remove skill">✕</button>
+      </div>
+      <div class="skill-meta">
+        <button type="button" class="linklike esco-toggle">+ link a standard definition (optional)</button>
+        <span class="esco-chosen hidden"></span>
+        <div class="esco-panel hidden"></div>
+      </div>`;
+    div._esco = esco || null;
     div.querySelector(".rm").addEventListener("click", () => div.remove());
+    wireEsco(div);
+    renderEscoChosen(div);
     skillRows.appendChild(div);
   };
   const addProject = (p = {}) => {
@@ -553,6 +624,63 @@ function renderEnlist(existing) {
   });
   refreshSkillOptions(""); // preload the most-used skills
 
+  // ESCO concept picker for one skill row. Opening it searches ESCO for the
+  // typed skill name; the builder picks a concept (or none). All optional.
+  function wireEsco(row) {
+    const toggle = row.querySelector(".esco-toggle");
+    const panel = row.querySelector(".esco-panel");
+    toggle.addEventListener("click", async () => {
+      const open = !panel.classList.contains("hidden");
+      if (open) return panel.classList.add("hidden");
+      const term = row.querySelector(".s-name").value.trim();
+      if (!term) return toast("Type the skill name first.", true);
+      panel.classList.remove("hidden");
+      panel.innerHTML = `<p class="muted" style="margin:.2rem 0">Searching ESCO…</p>`;
+      let items = [];
+      try {
+        items = await api(`/skills/esco?q=${encodeURIComponent(term)}`);
+      } catch {
+        /* best-effort */
+      }
+      if (!items.length) {
+        panel.innerHTML = `<p class="muted" style="margin:.2rem 0">No ESCO match — that's fine, leave it unlinked.</p>`;
+        return;
+      }
+      panel.innerHTML = items
+        .map(
+          (it) =>
+            `<button type="button" class="esco-opt" data-uri="${esc(it.uri)}" data-label="${esc(it.title)}">${esc(it.title)}</button>`
+        )
+        .join("");
+      panel.querySelectorAll(".esco-opt").forEach((btn) =>
+        btn.addEventListener("click", () => {
+          row._esco = { uri: btn.dataset.uri, label: btn.dataset.label };
+          panel.classList.add("hidden");
+          renderEscoChosen(row);
+        })
+      );
+    });
+  }
+
+  function renderEscoChosen(row) {
+    const chosen = row.querySelector(".esco-chosen");
+    const toggle = row.querySelector(".esco-toggle");
+    if (row._esco?.uri) {
+      chosen.classList.remove("hidden");
+      chosen.innerHTML = `<a href="${esc(row._esco.uri)}" target="_blank" rel="noopener" title="ESCO concept">🔗 ${esc(row._esco.label || "linked")}</a>
+        <button type="button" class="linklike esco-clear">clear</button>`;
+      chosen.querySelector(".esco-clear").addEventListener("click", () => {
+        row._esco = null;
+        renderEscoChosen(row);
+      });
+      toggle.classList.add("hidden");
+    } else {
+      chosen.classList.add("hidden");
+      chosen.innerHTML = "";
+      toggle.classList.remove("hidden");
+    }
+  }
+
   if (editing) {
     form.display_name.value = existing.display_name || "";
     form.klass.value = existing.klass || "";
@@ -560,7 +688,9 @@ function renderEnlist(existing) {
     form.tagline.value = existing.tagline || "";
     form.bio.value = existing.bio || "";
     form.ai_augmented.checked = !!existing.ai_augmented;
-    (existing.skills || []).forEach((s) => addSkill(s.name));
+    (existing.skills || []).forEach((s) =>
+      addSkill(s.name, s.esco_uri ? { uri: s.esco_uri, label: s.esco_label } : null)
+    );
     (existing.projects || []).forEach(addProject);
     if (!existing.skills?.length) addSkill("");
   } else {
@@ -580,8 +710,8 @@ function renderEnlist(existing) {
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const skills = [...skillRows.querySelectorAll(".skill-line")]
-      .map((r) => ({ name: r.querySelector(".s-name").value.trim() }))
+    const skills = [...skillRows.querySelectorAll(".skill-row")]
+      .map((r) => ({ name: r.querySelector(".s-name").value.trim(), esco: r._esco || null }))
       .filter((s) => s.name);
     const projects = [...projectRows.querySelectorAll(".project-line")]
       .map((r) => ({
@@ -590,6 +720,7 @@ function renderEnlist(existing) {
         help_wanted: r.querySelector(".p-help").value.trim(),
       }))
       .filter((p) => p.name);
+    // Profile fields go to D1 via the server; skills are PDS-native.
     const body = {
       display_name: form.display_name.value,
       klass: form.klass.value,
@@ -597,13 +728,18 @@ function renderEnlist(existing) {
       tagline: form.tagline.value,
       bio: form.bio.value,
       ai_augmented: form.ai_augmented.checked,
-      skills,
       projects,
     };
+    const submitBtn = form.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
     try {
       const b = editing
         ? await api(`/builders/${existing.id}`, { method: "PUT", body })
         : await api("/builders", { method: "POST", body });
+      // Write the skill records to the builder's own PDS, then have the server
+      // re-index them from the repo (authoritative; never trusts the client).
+      await writeSkillRecordsToPds(skills);
+      await api(`/builders/${b.id}/skills`, { method: "POST" });
       await refresh();
       state.me = b.id;
       toast(editing ? "Sheet updated!" : `Welcome, ${b.display_name}!`);
@@ -612,6 +748,8 @@ function renderEnlist(existing) {
       render();
     } catch (err) {
       toast(err.message, true);
+    } finally {
+      submitBtn.disabled = false;
     }
   });
 }

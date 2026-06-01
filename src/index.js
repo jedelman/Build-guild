@@ -12,6 +12,7 @@ import {
   joinGuild,
   leaveGuild,
   suggestSkills,
+  syncBuilderSkills,
   createSession,
   getSession,
   deleteSession,
@@ -19,6 +20,7 @@ import {
 } from "./db.js";
 import { recommendRecruits } from "./logic.js";
 import { fetchBlueskyProfile, suggestSkillsFromProfile } from "./atproto.js";
+import { escoSearch } from "./esco.js";
 import { ingestTelemetry, scrub } from "./telemetry.js";
 import { clientMetadata, parseCookies, serializeCookie } from "./oauth.js";
 import { serviceDidForOrigin, didWebDocument, verifyServiceAuthJwt } from "./serviceauth.js";
@@ -96,6 +98,15 @@ async function route(request, env, url) {
     return json(await suggestSkills(env, url.searchParams.get("q") || ""));
   }
 
+  // ESCO concept candidates for a skill term (proxied; best-effort).
+  if (resource === "skills" && id === "esco" && method === "GET") {
+    try {
+      return json(await escoSearch(url.searchParams.get("q") || ""));
+    } catch {
+      return json([]);
+    }
+  }
+
   // Look up a Bluesky profile to verify a handle and prefill a character sheet.
   if (resource === "atproto" && id === "profile" && method === "GET") {
     const handle = url.searchParams.get("handle");
@@ -139,6 +150,15 @@ async function route(request, env, url) {
       }
       const body = (await readJson(request)) || {};
       return json(await updateBuilder(env, gid, body));
+    }
+    // Re-index this builder's skills from their PDS records (owner only).
+    if (id && action === "skills" && method === "POST") {
+      const session = await currentSession(request, env);
+      if (!session) return fail("log in to sync your skills", 401);
+      const target = await getBuilder(env, gid);
+      if (!target) return fail("builder not found", 404);
+      if (!target.did || target.did !== session.did) return fail("that isn't your builder", 403);
+      return json(await syncBuilderSkills(env, gid));
     }
   }
 
