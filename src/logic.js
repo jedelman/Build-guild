@@ -84,6 +84,44 @@ export function diversityScore(members) {
 }
 
 /**
+ * Rank parties (guilds, or individual builders as a party of one) by how well
+ * their combined skill-map covers a quest's required skills. Reuses the same
+ * "strong coverage" idea as Guild Power: a required skill is covered when some
+ * member's peak on it is >= threshold; partial credit for a present-but-weak
+ * skill. Pure, so it's unit-testable.
+ *
+ * @param {Array<{name:string}>} requiredSkills
+ * @param {Array<{id:any, name:string, members:Array}>} parties  each with members[].skills
+ * @returns ranked [{ party, coverage(0..1), covered:string[], missing:string[] }]
+ */
+export function rankPartiesForQuest(requiredSkills, parties, { threshold = STRONG } = {}) {
+  const required = requiredSkills.map((s) => s.name.toLowerCase()).filter(Boolean);
+  if (!required.length) return [];
+  return parties
+    .map((party) => {
+      const best = guildSkillMap(party.members || []); // [{name, peak}]
+      const peakByName = new Map(best.map((s) => [s.name.toLowerCase(), s.peak]));
+      let score = 0;
+      const covered = [];
+      const missing = [];
+      for (const r of required) {
+        const peak = peakByName.get(r) || 0;
+        if (peak >= threshold) {
+          score += 1;
+          covered.push(r);
+        } else if (peak > 0) {
+          score += 0.5; // present but not yet strong
+          covered.push(r);
+        } else {
+          missing.push(r);
+        }
+      }
+      return { party, coverage: score / required.length, covered, missing };
+    })
+    .sort((a, b) => b.coverage - a.coverage);
+}
+
+/**
  * Suggest recruits that fill the guild's gaps.
  * A candidate scores for every skill where they'd be strong (peak >= threshold)
  * and the guild currently is not, plus a smaller bump for raising an existing peak.

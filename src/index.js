@@ -14,6 +14,11 @@ import {
   suggestSkills,
   syncBuilderSkills,
   syncEndorsements,
+  listQuests,
+  getQuest,
+  createQuest,
+  claimQuest,
+  setQuestStatus,
   createSession,
   getSession,
   deleteSession,
@@ -200,6 +205,50 @@ async function route(request, env, url) {
         else await leaveGuild(env, gid, me.id);
         const guild = await getGuild(env, gid);
         return guild ? json(guild) : fail("guild not found", 404);
+      }
+    }
+  }
+
+  // ---------- quests (#6) ----------
+  if (resource === "quests") {
+    if (method === "GET" && !id) return json(await listQuests(env));
+    if (method === "POST" && !id) {
+      // Any verified Bluesky user can post a quest as a patron.
+      const session = await currentSession(request, env);
+      if (!session) return fail("log in with Bluesky to post a quest", 401);
+      const body = (await readJson(request)) || {};
+      return json(
+        await createQuest(env, { patron_did: session.did, patron_handle: session.handle }, body),
+        201
+      );
+    }
+    if (id) {
+      if (method === "GET" && !action) {
+        const quest = await getQuest(env, gid);
+        return quest ? json(quest) : fail("quest not found", 404);
+      }
+      if (method === "POST" && action === "claim") {
+        // Claim as your own builder, or as a guild you belong to.
+        const me = await sessionBuilder(request, env);
+        if (!me) return fail("log in and create your builder first", 401);
+        const body = (await readJson(request)) || {};
+        if (body.guild_id) {
+          const guild = await getGuild(env, Number(body.guild_id));
+          if (!guild || !guild.members.some((m) => m.id === me.id))
+            return fail("you can only claim for a guild you belong to", 403);
+          return json(await claimQuest(env, gid, { guildId: Number(body.guild_id) }));
+        }
+        return json(await claimQuest(env, gid, { builderId: me.id }));
+      }
+      if (method === "POST" && action === "status") {
+        // Only the patron who posted it can advance status.
+        const session = await currentSession(request, env);
+        if (!session) return fail("log in", 401);
+        const quest = await getQuest(env, gid);
+        if (!quest) return fail("quest not found", 404);
+        if (quest.patron_did !== session.did) return fail("only the patron can update this quest", 403);
+        const body = (await readJson(request)) || {};
+        return json(await setQuestStatus(env, gid, body.status));
       }
     }
   }

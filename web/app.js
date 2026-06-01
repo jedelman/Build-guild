@@ -253,7 +253,11 @@ const requireLogin = (why) => {
 
 // ---- data loading ----------------------------------------------------------
 async function refresh() {
-  [state.builders, state.guilds] = await Promise.all([api("/builders"), api("/guilds")]);
+  [state.builders, state.guilds, state.quests] = await Promise.all([
+    api("/builders"),
+    api("/guilds"),
+    api("/quests").catch(() => []),
+  ]);
 }
 
 // ---- views -----------------------------------------------------------------
@@ -270,7 +274,136 @@ tabs.forEach((t) =>
 function render() {
   if (currentView === "guilds") return renderGuilds();
   if (currentView === "roster") return renderRoster();
+  if (currentView === "quests") return renderQuests();
   if (currentView === "enlist") return renderEnlist();
+}
+
+// ---- quest board -----------------------------------------------------------
+function questCard(q) {
+  const statusCls = { open: "ok", claimed: "role", delivered: "ai", closed: "" }[q.status] || "";
+  return `
+    <div class="card click" data-quest="${q.id}">
+      <div class="builder-head"><span class="crest">📜</span>
+        <div><div class="name">${esc(q.title)}</div>
+        <div class="klass">by @${esc(q.patron_handle || "patron")}</div></div></div>
+      <p class="tagline">${esc(q.brief || "")}</p>
+      <div class="badges">
+        <span class="badge ${statusCls}">${esc(q.status)}</span>
+        ${q.reward ? `<span class="badge role">🎁 ${esc(q.reward)}</span>` : ""}
+        ${(q.skills || []).map((s) => `<span class="badge">${esc(s.name)}</span>`).join("")}
+      </div>
+    </div>`;
+}
+
+function renderQuests() {
+  const loggedIn = state.auth.authenticated;
+  app.innerHTML = `
+    <div class="section-head">
+      <div><h2>Quest Board</h2><p>Patrons post work; a suitably diverse party takes it on.</p></div>
+      ${loggedIn ? '<button class="btn" id="new-quest">+ Post a quest</button>' : ""}
+    </div>
+    <div class="grid" id="quest-grid"></div>`;
+  if (loggedIn) document.getElementById("new-quest").addEventListener("click", postQuestPrompt);
+
+  const grid = document.getElementById("quest-grid");
+  const quests = state.quests || [];
+  if (!quests.length) {
+    grid.innerHTML = `<p class="empty">No quests yet. ${loggedIn ? "Post the first one." : "Log in to post one."}</p>`;
+    return;
+  }
+  grid.innerHTML = quests.map(questCard).join("");
+  grid.querySelectorAll("[data-quest]").forEach((el) =>
+    el.addEventListener("click", () => openQuest(Number(el.dataset.quest)))
+  );
+}
+
+async function openQuest(id) {
+  const q = await api(`/quests/${id}`);
+  const meId = state.me;
+  const isPatron = state.auth.authenticated && q.patron_did === state.auth.did;
+  const canClaim = state.auth.authenticated && meId && q.status === "open" && !isPatron;
+  openDrawer(`
+    <div class="builder-head"><span class="crest">📜</span>
+      <div><h2 style="margin:0">${esc(q.title)}</h2>
+      <div class="klass">by @${esc(q.patron_handle || "patron")} · ${esc(q.status)}</div></div></div>
+    <p class="tagline">${esc(q.brief || "")}</p>
+    <div class="badges">
+      ${q.reward ? `<span class="badge role">🎁 ${esc(q.reward)}</span>` : ""}
+      ${(q.skills || []).map((s) => `<span class="badge">${esc(s.name)}</span>`).join("")}
+    </div>
+    ${
+      canClaim
+        ? `<div class="row" style="margin:.9rem 0"><button class="btn gold" id="claim-quest">Claim this quest</button></div>`
+        : ""
+    }
+    ${
+      isPatron && q.status !== "closed"
+        ? `<div class="row" style="margin:.9rem 0;gap:.5rem">
+             ${q.status === "claimed" ? '<button class="btn" id="q-delivered">Mark delivered</button>' : ""}
+             <button class="btn ghost" id="q-closed">Close quest</button></div>`
+        : ""
+    }
+    <h3 style="color:var(--gold);font-family:Cinzel,serif">Suggested parties</h3>
+    <p class="muted" style="font-size:.8rem;margin-top:-.4rem">Ranked by how well their combined, peer-endorsed skill-peaks cover this quest.</p>
+    ${
+      (q.suggested_parties || []).length
+        ? q.suggested_parties
+            .map(
+              (p) => `<div class="subform"><div class="row" style="justify-content:space-between">
+                <strong>${esc(p.name)}</strong><span class="badge ${p.coverage >= 100 ? "ok" : ""}">${p.coverage}% match</span></div>
+                <div class="klass">${p.kind}</div>
+                ${p.covered.length ? `<div class="muted" style="font-size:.82rem">Covers: ${p.covered.map(esc).join(", ")}</div>` : ""}
+                ${p.missing.length ? `<div class="muted" style="font-size:.82rem">Gaps: ${p.missing.map(esc).join(", ")}</div>` : ""}</div>`
+            )
+            .join("")
+        : '<p class="muted">No parties cover these skills yet — recruit some builders!</p>'
+    }`);
+
+  const claim = document.getElementById("claim-quest");
+  if (claim)
+    claim.addEventListener("click", async () => {
+      try {
+        await api(`/quests/${id}/claim`, { method: "POST", body: {} });
+        await refresh();
+        toast("Quest claimed!");
+        openQuest(id);
+      } catch (e) {
+        toast(e.message, true);
+      }
+    });
+  for (const [btnId, status] of [["q-delivered", "delivered"], ["q-closed", "closed"]]) {
+    const btn = document.getElementById(btnId);
+    if (btn)
+      btn.addEventListener("click", async () => {
+        try {
+          await api(`/quests/${id}/status`, { method: "POST", body: { status } });
+          await refresh();
+          toast(`Quest ${status}.`);
+          openQuest(id);
+        } catch (e) {
+          toast(e.message, true);
+        }
+      });
+  }
+}
+
+async function postQuestPrompt() {
+  if (!state.auth.authenticated) return requireLogin("Log in with Bluesky to post a quest");
+  const title = prompt("Quest title:");
+  if (!title) return;
+  const brief = prompt("Brief — what needs doing?") || "";
+  const reward = prompt("Reward (e.g. 'revenue share', '$500', 'kudos'):") || "";
+  const skillsRaw = prompt("Required skills (comma-separated, e.g. Rust, Design):") || "";
+  const skills = skillsRaw.split(",").map((s) => ({ name: s.trim() })).filter((s) => s.name);
+  try {
+    const q = await api("/quests", { method: "POST", body: { title, brief, reward, skills } });
+    await refresh();
+    renderQuests();
+    toast("Quest posted!");
+    openQuest(q.id);
+  } catch (e) {
+    toast(e.message, true);
+  }
 }
 
 function heroHTML() {
