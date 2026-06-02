@@ -146,27 +146,70 @@ years across key rotation.
   self-authenticating — see research §4).
 - State is recoverable from the union of members' repos → no single point of failure.
 
-## 10. Feasibility verdict
+## 10. Reputation — eligibility-gated attestation counts (one primitive with §1–4)
 
-**Validated (running code, 8/8 tests):** signed-claim authorship; pure, deterministic,
-order-independent state derivation; charter-driven authority; tamper-evidence; quorum/
-threshold tallies with eligibility + deadlines; duplicity detection with non-repudiable
-evidence; ambient verifiability; Worker/browser/Node-portable crypto.
+Reputation reuses the governance pipeline exactly: signed claims in, locally-computed
+counts out, archives as convenience. There is **no score and no ranking algorithm** — the
+only signal is a **count of co-signed attestations** per ontology contract, rendered as a
+ternary **badge cloud**.
+
+- **Symmetric subjects:** builders, guilds, AND clients all accrue trails — mutual
+  accountability, the anti-Airbnb move. A completed quest emits attestations touching every
+  side ("guild hall, not bazaar": you commission a *standing house* and you yourself carry a
+  paper trail as a patron).
+- **Attestation** (signed claim in the attester's repo):
+  `{ type:"org.buildguild.attestation", attester, subject, contract, value:"yes"|"no"|"unknown",
+  context:{quest?}, createdAt, sig }`. Ternary: yes/no carry the signal; **unknown** is the
+  dignified abstention a prompt offers so it never coerces a fake answer (and a denominator).
+- **Contract** (ontology predicate, Ricardian): `{ id, prose, subjectType, eligibility }`.
+  AppViews **prompt** attestations against a contract at the right moment ("Quest closed — did
+  they deliver? Yes / No / Unknown"); the user signs the answer into their own repo; anyone
+  tallies. AppView prompts + indexes, never adjudicates.
+- **Eligibility is what makes a COUNT mean something.** A raw count is Sybil-bait, so an
+  attestation is counted only if the attester had **provable standing** derived from other
+  signed events: `delivered-on-time` ← the quest's *patron*; `splits-fairly` ← a *party
+  member*; etc. Sybils may sign forever; ineligible attestations don't count. No
+  self-attestation.
+- **Badge cloud render:** size ∝ count; the ternary split shows sentiment. `delivered ×40`
+  solid reads as renown; `splits-fairly 6y/9n` reads as contested. A **contested event** (guild
+  says delivered:yes, client says no on the same quest) surfaces as visible disagreement, not a
+  clean mark — honest, and Ostrom-ish.
+- **Skills are just contracts:** an endorsement (#4) = a `yes` on `skill.rust`. This collapses
+  consensus-skills (#4) and reputation (#21) into **one** attestation primitive.
+- **No canonical score / suggested lens:** we serve the raw co-signed trail; any opinionated
+  reading is "a suggested reading, not the verdict" — recomputable and contestable by anyone.
+  Verifier, not overlord.
+
+API (PoC, `src/governance.js`): `tallyBadges(subject, attestations, contracts, context,
+{subjectType}) → {badges, conflicts}`, `isEligible(...)`, `buildContext(events)`. Pure +
+deterministic, same family as `deriveGuildState`.
+
+## 11. Feasibility verdict
+
+**Validated (running code — full suite 71/71; governance 8/8 + reputation 8/8):**
+signed-claim authorship; pure, deterministic, order-independent state derivation;
+charter-driven authority; tamper-evidence; quorum/threshold tallies with eligibility +
+deadlines; duplicity detection with non-repudiable evidence; ambient verifiability;
+**eligibility-gated reputation counts (Sybil-resistant), ternary badge clouds, symmetric
+builder/guild/client trails, "skills are contracts"**; Worker/browser/Node-portable crypto.
 
 **Not yet built / open:** amendment execution (charter chain replay); capability-chain
-delegation (UCAN); LTV timestamping; the AppView indexer + on-read verification; mapping
-explicit signatures onto atproto's own commit-level auth (use embedded sig, or derive a
-per-record inclusion proof?); JCS/dag-cbor canonicalization; Sybil resistance beyond
-verified DIDs.
+delegation (UCAN); LTV timestamping; the AppView indexer + on-read verification; the
+attestation *ontology* (curated core + namespaced custom contracts, and how the ontology
+itself is governed); mapping explicit signatures onto atproto's own commit-level auth (embed
+a sig, or derive a per-record inclusion proof?); JCS/dag-cbor canonicalization; cold-start /
+newcomer on-ramp (vouching, escrowed first quests); Sybil resistance beyond verified DIDs.
 
-## 11. Open questions for atproto core devs (additions to #21)
+## 12. Open questions for atproto core devs (additions to #21)
 - Embed an explicit per-claim signature, or rely on atproto's commit-level auth + per-record
   inclusion proofs for "self-verifying claims"? Which is idiomatic?
 - Recommended canonicalization for signed app records (JCS vs dag-cbor)?
 - Is verify-on-read (`getRecord`+sig) the sanctioned path for verifiable tallies vs the
   authenticated firehose?
+- Where should the attestation *ontology* live (a `community.lexicon.*` contract registry vs
+  `org.buildguild.*` with a credible exit), and how is the registry itself governed?
 
-## 12. The human-factors question (next, not resolved here)
+## 13. The human-factors question (next, not resolved here)
 
 Cryptographic verifiability makes blame **assignable**; it does not make outcomes **just**.
 The open risk: do we end up reinventing a slow, adversarial **claims court** — where every

@@ -78,7 +78,7 @@ async function verifySig(record, publicKey) {
 export async function verifyRecords(records, resolveKey) {
   return Promise.all(
     records.map(async (r) => {
-      const author = r.author ?? r.founder;
+      const author = r.author ?? r.attester ?? r.founder;
       const key = await resolveKey(author);
       const _verified = await verifySig(r, key);
       const _ref = await recordRef(r);
@@ -209,4 +209,84 @@ export function evidenceBundle(charter, verifiedClaims, proposalRef, opts) {
   const state = deriveGuildState(charter, verifiedClaims, opts);
   const proposal = state.proposals[proposalRef];
   return { charter, proposal, computedAt: opts?.now ?? Date.now() };
+}
+
+// ===========================================================================
+// REPUTATION — eligibility-gated attestation COUNTS (never a score).
+// Reputation reuses the exact same pipeline: signed claims in, locally-computed
+// counts out, archives as convenience. The only "signal" is a count of co-signed
+// attestations per ontology contract → rendered as a ternary "badge cloud".
+// Subjects can be builders, guilds, OR clients (symmetric, mutual accountability).
+// Skills are just contracts (an endorsement = a `yes` on `skill.rust`).
+// ===========================================================================
+
+// Can `attester` validly attest this contract, given context? Pure + local.
+// This is what makes a raw COUNT meaningful: Sybils may sign all day, but only
+// attesters with provable standing (from other signed events) are counted.
+export function isEligible(attester, attestation, contract, context = {}) {
+  if (attester === attestation.subject) return false; // no self-attestation
+  const rule = contract?.eligibility?.rule || "anyone";
+  const quest = context.quests?.[attestation.context?.quest];
+  switch (rule) {
+    case "anyone":
+      return true;
+    case "patron_of_quest":
+      return !!quest && quest.patron === attester;
+    case "party_of_quest":
+      return !!quest && Array.isArray(quest.party) && quest.party.includes(attester);
+    case "member_of_guild": {
+      const gid = attestation.context?.guild ?? attestation.subject;
+      return Array.isArray(context.guildMembers?.[gid]) && context.guildMembers[gid].includes(attester);
+    }
+    default:
+      return false; // unknown rule → not eligible (conservative)
+  }
+}
+
+// Tally a subject's badge cloud: per contract, counts of yes/no/unknown from
+// ELIGIBLE attesters only. One slot per (attester, contract, context); conflicting
+// values from one attester in one context are duplicity → voided + recorded.
+// Pure, deterministic, order-independent — same family as deriveGuildState.
+export function tallyBadges(subject, verifiedAttestations, contracts, context = {}, { subjectType } = {}) {
+  const slots = {}; // contractId -> contextKey -> attester -> [{value, ref}]
+  for (const a of verifiedAttestations) {
+    if (!a || !a._verified || a.subject !== subject) continue;
+    const contract = contracts[a.contract];
+    if (!contract) continue;
+    if (subjectType && contract.subjectType && contract.subjectType !== "any" && contract.subjectType !== subjectType) continue;
+    if (!["yes", "no", "unknown"].includes(a.value)) continue;
+    if (!isEligible(a.attester, a, contract, context)) continue; // Sybil / ineligible dropped
+    const ckey = canonicalize(a.context ?? null);
+    (((slots[a.contract] ??= {})[ckey] ??= {})[a.attester] ??= []).push({ value: a.value, ref: a._ref });
+  }
+  const badges = {};
+  const conflicts = [];
+  for (const [cid, byCtx] of Object.entries(slots)) {
+    const tally = { yes: 0, no: 0, unknown: 0, attesters: 0 };
+    for (const byAttester of Object.values(byCtx)) {
+      for (const [attester, list] of Object.entries(byAttester)) {
+        const values = new Set(list.map((v) => v.value));
+        if (values.size > 1) {
+          conflicts.push({ type: "conflicting_attestation", attester, contract: cid, evidence: list.map((v) => v.ref).sort() });
+          continue; // equivocation voids this attester's slot
+        }
+        tally[[...values][0]]++;
+        tally.attesters++;
+      }
+    }
+    if (tally.attesters > 0) badges[cid] = tally; // omit fully-voided contracts
+  }
+  return { subject, badges, conflicts };
+}
+
+// Build the eligibility context from signed events (PoC: a patron-signed `quest`
+// record carrying the awarded guild + party; production would co-sign settlement).
+// `guildMembers` may be supplied (e.g. from deriveGuildState) for guild-scoped rules.
+export function buildContext(verifiedEvents = [], { guildMembers = {} } = {}) {
+  const quests = {};
+  for (const e of verifiedEvents) {
+    if (!e?._verified || e.kind !== "quest") continue;
+    quests[e._ref] = { patron: e.author, guild: e.body?.guild, party: e.body?.party ?? [] };
+  }
+  return { quests, guildMembers };
 }
