@@ -13,12 +13,25 @@ import {
   authExpired,
   buildSettlement,
   APPLICATION_FEE_BPS,
+  MAX_QUEST_DAYS,
+  questDeadline,
+  withinQuestCap,
 } from "../src/payments.js";
 
-test("application fee (5%) on integer cents", () => {
-  assert.equal(APPLICATION_FEE_BPS, 500);
-  assert.equal(applicationFee(100000), 5000); // $1000 → $50
+test("application fee (1%) on integer cents", () => {
+  assert.equal(APPLICATION_FEE_BPS, 100);
+  assert.equal(applicationFee(100000), 1000); // $1000 → $10
   assert.equal(applicationFee(50000, 250), 1250); // 2.5% override
+});
+
+test("quests are capped at 5 days (forces incremental delivery)", () => {
+  assert.equal(MAX_QUEST_DAYS, 5);
+  const now = 1_000_000;
+  assert.equal(questDeadline(now), now + 5 * 864e5);
+  assert.equal(withinQuestCap(now, now + 4 * 864e5), true);
+  assert.equal(withinQuestCap(now, now + 6 * 864e5), false); // too long
+  assert.equal(withinQuestCap(now, now - 864e5), false); // past
+  assert.equal(withinQuestCap(now, now + 5 * 864e5), true); // exactly 5d ok
 });
 
 test("splits divide evenly and the remainder is deterministic + sums to net", () => {
@@ -30,10 +43,10 @@ test("splits divide evenly and the remainder is deterministic + sums to net", ()
 });
 
 test("settlementMath: fee + net + party split", () => {
-  const m = settlementMath(100000, ["a", "b"]); // $1000, 5% fee
-  assert.equal(m.feeCents, 5000);
-  assert.equal(m.netCents, 95000);
-  assert.deepEqual(m.splits, [{ did: "a", cents: 47500 }, { did: "b", cents: 47500 }]);
+  const m = settlementMath(100000, ["a", "b"]); // $1000, 1% fee
+  assert.equal(m.feeCents, 1000);
+  assert.equal(m.netCents, 99000);
+  assert.deepEqual(m.splits, [{ did: "a", cents: 49500 }, { did: "b", cents: 49500 }]);
 });
 
 test("escrow state machine: authorize → capture → transferred", () => {

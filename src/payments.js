@@ -4,7 +4,18 @@
 // the side effects; this module decides amounts and legal transitions. No floats:
 // all money is integer minor units (cents), fees in basis points.
 
-export const APPLICATION_FEE_BPS = 500; // 5% platform fee (configurable)
+export const APPLICATION_FEE_BPS = 100; // 1% platform fee (configurable)
+
+// Quests are capped at 5 days — a forcing function for incremental delivery (no
+// "you have 6 months to build the Torment Nexus"), and comfortably inside the
+// ~7-day card-auth window so authorize→capture never lapses. Bigger engagements
+// don't get a longer quest; they fund an upfront escrow BALANCE drawn down across
+// capped quests, with a ledger visible to both parties (see the escrow-balance RFC).
+export const MAX_QUEST_DAYS = 5;
+export const MAX_QUEST_MS = MAX_QUEST_DAYS * 24 * 60 * 60 * 1000;
+export const questDeadline = (createdAtMs) => createdAtMs + MAX_QUEST_MS;
+export const withinQuestCap = (createdAtMs, closesAtMs) =>
+  Number.isFinite(closesAtMs) && closesAtMs > createdAtMs && closesAtMs - createdAtMs <= MAX_QUEST_MS;
 
 export const applicationFee = (grossCents, bps = APPLICATION_FEE_BPS) =>
   Math.round((grossCents * bps) / 10000);
