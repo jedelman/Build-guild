@@ -299,8 +299,8 @@ async function route(request, env, url) {
         const rec = ((await readJson(request)) || {}).record;
         if (!rec || rec.kind !== "quest" || rec.author !== session.did)
           return fail("a patron-signed settlement is required");
-        await putClaim(env, session.did, rec); // verifies signature + indexes the settlement
-        return json(await markReleased(env, gid, String(rec.body?.guild || "")));
+        const { ref } = await putClaim(env, session.did, rec); // verifies signature + indexes the settlement
+        return json(await markReleased(env, gid, String(rec.body?.guild || ""), ref));
       }
     }
   }

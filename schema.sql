@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS escrow_holds (
   id INTEGER PRIMARY KEY AUTOINCREMENT, quest_id INTEGER NOT NULL, patron_did TEXT NOT NULL,
   amount_cents INTEGER NOT NULL, fee_bps INTEGER NOT NULL DEFAULT 290,
   state TEXT NOT NULL DEFAULT 'funded', payee_did TEXT NOT NULL DEFAULT '',
+  settlement_ref TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (datetime('now')), released_at TEXT,
   FOREIGN KEY (quest_id) REFERENCES quests(id) ON DELETE CASCADE
 );

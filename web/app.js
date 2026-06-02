@@ -150,6 +150,18 @@ async function mountEscrow(q) {
   if (!state.auth.authenticated) return;
   const isPatron = q.patron_did === state.auth.did;
   const payee = q.claimed_guild_id ? `guild:${q.claimed_guild_id}` : null;
+
+  // The claiming guild's party DIDs — written into the settlement (so split-fairness
+  // attestations have eligible attesters) and used to spot party-member viewers.
+  let party = [];
+  if (payee) {
+    try {
+      const guild = await api(`/guilds/${q.claimed_guild_id}`);
+      party = (guild.members || []).map((m) => m.did).filter(Boolean);
+    } catch {}
+  }
+  const isParty = party.includes(state.auth.did);
+
   const host = document.createElement("div");
   host.innerHTML = `<h3>Escrow <span class="badge">mock</span></h3><div class="escrow-mount muted">…</div>`;
   drawerBody.appendChild(host);
@@ -183,6 +195,7 @@ async function mountEscrow(q) {
     return;
   }
   mount.innerHTML = `<div class="mono">$${(e.amount_cents / 100).toFixed(2)} held · fee $${(e.fee_cents / 100).toFixed(2)} · net to party $${(e.net_cents / 100).toFixed(2)} · <b>${esc(e.state)}</b></div>`;
+  const ref = e.settlement_ref || null;
   if (isPatron && e.state === "funded" && payee) {
     const btn = document.createElement("button");
     btn.className = "btn gold";
@@ -190,7 +203,7 @@ async function mountEscrow(q) {
     btn.textContent = "Release on delivery";
     btn.onclick = async () => {
       try {
-        const { settlementRef } = await cs.releaseEscrow(state.auth.did, q.id, payee, []);
+        const { settlementRef } = await cs.releaseEscrow(state.auth.did, q.id, payee, party);
         toast("Released. Rate the delivery →");
         await attestDialog("Rate this guild's delivery", payee, contractsBy("guild", "patron_of_quest"), settlementRef);
         openQuest(q.id);
@@ -199,12 +212,25 @@ async function mountEscrow(q) {
       }
     };
     mount.appendChild(btn);
-  } else if (e.state === "released" && isPatron && payee) {
+  }
+  if (e.state === "released" && isPatron && payee) {
     const btn = document.createElement("button");
     btn.className = "btn ghost";
     btn.style.marginTop = "var(--s2)";
     btn.textContent = "Rate this guild";
-    btn.onclick = () => attestDialog("Rate this guild's delivery", payee, contractsBy("guild", "patron_of_quest"), null);
+    btn.onclick = () => attestDialog("Rate this guild's delivery", payee, contractsBy("guild", "patron_of_quest"), ref);
+    mount.appendChild(btn);
+  }
+  // Party members rate the split (about the guild) + the client (about the patron).
+  if (e.state === "released" && isParty && ref && payee) {
+    const btn = document.createElement("button");
+    btn.className = "btn ghost";
+    btn.style.marginTop = "var(--s2)";
+    btn.textContent = "Rate the split & client";
+    btn.onclick = async () => {
+      await attestDialog("Was the reward split fair?", payee, contractsBy("guild", "party_of_quest"), ref);
+      await attestDialog("Rate the client", q.patron_did, contractsBy("client", "party_of_quest"), ref);
+    };
     mount.appendChild(btn);
   }
 }
@@ -983,6 +1009,7 @@ async function openQuest(id) {
     }`);
 
   mountEscrow(q);
+  if (q.patron_did) mountReputation(q.patron_did, "client", "Client reputation");
 
   const claim = document.getElementById("claim-quest");
   if (claim)

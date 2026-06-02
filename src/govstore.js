@@ -120,10 +120,11 @@ export async function settlementTemplate(env, questId, patronDid, payeeDid, part
   return settlement; // caller stamps createdAt + signs as the patron, then posts to /gov/claims
 }
 
-// Mark the hold released once the signed settlement has been ingested.
-export async function markReleased(env, questId, payeeDid) {
-  await env.DB.prepare("UPDATE escrow_holds SET state='released', payee_did=?, released_at=datetime('now') WHERE quest_id = ? AND state='funded'")
-    .bind(payeeDid, questId)
+// Mark the hold released once the signed settlement has been ingested, recording
+// the settlement's ref so party members can attest split-fairness against it.
+export async function markReleased(env, questId, payeeDid, settlementRef = "") {
+  await env.DB.prepare("UPDATE escrow_holds SET state='released', payee_did=?, settlement_ref=?, released_at=datetime('now') WHERE quest_id = ? AND state='funded'")
+    .bind(payeeDid, settlementRef, questId)
     .run();
   return getEscrow(env, questId);
 }
