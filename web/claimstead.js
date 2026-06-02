@@ -32,15 +32,31 @@ function idbPut(k, v) {
   }));
 }
 
-let pair = null;
-async function deviceKey() {
-  if (pair) return pair;
-  pair = await idbGet("devkey");
-  if (!pair) {
-    // private key non-extractable (can't be exfiltrated); public is still exportable.
-    pair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, ["sign", "verify"]);
-    await idbPut("devkey", pair);
+// Device keys are scoped to the current session DID, so switching test personas
+// (each a different DID) uses a distinct key rather than sharing one.
+let _did;
+async function whoami() {
+  if (_did !== undefined) return _did;
+  try {
+    _did = (await api("/auth/me")).did || null;
+  } catch {
+    _did = null;
   }
+  return _did;
+}
+let pair = null;
+let pairKey = null;
+async function deviceKey() {
+  const key = "devkey:" + ((await whoami()) || "anon");
+  if (pair && pairKey === key) return pair;
+  let stored = await idbGet(key);
+  if (!stored) {
+    // private key non-extractable (can't be exfiltrated); public is still exportable.
+    stored = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, ["sign", "verify"]);
+    await idbPut(key, stored);
+  }
+  pair = stored;
+  pairKey = key;
   return pair;
 }
 
@@ -100,6 +116,11 @@ export async function attest(did, subject, contract, value, questRef) {
   await api("/gov/attestations", { method: "POST", body: { record } });
   return record;
 }
+
+// ---- test-persona harness (these 404 when TEST_FIXTURES is off) -------------
+export const testStatus = () => api("/test/status");
+export const testSeed = () => api("/test/seed", { method: "POST", body: {} });
+export const actAs = (did) => api("/test/act-as", { method: "POST", body: { did } });
 
 // ---- Stripe Connect (payouts onboarding) -----------------------------------
 export const connectStatus = () => api("/connect/status");

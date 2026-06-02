@@ -176,6 +176,50 @@ async function maybePromptPayouts() {
   if (ok) startPayoutOnboarding();
 }
 
+// Gated test-persona switcher — only appears when the server has TEST_FIXTURES on
+// (staging/preview). Lets you "act as" a seeded persona to drive the multi-party
+// flow solo. The 💸 marks personas with payouts ready.
+async function mountTestSwitcher() {
+  let status;
+  try {
+    status = await cs.testStatus();
+  } catch {
+    return; // /test/status 404s when disabled
+  }
+  if (!status || !status.enabled || document.querySelector(".test-switcher")) return;
+  const who = state.auth.authenticated ? "@" + state.auth.handle : "logged out";
+  const el = document.createElement("div");
+  el.className = "test-switcher";
+  el.innerHTML = `<span class="ts-tag">🧪 act as</span>
+    <select class="ts-select" aria-label="Act as a test persona">
+      <option value="">${esc(who)}</option>
+      ${status.personas.map((p) => `<option value="${esc(p.did)}">${esc(p.display_name)}${p.payouts_ready ? " · 💸" : ""}</option>`).join("")}
+    </select>
+    <button type="button" class="linklike" id="ts-seed" title="Seed personas + Stripe test accounts">seed</button>`;
+  document.body.appendChild(el);
+  el.querySelector(".ts-select").onchange = async (e) => {
+    const did = e.target.value;
+    try {
+      if (did) await cs.actAs(did);
+      else await api("/auth/logout", { method: "POST" }); // back to "me" → log out
+      window.location.href = "/";
+    } catch (err) {
+      toast(err.message, true);
+    }
+  };
+  el.querySelector("#ts-seed").onclick = async () => {
+    try {
+      toast("Seeding personas… (creating Stripe test accounts)");
+      const r = await cs.testSeed();
+      toast(`Seeded ${r.seeded.length} personas.`);
+      el.remove();
+      mountTestSwitcher();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  };
+}
+
 // Ternary (yes/no/unknown) attestation dialog over a set of contracts.
 function attestDialog(title, subject, contractIds, questRef) {
   return openModal(
@@ -1995,6 +2039,7 @@ function showLoadingSkeleton() {
       history.replaceState(null, "", location.pathname + location.hash);
     }
     mountPayoutBanner(); // nudge if signed in with a sheet but no payout method
+    mountTestSwitcher(); // gated test-persona switcher (staging/preview only)
   } catch (e) {
     app.removeAttribute("aria-busy");
     app.innerHTML = `<p class="empty">Couldn't reach the guild hall: ${esc(e.message)}</p>`;

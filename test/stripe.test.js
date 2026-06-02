@@ -10,6 +10,7 @@ import {
   createCheckoutSession,
   capturePaymentIntent,
   createTransfer,
+  createCustomConnectAccount,
 } from "../src/stripe.js";
 
 const env = { STRIPE_SECRET_KEY: "sk_test_123" };
@@ -82,6 +83,17 @@ test("ACH checkout session selects us_bank_account and does NOT manual-capture",
   const c = calls[0];
   assert.match(c.opts.body, /payment_method_types%5B0%5D=us_bank_account/);
   assert.doesNotMatch(c.opts.body, /capture_method/); // ACH can't authorize-and-hold
+});
+
+test("createCustomConnectAccount requests transfers with test-verification values", async () => {
+  mockFetch({ id: "acct_custom" });
+  await createCustomConnectAccount(env, { handle: "ada.test", display_name: "Ada (test)" });
+  const c = calls[0];
+  assert.equal(c.url, "https://api.stripe.com/v1/accounts");
+  assert.match(c.opts.body, /type=custom/);
+  assert.match(c.opts.body, /capabilities%5Btransfers%5D%5Brequested%5D=true/);
+  assert.match(c.opts.body, /individual%5Bid_number%5D=000000000/);
+  assert.match(c.opts.body, /external_account%5Brouting_number%5D=110000000/);
 });
 
 test("capture + transfer hit the right endpoints", async () => {

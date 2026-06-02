@@ -605,6 +605,18 @@ form.enlist label input, form.enlist label textarea { text-transform: none; lett
 }
 .payout-banner .btn { padding: var(--ctl-pad-y-sm) var(--ctl-pad-x-sm); }
 
+/* gated test-persona switcher (staging/preview only) */
+.test-switcher {
+  position: fixed; left: var(--s4); bottom: var(--s4); z-index: 45;
+  display: flex; align-items: center; gap: var(--s2);
+  padding: var(--s2) var(--s3); font-size: var(--fs-sm);
+  background: var(--surface-2); border: 1px dashed var(--gold-deep); border-radius: var(--r-pill);
+  box-shadow: var(--shadow-lift); color: var(--ink-dim);
+}
+.test-switcher .ts-tag { letter-spacing: var(--ls-caps); }
+.test-switcher .ts-select { padding: var(--ctl-pad-y-xs) var(--ctl-pad-x-xs); font-size: var(--fs-sm); }
+@media (max-width: 760px) { .test-switcher { bottom: calc(64px + env(safe-area-inset-bottom)); } }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }

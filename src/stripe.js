@@ -56,6 +56,31 @@ export const createAccountLink = (env, { account, refresh_url, return_url }) =>
 
 export const retrieveAccount = (env, id) => stripe(env, "GET", `/accounts/${id}`);
 
+// TEST-ONLY: a Custom connected account pre-filled with Stripe's test-verification
+// magic values so the `transfers` capability activates immediately (no hosted
+// onboarding). Used by the seeded test-persona payees.
+export const createCustomConnectAccount = (env, persona) =>
+  stripe(env, "POST", "/accounts", {
+    type: "custom",
+    country: "US",
+    email: `${persona.handle}@example.com`,
+    business_type: "individual",
+    capabilities: { transfers: { requested: true } },
+    business_profile: { mcc: "5734", product_description: "Build Guild test persona" },
+    individual: {
+      first_name: (persona.display_name || "Test").split(" ")[0],
+      last_name: "Persona",
+      email: `${persona.handle}@example.com`,
+      phone: "0000000000",
+      ssn_last_4: "0000",
+      id_number: "000000000",
+      dob: { day: 1, month: 1, year: 1990 },
+      address: { line1: "address_full_match", city: "Beverly Hills", state: "CA", postal_code: "90210", country: "US" },
+    },
+    tos_acceptance: { date: Math.floor(Date.now() / 1000), ip: "127.0.0.1" },
+    external_account: { object: "bank_account", country: "US", currency: "usd", routing_number: "110000000", account_number: "000123456789" },
+  });
+
 // ---- escrow: authorize → capture → transfer (wired in a later increment) ---
 export const createCheckoutSession = (env, p) => stripe(env, "POST", "/checkout/sessions", p);
 export const retrieveSession = (env, id) => stripe(env, "GET", `/checkout/sessions/${id}`);

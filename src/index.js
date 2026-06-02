@@ -31,6 +31,7 @@ import { escoSearch } from "./esco.js";
 import { ingestTelemetry, scrub } from "./telemetry.js";
 import { clientMetadata, parseCookies, serializeCookie } from "./oauth.js";
 import { serviceDidForOrigin, didWebDocument, verifyServiceAuthJwt } from "./serviceauth.js";
+import { testEnabled, seedPersonas, listPersonas, actAsSession } from "./testfixtures.js";
 import {
   registerKey,
   hasKey,
@@ -347,6 +348,25 @@ async function route(request, env, url) {
     if (id === "onboard" && method === "POST") {
       if (!session) return fail("log in first", 401);
       return json(await startOnboarding(env, session.did, url.origin));
+    }
+  }
+
+  // ---------- TEST-ONLY persona harness (gated; 404 in prod) ----------
+  if (resource === "test") {
+    if (!testEnabled(env)) return null; // → 404 in production
+    if (id === "status" && method === "GET") return json({ enabled: true, personas: await listPersonas(env) });
+    if (id === "seed" && method === "POST") return json({ seeded: await seedPersonas(env) });
+    if (id === "act-as" && method === "POST") {
+      const did = ((await readJson(request)) || {}).did;
+      const s = await actAsSession(env, did);
+      return new Response(JSON.stringify({ ok: true, did }), {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+          "cache-control": "no-store",
+          "set-cookie": serializeCookie(SESSION_COOKIE, s.id, { maxAge: 60 * 60 * 24 * 7 }),
+        },
+      });
     }
   }
 
