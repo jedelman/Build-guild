@@ -6,6 +6,7 @@ import { verifyRecords, deriveGuildState, tallyBadges, observe, buildContext } f
 import { openHold, release as escrowRelease, feeFor, netToPayee } from "./escrow.js";
 import { contractsFor } from "./contracts.js";
 import * as stripe from "./stripe.js";
+import { APPLICATION_FEE_BPS } from "./payments.js";
 
 // ---- Stripe Connect onboarding (payees can receive payouts) ----------------
 export const paymentsConfigured = (env) => stripe.stripeConfigured(env);
@@ -135,11 +136,51 @@ export async function reputation(env, subject, subjectType) {
 }
 
 // ---- mock escrow (no real money) ------------------------------------------
-export async function fundEscrow(env, questId, patronDid, amountCents) {
+// Fund: with Stripe configured, return a hosted Checkout URL that AUTHORIZES the
+// bounty (manual capture → funds held, not captured); otherwise mock-fund now.
+export async function fundEscrow(env, questId, patronDid, amountCents, origin) {
+  if (stripe.stripeConfigured(env)) {
+    const session = await stripe.createCheckoutSession(env, {
+      mode: "payment",
+      success_url: `${origin}/?pay=done&quest=${questId}&session={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/?pay=cancel&quest=${questId}`,
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: "usd",
+            unit_amount: amountCents,
+            product_data: { name: `Build Guild — quest #${questId} bounty` },
+          },
+        },
+      ],
+      payment_intent_data: {
+        capture_method: "manual", // authorize now, capture on delivery
+        metadata: { quest_id: String(questId), patron_did: patronDid },
+      },
+    });
+    return { checkout_url: session.url };
+  }
+  // Mock fallback (no Stripe key configured).
   const hold = openHold({ questId, patronDid, amountCents });
-  await env.DB.prepare("INSERT INTO escrow_holds (quest_id, patron_did, amount_cents, fee_bps, state) VALUES (?, ?, ?, ?, 'funded')")
+  await env.DB.prepare("INSERT INTO escrow_holds (quest_id, patron_did, amount_cents, fee_bps, state, provider) VALUES (?, ?, ?, ?, 'funded', 'mock')")
     .bind(questId, patronDid, amountCents, hold.feeBps)
     .run();
+  return getEscrow(env, questId);
+}
+
+// Confirm a returned Checkout session → record the authorized hold (idempotent).
+export async function confirmCheckout(env, questId, sessionId, patronDid) {
+  const session = await stripe.retrieveSession(env, sessionId);
+  const pi = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id;
+  if (!pi) throw new Error("payment not completed");
+  const amount = session.amount_total ?? 0;
+  const existing = await env.DB.prepare("SELECT id FROM escrow_holds WHERE quest_id = ? AND payment_intent_id = ?").bind(questId, pi).first();
+  if (!existing) {
+    await env.DB.prepare("INSERT INTO escrow_holds (quest_id, patron_did, amount_cents, fee_bps, state, provider, payment_intent_id) VALUES (?, ?, ?, ?, 'funded', 'stripe', ?)")
+      .bind(questId, patronDid, amount, APPLICATION_FEE_BPS, pi)
+      .run();
+  }
   return getEscrow(env, questId);
 }
 export async function getEscrow(env, questId) {

@@ -212,7 +212,8 @@ async function mountEscrow(q) {
         const dollars = Number(host.querySelector(".esc-amt").value);
         if (!dollars || dollars <= 0) return toast("Enter an amount.", true);
         try {
-          await cs.fundEscrow(q.id, Math.round(dollars * 100));
+          const r = await cs.fundEscrow(q.id, Math.round(dollars * 100));
+          if (r && r.checkout_url) return void (window.location.href = r.checkout_url); // → Stripe authorize
           toast("Escrow funded (mock).");
           openQuest(q.id);
         } catch (err) {
@@ -1901,8 +1902,25 @@ function showLoadingSkeleton() {
     window.addEventListener("hashchange", applyRoute);
     applyRoute();
     // Returning from Stripe Connect onboarding (?connect=done|refresh).
-    if (new URLSearchParams(location.search).get("connect")) {
+    const params = new URLSearchParams(location.search);
+    if (params.get("connect")) {
       toast("Payout setup updated — open your character sheet to check status.");
+      history.replaceState(null, "", location.pathname + location.hash);
+    }
+    // Returning from Stripe Checkout (?pay=done&quest=&session= | ?pay=cancel).
+    if (params.get("pay") === "done" && params.get("quest")) {
+      const qid = params.get("quest");
+      const sid = params.get("session");
+      history.replaceState(null, "", location.pathname);
+      try {
+        if (sid) await cs.confirmCheckout(Number(qid), sid);
+        toast("Payment authorized — funds held in escrow.");
+      } catch (e) {
+        toast("Couldn't confirm payment: " + e.message, true);
+      }
+      go(`#/quest/${qid}`);
+    } else if (params.get("pay") === "cancel") {
+      toast("Payment canceled.", true);
       history.replaceState(null, "", location.pathname + location.hash);
     }
   } catch (e) {

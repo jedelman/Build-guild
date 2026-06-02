@@ -108,6 +108,7 @@ export const connectOnboard = () => api("/connect/onboard", { method: "POST", bo
 // ---- mock escrow -----------------------------------------------------------
 export const getEscrow = (questId) => api(`/quests/${questId}/escrow`);
 export const fundEscrow = (questId, cents) => api(`/quests/${questId}/escrow`, { method: "POST", body: { amount_cents: cents } });
+export const confirmCheckout = (questId, session) => api(`/quests/${questId}/escrow/confirm`, { method: "POST", body: { session } });
 // Release = the patron signs the settlement (delivery anchor) and posts it.
 export async function releaseEscrow(did, questId, payee, party = []) {
   const record = await signed({ type: "org.buildguild.event", kind: "quest", author: did, body: { quest: questId, guild: payee, party } });

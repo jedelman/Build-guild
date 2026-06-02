@@ -39,6 +39,7 @@ import {
   guildState,
   reputation,
   fundEscrow,
+  confirmCheckout,
   getEscrow,
   markReleased,
   startOnboarding,
@@ -289,7 +290,18 @@ async function route(request, env, url) {
         if (quest.patron_did !== session.did) return fail("only the patron can fund escrow", 403);
         const cents = Math.round(Number(((await readJson(request)) || {}).amount_cents));
         if (!Number.isInteger(cents) || cents <= 0) return fail("amount_cents must be a positive integer");
-        return json(await fundEscrow(env, gid, session.did, cents));
+        return json(await fundEscrow(env, gid, session.did, cents, url.origin));
+      }
+      // Confirm a returned Stripe Checkout session → record the authorized hold.
+      if (action === "escrow" && sub === "confirm" && method === "POST") {
+        const session = await currentSession(request, env);
+        if (!session) return fail("log in", 401);
+        const quest = await getQuest(env, gid);
+        if (!quest) return fail("quest not found", 404);
+        if (quest.patron_did !== session.did) return fail("only the patron can confirm payment", 403);
+        const sid = ((await readJson(request)) || {}).session;
+        if (!sid) return fail("session id required");
+        return json(await confirmCheckout(env, gid, sid, session.did));
       }
       // Release: ingest the patron-signed settlement (delivery anchor), free the hold.
       if (action === "escrow" && sub === "release" && method === "POST") {
