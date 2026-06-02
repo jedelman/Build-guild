@@ -31,6 +31,17 @@ import { escoSearch } from "./esco.js";
 import { ingestTelemetry, scrub } from "./telemetry.js";
 import { clientMetadata, parseCookies, serializeCookie } from "./oauth.js";
 import { serviceDidForOrigin, didWebDocument, verifyServiceAuthJwt } from "./serviceauth.js";
+import {
+  registerKey,
+  hasKey,
+  putClaim,
+  putAttestation,
+  guildState,
+  reputation,
+  fundEscrow,
+  getEscrow,
+  markReleased,
+} from "./govstore.js";
 
 const SESSION_COOKIE = "bg_session";
 // Lexicon-method the browser binds its Service Auth token to when establishing a
@@ -89,7 +100,7 @@ export default {
 };
 
 async function route(request, env, url) {
-  const [, resource, id, action] = url.pathname.split("/").filter(Boolean);
+  const [, resource, id, action, sub] = url.pathname.split("/").filter(Boolean);
   const method = request.method;
   const gid = Number(id);
 
@@ -207,6 +218,10 @@ async function route(request, env, url) {
         const candidates = (await listBuilders(env)).filter((b) => !memberIds.has(b.id));
         return json(recommendRecruits(guild.members, candidates));
       }
+      // Claimstead: derive this guild's governance state from its signed claims.
+      if (method === "GET" && action === "state") {
+        return json(await guildState(env, gid));
+      }
       if (method === "POST" && (action === "join" || action === "leave")) {
         // You can only join/leave as your own builder.
         const me = await sessionBuilder(request, env);
@@ -260,6 +275,59 @@ async function route(request, env, url) {
         const body = (await readJson(request)) || {};
         return json(await setQuestStatus(env, gid, body.status));
       }
+      // ---- mock escrow (no real money; Stripe Connect is #18) ----
+      if (action === "escrow" && !sub && method === "GET") {
+        return json((await getEscrow(env, gid)) || { state: "none" });
+      }
+      if (action === "escrow" && !sub && method === "POST") {
+        const session = await currentSession(request, env);
+        if (!session) return fail("log in", 401);
+        const quest = await getQuest(env, gid);
+        if (!quest) return fail("quest not found", 404);
+        if (quest.patron_did !== session.did) return fail("only the patron can fund escrow", 403);
+        const cents = Math.round(Number(((await readJson(request)) || {}).amount_cents));
+        if (!Number.isInteger(cents) || cents <= 0) return fail("amount_cents must be a positive integer");
+        return json(await fundEscrow(env, gid, session.did, cents));
+      }
+      // Release: ingest the patron-signed settlement (delivery anchor), free the hold.
+      if (action === "escrow" && sub === "release" && method === "POST") {
+        const session = await currentSession(request, env);
+        if (!session) return fail("log in", 401);
+        const quest = await getQuest(env, gid);
+        if (!quest) return fail("quest not found", 404);
+        if (quest.patron_did !== session.did) return fail("only the patron can release", 403);
+        const rec = ((await readJson(request)) || {}).record;
+        if (!rec || rec.kind !== "quest" || rec.author !== session.did)
+          return fail("a patron-signed settlement is required");
+        await putClaim(env, session.did, rec); // verifies signature + indexes the settlement
+        return json(await markReleased(env, gid, String(rec.body?.guild || "")));
+      }
+    }
+  }
+
+  // ---------- Claimstead governance + reputation (#21) ----------
+  if (resource === "gov") {
+    if (id === "me" && method === "GET") {
+      const session = await currentSession(request, env);
+      return json({ keyRegistered: session ? await hasKey(env, session.did) : false });
+    }
+    if (id === "reputation" && method === "GET") {
+      const subject = url.searchParams.get("subject");
+      if (!subject) return fail("subject query param required");
+      return json(await reputation(env, subject, url.searchParams.get("type") || "builder"));
+    }
+    const session = await currentSession(request, env);
+    if (id === "keys" && method === "POST") {
+      if (!session) return fail("log in first", 401);
+      return json(await registerKey(env, session.did, ((await readJson(request)) || {}).jwk));
+    }
+    if (id === "claims" && method === "POST") {
+      if (!session) return fail("log in first", 401);
+      return json(await putClaim(env, session.did, ((await readJson(request)) || {}).record));
+    }
+    if (id === "attestations" && method === "POST") {
+      if (!session) return fail("log in first", 401);
+      return json(await putAttestation(env, session.did, ((await readJson(request)) || {}).record));
     }
   }
 

@@ -4,6 +4,8 @@ import { initTelemetry, reportBug, flush } from "./telemetry.js";
 import { BrowserOAuthClient } from "@atproto/oauth-client-browser";
 import { Agent } from "@atproto/api";
 import { reconcileSkillKeys } from "../src/skills.js";
+import * as cs from "./claimstead.js";
+import { CONTRACTS } from "../src/contracts.js";
 // Telemetry must never be able to break the app.
 try {
   initTelemetry();
@@ -61,6 +63,226 @@ const verified = (b) =>
 const badge = (label, variant = "") => `<span class="badge${variant ? " " + variant : ""}">${esc(label)}</span>`;
 const badgeRaw = (html, variant = "") => `<span class="badge${variant ? " " + variant : ""}">${html}</span>`;
 const sectionHeading = (text) => `<h3>${esc(text)}</h3>`;
+
+// ---- Claimstead UI: reputation badge clouds, attestations, escrow, governance
+const repLabel = (id) => CONTRACTS[id]?.prose || (id.startsWith("skill:") ? "Skill: " + id.slice(6) : id);
+const repChip = (id) => (id.startsWith("skill:") ? id.slice(6) : (id.split(".")[1] || id));
+
+function badgeCloudHTML(cloud) {
+  const ids = Object.keys(cloud.badges || {});
+  if (!ids.length) return `<p class="muted">No attestations yet — reputation is co-signed, so it accrues from settled work.</p>`;
+  return `<div class="badge-cloud">${ids
+    .map((id) => {
+      const b = cloud.badges[id];
+      const total = b.yes + b.no + b.unknown;
+      const cls = b.yes > 0 && b.no > 0 ? " contested" : b.no > b.yes ? " bad" : "";
+      const size = Math.min(1.5, 0.82 + total * 0.1);
+      return `<span class="rep-badge${cls}" style="font-size:${size}rem"
+        title="${esc(repLabel(id))} — ${b.yes} yes, ${b.no} no${b.unknown ? ", " + b.unknown + " unknown" : ""} (${b.attesters} attesters)">
+        ${esc(repChip(id))} <b class="mono">${b.yes}${b.no ? "/" + b.no : ""}</b></span>`;
+    })
+    .join("")}</div>`;
+}
+
+async function mountReputation(subject, type, heading = "Reputation") {
+  const host = document.createElement("div");
+  host.innerHTML = `<h3>${esc(heading)}</h3>
+    <p class="caption">Co-signed attestations — counts, not a score. Anyone can run their own algorithm over the same facts.</p>
+    <div class="rep-mount muted">Loading…</div>`;
+  drawerBody.appendChild(host);
+  try {
+    const cloud = await cs.reputation(subject, type);
+    host.querySelector(".rep-mount").outerHTML = badgeCloudHTML(cloud);
+  } catch {
+    host.querySelector(".rep-mount").textContent = "Couldn't load reputation.";
+  }
+}
+
+// Ternary (yes/no/unknown) attestation dialog over a set of contracts.
+function attestDialog(title, subject, contractIds, questRef) {
+  return openModal(
+    `<h2>${esc(title)}</h2>
+     <p class="modal-body">Co-sign what you witnessed. "—" means you'd rather not say.</p>
+     <div class="attest-list">${contractIds
+       .map(
+         (id) => `<div class="attest-row"><span>${esc(CONTRACTS[id]?.prose || id)}</span>
+         <span class="ternary" data-c="${esc(id)}">
+           <button type="button" data-v="yes">Yes</button>
+           <button type="button" data-v="unknown">—</button>
+           <button type="button" data-v="no">No</button></span></div>`
+       )
+       .join("")}</div>
+     <div class="modal-actions"><button type="button" class="btn ghost" data-act="skip">Skip</button>
+       <button type="button" class="btn gold" data-act="done">Record</button></div>`,
+    (panel, close) => {
+      const chosen = {};
+      panel.querySelectorAll(".ternary").forEach((t) =>
+        t.querySelectorAll("button").forEach((b) => (b.onclick = () => {
+          chosen[t.dataset.c] = b.dataset.v;
+          t.querySelectorAll("button").forEach((x) => x.classList.remove("on"));
+          b.classList.add("on");
+        }))
+      );
+      panel.querySelector('[data-act="skip"]').onclick = () => close(false);
+      panel.querySelector('[data-act="done"]').onclick = async () => {
+        close(true);
+        let n = 0;
+        for (const [c, v] of Object.entries(chosen)) {
+          try {
+            await cs.attest(state.auth.did, subject, c, v, questRef);
+            n++;
+          } catch (e) {
+            toast(e.message, true);
+          }
+        }
+        if (n) toast(`Recorded ${n} attestation${n === 1 ? "" : "s"}.`);
+      };
+    },
+    { onCancel: false }
+  );
+}
+const contractsBy = (subjectType, rule) =>
+  Object.values(CONTRACTS).filter((c) => c.subjectType === subjectType && c.eligibility.rule === rule).map((c) => c.id);
+
+// Mock escrow panel for a quest (patron funds, then releases on delivery — the
+// release is the objective settlement that makes the quest reputation-bearing).
+async function mountEscrow(q) {
+  if (!state.auth.authenticated) return;
+  const isPatron = q.patron_did === state.auth.did;
+  const payee = q.claimed_guild_id ? `guild:${q.claimed_guild_id}` : null;
+  const host = document.createElement("div");
+  host.innerHTML = `<h3>Escrow <span class="badge">mock</span></h3><div class="escrow-mount muted">…</div>`;
+  drawerBody.appendChild(host);
+  const mount = host.querySelector(".escrow-mount");
+  let e;
+  try {
+    e = await cs.getEscrow(q.id);
+  } catch {
+    mount.textContent = "—";
+    return;
+  }
+  if (!e || e.state === "none") {
+    if (isPatron) {
+      mount.innerHTML = `<div class="row gap-sm"><input class="esc-amt" inputmode="decimal" placeholder="amount in $" style="max-width:9rem" />
+        <button class="btn" id="esc-fund">Fund escrow</button></div>
+        <p class="hint tight">No real money — stands in for Stripe Connect (#18). Funding makes a delivered quest reputation-bearing.</p>`;
+      host.querySelector("#esc-fund").onclick = async () => {
+        const dollars = Number(host.querySelector(".esc-amt").value);
+        if (!dollars || dollars <= 0) return toast("Enter an amount.", true);
+        try {
+          await cs.fundEscrow(q.id, Math.round(dollars * 100));
+          toast("Escrow funded (mock).");
+          openQuest(q.id);
+        } catch (err) {
+          toast(err.message, true);
+        }
+      };
+    } else {
+      mount.innerHTML = `<span class="muted">Not funded.</span>`;
+    }
+    return;
+  }
+  mount.innerHTML = `<div class="mono">$${(e.amount_cents / 100).toFixed(2)} held · fee $${(e.fee_cents / 100).toFixed(2)} · net to party $${(e.net_cents / 100).toFixed(2)} · <b>${esc(e.state)}</b></div>`;
+  if (isPatron && e.state === "funded" && payee) {
+    const btn = document.createElement("button");
+    btn.className = "btn gold";
+    btn.style.marginTop = "var(--s2)";
+    btn.textContent = "Release on delivery";
+    btn.onclick = async () => {
+      try {
+        const { settlementRef } = await cs.releaseEscrow(state.auth.did, q.id, payee, []);
+        toast("Released. Rate the delivery →");
+        await attestDialog("Rate this guild's delivery", payee, contractsBy("guild", "patron_of_quest"), settlementRef);
+        openQuest(q.id);
+      } catch (err) {
+        toast(err.message, true);
+      }
+    };
+    mount.appendChild(btn);
+  } else if (e.state === "released" && isPatron && payee) {
+    const btn = document.createElement("button");
+    btn.className = "btn ghost";
+    btn.style.marginTop = "var(--s2)";
+    btn.textContent = "Rate this guild";
+    btn.onclick = () => attestDialog("Rate this guild's delivery", payee, contractsBy("guild", "patron_of_quest"), null);
+    mount.appendChild(btn);
+  }
+}
+
+// Compact governance panel: derived state from signed claims, adopt-charter,
+// propose, and vote — all signed client-side, verified + indexed server-side.
+async function mountGovernance(guildId, members) {
+  if (!state.auth.authenticated) return;
+  const host = document.createElement("div");
+  host.innerHTML = `<h3>Governance</h3><div class="gov-mount muted">…</div>`;
+  drawerBody.appendChild(host);
+  const mount = host.querySelector(".gov-mount");
+  let s;
+  try {
+    s = await cs.guildState(guildId);
+  } catch {
+    mount.textContent = "—";
+    return;
+  }
+  if (!s.charter) {
+    mount.innerHTML = `<p class="hint">No charter yet — adopt one to enable proposals + votes.</p>
+      <button class="btn" id="gov-adopt">Adopt default charter</button>`;
+    host.querySelector("#gov-adopt").onclick = async () => {
+      try {
+        await cs.adoptCharter(state.auth.did, guildId, "We chart together and split fairly.", DEFAULT_RULES);
+        toast("Charter adopted.");
+        openGuild(guildId);
+      } catch (err) {
+        toast(err.message, true);
+      }
+    };
+    return;
+  }
+  const props = Object.values(s.proposals || {});
+  mount.innerHTML = `
+    <p class="caption">Derived from signed claims (charter v${s.charterVersion}). ${s.members.length} member(s).</p>
+    <button class="btn ghost" id="gov-propose">+ Propose</button>
+    ${props.length ? props.map((p) => `<div class="subform">
+        <div class="row between"><strong>${esc(p.question || "Proposal")}</strong>
+          <span class="badge ${p.outcome === "passed" ? "ok" : ""}">${esc(p.outcome)}</span></div>
+        <div class="hint mono">${p.tally.yes}y / ${p.tally.no}n · quorum ${Math.round(p.quorum * 100)}%</div>
+        <div class="row gap-sm" style="margin-top:var(--s2)">
+          <button class="btn ghost gov-vote" data-p="${esc(p.ref)}" data-v="yes">Vote yes</button>
+          <button class="btn ghost gov-vote" data-p="${esc(p.ref)}" data-v="no">Vote no</button></div>
+      </div>`).join("") : `<p class="muted">No proposals yet.</p>`}`;
+  host.querySelector("#gov-propose").onclick = async () => {
+    const v = await formDialog({ title: "Open a proposal", submitLabel: "Propose", fields: [{ name: "question", label: "Question", required: true, placeholder: "Adopt the gold standard?" }] });
+    if (!v) return;
+    try {
+      await cs.govClaim(state.auth.did, guildId, "proposal", { question: v.question, closesAt: Date.now() + 7 * 864e5 });
+      toast("Proposal opened.");
+      openGuild(guildId);
+    } catch (err) {
+      toast(err.message, true);
+    }
+  };
+  host.querySelectorAll(".gov-vote").forEach((b) =>
+    (b.onclick = async () => {
+      try {
+        await cs.govClaim(state.auth.did, guildId, "vote", { proposal: b.dataset.p, choice: b.dataset.v });
+        toast("Vote recorded.");
+        openGuild(guildId);
+      } catch (err) {
+        toast(err.message, true);
+      }
+    })
+  );
+}
+
+const DEFAULT_RULES = {
+  roles: {
+    founder: { can: ["admit", "remove", "grant_role", "open_proposal", "vote", "propose", "amend"] },
+    officer: { can: ["admit", "remove", "open_proposal", "vote", "propose"] },
+    member: { can: ["vote", "propose"] },
+  },
+  membership: { requireAcceptance: false },
+  proposal: { rule: "majority", threshold: 0.5, quorum: 0.5 },
+};
 
 async function api(path, opts = {}) {
   const res = await fetch("/api" + path, {
@@ -760,6 +982,8 @@ async function openQuest(id) {
         : '<p class="muted">No parties cover these skills yet — recruit some builders!</p>'
     }`);
 
+  mountEscrow(q);
+
   const claim = document.getElementById("claim-quest");
   if (claim)
     claim.addEventListener("click", async () => {
@@ -1099,6 +1323,8 @@ async function openBuilder(id) {
         : ""
     }`);
 
+  if (b.did) mountReputation(b.did, "builder");
+
   // Endorse buttons (on other builders' skills). Re-open the drawer after, so
   // the count + toggle reflect the freshly indexed state.
   drawerBody.querySelectorAll(".endorse-btn").forEach((btn) =>
@@ -1209,6 +1435,9 @@ async function openGuild(id) {
             .join("")
         : '<p class="muted">This party already covers the candidate pool. Enlist more builders!</p>'
     }`);
+
+  mountReputation(`guild:${id}`, "guild");
+  mountGovernance(id, g.members);
 
   const loginToJoin = document.getElementById("login-to-join");
   if (loginToJoin) loginToJoin.addEventListener("click", startLogin);
