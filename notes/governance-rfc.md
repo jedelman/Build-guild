@@ -103,31 +103,38 @@ inside the ~7-day card-auth window). Larger engagements don't get longer quests 
 fund an upfront **escrow balance** drawn down across capped quests, with a **ledger
 visible to both parties**. The release is also the objective delivery anchor of §6.
 
-## 8. Acting on behalf of a guild
+## 8. Guild identity, custody & acting on behalf
 
-We want an officer to act for the guild *without shared key custody*. Direction:
-capability delegation (UCAN/SPKI-style) — the charter grants an attenuated, revocable
-capability to the officer's own DID; they sign with their own key and present the chain. A
-guild may still want a stable identifier (a guild service-DID, or an AT-URI to its
-charter). **This is one of our open questions.**
+A guild **is its own `did:plc`**, and its **rotation key is held k-of-n by the members via
+threshold-ECDSA** (GG20 / CGGMP / DKLs). That produces a standard low-S ECDSA signature
+under one joint public key, which plc.directory verifies without knowing — or caring — that
+it's collective, so **no protocol change is needed.** (Verified against the did:plc +
+atproto-cryptography specs; thanks to @zicklag.dev for the threshold pointer. Note it's
+threshold-*ECDSA*, not FROST — did:plc signs with ECDSA, not Schnorr.) An optional
+higher-authority **recovery key** (the app, or an escrow) keeps a guild from bricking if
+signers go dark, at a known trust cost. Native multiple-rotationKeys is OR/hierarchical
+(recovery), *not* consensus — so the threshold sits on a single rotation key.
+
+This yields a clean two-layer split:
+- **Identity layer (rare ops):** the threshold rotation key collectively owns the guild
+  account — recovery, PDS migration, key changes. PLC ops are infrequent, so an MPC signing
+  ceremony among members is acceptable.
+- **Governance layer (constant):** everyday acts (admit, vote, settle) are **Claimstead
+  attestations** authored in members' *own* repos and gated by the charter's roles — no
+  shared signing required. Officer authority is either a charter role (an eligibility rule)
+  or, for portable off-app delegation, a capability grant (UCAN/SPKI-style) to the officer's
+  own DID.
+
+Pragmatic ladder: founder-key (today) → Shamir-reconstruct → full MPC threshold (the key is
+never reassembled). Protocol-compatibility holds at every rung.
 
 ## 9. Open questions for atproto core devs
 
-> **Update (community input, via @zicklag.dev):** Q1 now looks **largely resolved** —
-> see below. did:plc verifies operation signatures as plain low-S **ECDSA** (k256/P-256)
-> and is blind to how a signature was produced, so a guild can be one did:plc whose
-> rotation key is held **k-of-n via threshold-ECDSA** (GG20/CGGMP/DKLs — *not* FROST,
-> which is Schnorr), with **zero protocol changes**. Native multiple-rotationKeys is
-> OR/hierarchical (recovery), not consensus, so threshold sits on a *single* rotation
-> key, optionally paired with a higher-authority recovery key. Cleanly, the rotation key
-> gives **collective ownership of the guild's identity** while Claimstead attestations
-> handle **day-to-day governance** — separate layers. Residual sub-questions below.
-
-1. **Guild identity / shared custody (mostly answered).** Confirm: is threshold-ECDSA on a
-   did:plc rotation key the sanctioned path to collective guild custody, and are there
-   gotchas (e.g. the strict low-S requirement on MPC-produced signatures, recommended
-   threshold-ECDSA tooling for k256/P-256, liveness/recovery-key ergonomics)? Any appetite
-   for a native threshold primitive, or is "bring your own MPC" the expected answer?
+1. **Threshold custody — confirm the path.** §8 proposes threshold-ECDSA on a did:plc
+   rotation key for collective guild identity, with zero protocol changes. Any gotchas —
+   strict low-S on MPC-produced signatures, recommended threshold-ECDSA tooling for
+   k256/P-256, liveness/recovery ergonomics? Appetite for a native threshold primitive, or
+   is "bring your own MPC" the expected answer?
 2. **Operating a group/service account.** With OAuth "not recommended for headless," what's
    the recommended 2026 way to run an app-operated guild account (stored creds? a sanctioned
    bot-OAuth path? the "multi-user → one org DID" idea in discussion #3424)?
