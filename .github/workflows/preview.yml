@@ -173,6 +173,15 @@ jobs:
           url="$(grep -oE 'https://[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev' deploy.log | head -n1)"
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
+      # Inject the Stripe secret (set as a repo Actions secret) onto the ephemeral
+      # Worker so payments work on every redeploy without manual setup. Skipped
+      # cleanly when the secret isn't configured (e.g. forks, or before it's added).
+      - name: Set Stripe secret on the preview Worker
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+        if: ${{ env.STRIPE_SECRET_KEY != '' }}
+        run: printf '%s' "$STRIPE_SECRET_KEY" | npx wrangler secret put STRIPE_SECRET_KEY --config wrangler.ci.jsonc
+
       - name: Comment preview URL on the PR
         uses: actions/github-script@v7
         with:
