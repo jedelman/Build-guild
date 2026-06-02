@@ -41,6 +41,8 @@ import {
   fundEscrow,
   getEscrow,
   markReleased,
+  startOnboarding,
+  connectStatus,
 } from "./govstore.js";
 
 const SESSION_COOKIE = "bg_session";
@@ -302,6 +304,19 @@ async function route(request, env, url) {
         const { ref } = await putClaim(env, session.did, rec); // verifies signature + indexes the settlement
         return json(await markReleased(env, gid, String(rec.body?.guild || ""), ref));
       }
+    }
+  }
+
+  // ---------- Stripe Connect onboarding (#18) ----------
+  if (resource === "connect") {
+    const session = await currentSession(request, env);
+    if (id === "status" && method === "GET") {
+      if (!session) return json({ connected: false, payouts_ready: false });
+      return json(await connectStatus(env, session.did));
+    }
+    if (id === "onboard" && method === "POST") {
+      if (!session) return fail("log in first", 401);
+      return json(await startOnboarding(env, session.did, url.origin));
     }
   }
 

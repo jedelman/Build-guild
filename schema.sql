@@ -88,7 +88,13 @@ CREATE TABLE IF NOT EXISTS escrow_holds (
   amount_cents INTEGER NOT NULL, fee_bps INTEGER NOT NULL DEFAULT 290,
   state TEXT NOT NULL DEFAULT 'funded', payee_did TEXT NOT NULL DEFAULT '',
   settlement_ref TEXT NOT NULL DEFAULT '',
+  payment_intent_id TEXT NOT NULL DEFAULT '', provider TEXT NOT NULL DEFAULT 'mock',
   created_at TEXT NOT NULL DEFAULT (datetime('now')), released_at TEXT,
   FOREIGN KEY (quest_id) REFERENCES quests(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_escrow_quest ON escrow_holds(quest_id);
+CREATE TABLE IF NOT EXISTS connect_accounts (
+  did TEXT PRIMARY KEY, account_id TEXT NOT NULL,
+  charges_enabled INTEGER NOT NULL DEFAULT 0, payouts_enabled INTEGER NOT NULL DEFAULT 0,
+  details_submitted INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);

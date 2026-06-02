@@ -5,6 +5,47 @@
 import { verifyRecords, deriveGuildState, tallyBadges, observe, buildContext } from "./governance.js";
 import { openHold, release as escrowRelease, feeFor, netToPayee } from "./escrow.js";
 import { contractsFor } from "./contracts.js";
+import * as stripe from "./stripe.js";
+
+// ---- Stripe Connect onboarding (payees can receive payouts) ----------------
+export const paymentsConfigured = (env) => stripe.stripeConfigured(env);
+
+// Start (or resume) Express onboarding for the session DID; returns a Stripe
+// hosted-onboarding URL to redirect to. Stores only the connected account id.
+export async function startOnboarding(env, did, origin) {
+  if (!stripe.stripeConfigured(env)) throw new Error("payments are not configured");
+  let row = await env.DB.prepare("SELECT account_id FROM connect_accounts WHERE did = ?").bind(did).first();
+  let accountId = row?.account_id;
+  if (!accountId) {
+    const acct = await stripe.createConnectAccount(env, {});
+    accountId = acct.id;
+    await env.DB.prepare("INSERT OR REPLACE INTO connect_accounts (did, account_id) VALUES (?, ?)").bind(did, accountId).run();
+  }
+  const link = await stripe.createAccountLink(env, {
+    account: accountId,
+    refresh_url: `${origin}/?connect=refresh`,
+    return_url: `${origin}/?connect=done`,
+  });
+  return { url: link.url };
+}
+
+// Read connect status; refreshes from Stripe when configured + connected.
+export async function connectStatus(env, did) {
+  const row = await env.DB.prepare("SELECT * FROM connect_accounts WHERE did = ?").bind(did).first();
+  if (!row) return { connected: false, payouts_ready: false };
+  if (stripe.stripeConfigured(env)) {
+    try {
+      const a = await stripe.retrieveAccount(env, row.account_id);
+      await env.DB.prepare("UPDATE connect_accounts SET charges_enabled=?, payouts_enabled=?, details_submitted=? WHERE did=?")
+        .bind(a.charges_enabled ? 1 : 0, a.payouts_enabled ? 1 : 0, a.details_submitted ? 1 : 0, did)
+        .run();
+      return { connected: true, payouts_ready: !!a.payouts_enabled, details_submitted: !!a.details_submitted };
+    } catch {
+      /* fall through to stored values */
+    }
+  }
+  return { connected: true, payouts_ready: !!row.payouts_enabled, details_submitted: !!row.details_submitted };
+}
 
 // Resolve did -> public CryptoKey from the registered device keys (memoized/run).
 async function keyResolver(env) {

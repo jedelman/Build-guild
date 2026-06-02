@@ -101,6 +101,10 @@ export async function attest(did, subject, contract, value, questRef) {
   return record;
 }
 
+// ---- Stripe Connect (payouts onboarding) -----------------------------------
+export const connectStatus = () => api("/connect/status");
+export const connectOnboard = () => api("/connect/onboard", { method: "POST", body: {} });
+
 // ---- mock escrow -----------------------------------------------------------
 export const getEscrow = (questId) => api(`/quests/${questId}/escrow`);
 export const fundEscrow = (questId, cents) => api(`/quests/${questId}/escrow`, { method: "POST", body: { amount_cents: cents } });

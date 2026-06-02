@@ -98,6 +98,36 @@ async function mountReputation(subject, type, heading = "Reputation") {
   }
 }
 
+// Stripe Connect payouts panel (on your own character sheet) — connect an account
+// so bounties can pay out. Live behavior validates on the preview.
+async function mountPayouts() {
+  const host = document.createElement("div");
+  host.innerHTML = `<h3>Payouts <span class="badge">Stripe test</span></h3><div class="payouts-mount muted">…</div>`;
+  drawerBody.appendChild(host);
+  const mount = host.querySelector(".payouts-mount");
+  let s;
+  try {
+    s = await cs.connectStatus();
+  } catch {
+    mount.textContent = "Payments aren't enabled yet.";
+    return;
+  }
+  if (s.payouts_ready) {
+    mount.innerHTML = `<span class="badge ok">${icon("check")} payouts enabled</span>`;
+    return;
+  }
+  mount.innerHTML = `<p class="hint tight">Connect a Stripe account to receive bounty payouts (test mode).</p>
+    <button class="btn" id="connect-go">${s.connected ? "Finish payout setup" : "Connect payouts"}</button>`;
+  host.querySelector("#connect-go").onclick = async () => {
+    try {
+      const { url } = await cs.connectOnboard();
+      window.location.href = url;
+    } catch (e) {
+      toast(e.message, true);
+    }
+  };
+}
+
 // Ternary (yes/no/unknown) attestation dialog over a set of contracts.
 function attestDialog(title, subject, contractIds, questRef) {
   return openModal(
@@ -1351,6 +1381,7 @@ async function openBuilder(id) {
     }`);
 
   if (b.did) mountReputation(b.did, "builder");
+  if (mine) mountPayouts();
 
   // Endorse buttons (on other builders' skills). Re-open the drawer after, so
   // the count + toggle reflect the freshly indexed state.
@@ -1869,6 +1900,11 @@ function showLoadingSkeleton() {
     // (which may be a shared deep link like #/quest/5).
     window.addEventListener("hashchange", applyRoute);
     applyRoute();
+    // Returning from Stripe Connect onboarding (?connect=done|refresh).
+    if (new URLSearchParams(location.search).get("connect")) {
+      toast("Payout setup updated — open your character sheet to check status.");
+      history.replaceState(null, "", location.pathname + location.hash);
+    }
   } catch (e) {
     app.removeAttribute("aria-busy");
     app.innerHTML = `<p class="empty">Couldn't reach the guild hall: ${esc(e.message)}</p>`;
