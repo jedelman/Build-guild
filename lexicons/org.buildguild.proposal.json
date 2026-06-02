@@ -1,0 +1,25 @@
+{
+  "lexicon": 1,
+  "id": "org.buildguild.proposal",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A governance question a guild votes on — the anchor that `vote` attestations point at. Written to the proposer's repo. threshold/quorum are INTEGER PERCENTS (0-100); omit to inherit the charter's defaults.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["guild", "question", "createdAt"],
+        "properties": {
+          "guild": { "type": "string", "maxLength": 512, "description": "The guild this proposal belongs to (AT-URI / id)." },
+          "question": { "type": "string", "maxLength": 500 },
+          "rule": { "type": "string", "maxLength": 60, "description": "Decision-rule override (else the charter default)." },
+          "threshold": { "type": "integer", "minimum": 0, "maximum": 100, "description": "Percent YES required (0-100)." },
+          "quorum": { "type": "integer", "minimum": 0, "maximum": 100, "description": "Percent participation required (0-100)." },
+          "opensAt": { "type": "string", "format": "datetime" },
+          "closesAt": { "type": "string", "format": "datetime" },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

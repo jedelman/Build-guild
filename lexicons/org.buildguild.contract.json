@@ -1,0 +1,22 @@
+{
+  "lexicon": 1,
+  "id": "org.buildguild.contract",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A predicate definition (a Ricardian 'contract'): the human sentence + subject type + eligibility rule that makes an attestation count. The set of contracts IS the ontology — the values document (we value contribution). A curated core lives under Build Guild; anyone may publish their own contracts for others to attest against (credible exit). Written to the publisher's repo.",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": ["id", "prose", "subjectType", "eligibility", "createdAt"],
+        "properties": {
+          "id": { "type": "string", "maxLength": 120, "description": "Predicate id, e.g. 'deliver.on-time' or 'skill:rust'." },
+          "prose": { "type": "string", "maxLength": 300, "description": "The human-readable assertion an attester is answering." },
+          "subjectType": { "type": "string", "enum": ["builder", "guild", "client", "proposal", "any"] },
+          "eligibility": { "type": "string", "enum": ["anyone", "patron_of_quest", "party_of_quest", "member_of_guild"], "description": "Who has standing to answer — all reduce to 'are you named in the relevant anchor?'" },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

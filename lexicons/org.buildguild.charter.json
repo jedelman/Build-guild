@@ -1,0 +1,23 @@
+{
+  "lexicon": 1,
+  "id": "org.buildguild.charter",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A guild's constitution (a Ricardian contract): human-readable prose PLUS machine-enforced rules (roles + capabilities, membership policy, proposal thresholds/quorum). Self-amending via `prev`. Written to the founder's repo. Thresholds/quorum are INTEGER PERCENTS (0-100) — never floats — so records canonicalize identically across implementations.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["guild", "version", "prose", "rules", "createdAt"],
+        "properties": {
+          "guild": { "type": "string", "maxLength": 512, "description": "Stable guild identifier (an AT-URI to the founding charter, or an app id)." },
+          "version": { "type": "integer", "minimum": 1 },
+          "prev": { "type": "ref", "ref": "com.atproto.repo.strongRef", "description": "The prior charter version (amendment chain); validated against the prior charter's amendment rule." },
+          "prose": { "type": "string", "maxLength": 5000 },
+          "rules": { "type": "unknown", "description": "{ roles: {<role>: {can: [capability]}}, membership: {requireAcceptance: bool, admit: role}, proposal: {rule, threshold(0-100 int), quorum(0-100 int)} }." },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

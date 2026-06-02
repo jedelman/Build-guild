@@ -1,0 +1,24 @@
+{
+  "lexicon": 1,
+  "id": "org.buildguild.settlement",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A patron's signed proof that a quest was delivered and paid — the OBJECTIVE delivery anchor and the eligibility context for delivery/split attestations. Money settles OFF-protocol (Stripe Connect, #18); this record attests the OUTCOME only and holds NO card data or PII — just opaque settlement ids + amounts. Only escrow-settled quests are reputation-bearing (the collusion tax). Written to the patron's repo.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["quest", "payee", "createdAt"],
+        "properties": {
+          "quest": { "type": "ref", "ref": "com.atproto.repo.strongRef", "description": "The quest being settled." },
+          "payee": { "type": "string", "maxLength": 512, "description": "The guild (AT-URI / id) or builder DID that was paid." },
+          "party": { "type": "array", "items": { "type": "string", "format": "did" }, "description": "Builder DIDs on the delivering party (grants splits.fair eligibility)." },
+          "amount": { "type": "integer", "description": "Gross amount in minor units (e.g. cents) — integer, never a float. Settled off-protocol; recorded here for the trail." },
+          "currency": { "type": "string", "maxLength": 8, "description": "ISO currency, e.g. 'usd'." },
+          "paymentRef": { "type": "string", "maxLength": 200, "description": "Opaque off-protocol settlement id (e.g. a Stripe transfer id). NEVER card numbers or PII." },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}
