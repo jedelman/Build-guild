@@ -180,9 +180,31 @@ ternary **badge cloud**.
   reading is "a suggested reading, not the verdict" — recomputable and contestable by anyone.
   Verifier, not overlord.
 
-API (PoC, `src/governance.js`): `tallyBadges(subject, attestations, contracts, context,
-{subjectType}) → {badges, conflicts}`, `isEligible(...)`, `buildContext(events)`. Pure +
-deterministic, same family as `deriveGuildState`.
+API (PoC, `src/governance.js`): `observe(subject, …) → [facts]` (the eligible, timestamped
+fact stream — the actual product), `tallyBadges(...)` (one reference lens over it),
+`isEligible(...)`, `buildContext(events)`. Pure + deterministic, same family as
+`deriveGuildState`.
+
+### Stance: observe, don't judge — and say what we value
+A court does two things: admits evidence **and** renders a verdict. **We only do the first.**
+Eligibility is the rules of evidence (who has standing to testify to what); the record is the
+admitted facts; the **verdict — "is this guild good?" — is computed by whoever reads it.** A
+court judges; an observatory records. That is the answer to "are we reinventing a claims court":
+no — we never judge.
+
+- **Facts are the product; the algorithm is the consumer's.** `observe()` emits the eligible,
+  timestamped fact stream; `tallyBadges()` is just *one reference lens* (count the ternary).
+  Anyone can run their own function over the same facts — recency-decay, trust-graph weighting,
+  stricter eligibility. This is the real appeal of atproto: record primitives, let views compute
+  meaning, no authority owns "standing." Standing stays **subjective** by design.
+- **Signed timestamps defer every weighting decision.** Because each fact is signed + timestamped,
+  flow-vs-stock (decaying vs permanent reputation) is **not our decision** — a consumer applies
+  whatever half-life they want, later, to the same record. We bake in nothing.
+- **Observation is not neutral, so we declare our value.** Choosing which facts are *relevant* is
+  itself a value judgment; the honest move is to state it rather than launder it through false
+  neutrality. **We value contribution.** The ontology is a values document — the contracts we
+  record (delivered, built, vouched, paid, resolved) assert that contribution is what's worth
+  witnessing. We choose the subject matter; we never choose the verdict.
 
 ### Simulation findings (`sim/claimstead-sim.mjs` — agent-based, in-memory, **no PDS writes**)
 The harness reuses `src/governance.js` verbatim with synthetic keypairs; claims are

@@ -243,21 +243,38 @@ export function isEligible(attester, attestation, contract, context = {}) {
   }
 }
 
-// Tally a subject's badge cloud: per contract, counts of yes/no/unknown from
-// ELIGIBLE attesters only. One slot per (attester, contract, context); conflicting
-// values from one attester in one context are duplicity → voided + recorded.
-// Pure, deterministic, order-independent — same family as deriveGuildState.
-export function tallyBadges(subject, verifiedAttestations, contracts, context = {}, { subjectType } = {}) {
-  const slots = {}; // contractId -> contextKey -> attester -> [{value, ref}]
+// "Observe, don't judge." Our job is to record the relevant, ADMISSIBLE facts —
+// signed, timestamped, eligibility-gated — not to render a verdict. observe()
+// emits that fact stream for a subject; ANY consumer can run their own algorithm
+// over it (plain counts, recency-decay over `at`, trust-graph weighting, stricter
+// filters…). tallyBadges() below is just ONE reference lens over these facts.
+// We choose the subject matter (what's relevant = contribution); we never choose
+// the verdict. Signed timestamps mean flow-vs-stock (decay vs permanence) is the
+// consumer's call, deferred forever.
+export function observe(subject, verifiedAttestations, contracts, context = {}, { subjectType } = {}) {
+  const facts = [];
   for (const a of verifiedAttestations) {
     if (!a || !a._verified || a.subject !== subject) continue;
     const contract = contracts[a.contract];
     if (!contract) continue;
     if (subjectType && contract.subjectType && contract.subjectType !== "any" && contract.subjectType !== subjectType) continue;
     if (!["yes", "no", "unknown"].includes(a.value)) continue;
-    if (!isEligible(a.attester, a, contract, context)) continue; // Sybil / ineligible dropped
-    const ckey = canonicalize(a.context ?? null);
-    (((slots[a.contract] ??= {})[ckey] ??= {})[a.attester] ??= []).push({ value: a.value, ref: a._ref });
+    if (!isEligible(a.attester, a, contract, context)) continue; // no standing → not an admissible fact
+    facts.push({ contract: a.contract, attester: a.attester, value: a.value, at: a.createdAt, context: a.context ?? null, ref: a._ref });
+  }
+  // deterministic order so every consumer sees the same stream
+  return facts.sort((x, y) => (x.at === y.at ? (x.ref < y.ref ? -1 : 1) : x.at < y.at ? -1 : 1));
+}
+
+// ONE reference lens over observe(): dedupe to a single slot per (attester,
+// contract, context), void equivocation, and COUNT the ternary. A consumer who
+// wants a different reputation reading runs their own function over observe() —
+// same facts, their algorithm.
+export function tallyBadges(subject, verifiedAttestations, contracts, context = {}, opts = {}) {
+  const slots = {};
+  for (const f of observe(subject, verifiedAttestations, contracts, context, opts)) {
+    const ckey = canonicalize(f.context ?? null);
+    (((slots[f.contract] ??= {})[ckey] ??= {})[f.attester] ??= []).push({ value: f.value, ref: f.ref });
   }
   const badges = {};
   const conflicts = [];

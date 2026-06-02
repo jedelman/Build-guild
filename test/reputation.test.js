@@ -12,6 +12,7 @@ import {
   signRecord,
   verifyRecords,
   tallyBadges,
+  observe,
   buildContext,
   isEligible,
 } from "../src/governance.js";
@@ -175,6 +176,25 @@ test("counts derive from signed events: buildContext gates eligibility end-to-en
   );
   const { badges } = tallyBadges(guild, recs, CONTRACTS, ctx, { subjectType: "guild" });
   assert.deepEqual(badges["attest.delivered-on-time"], { yes: 1, no: 0, unknown: 0, attesters: 1 });
+});
+
+test("observe emits the eligible, timestamped fact stream (consumers bring the algorithm)", async () => {
+  const client = await actor("did:ex:client-O");
+  const guild = await actor("did:ex:guild-O");
+  const sybil = await actor("did:ex:sybil-O");
+  const ctx = { quests: { "quest:o": { patron: client, guild, party: [] } } };
+  const recs = await verifyRecords(
+    await Promise.all([
+      sign(client, attestation(client, guild, "attest.delivered-on-time", "yes", { quest: "quest:o" }, "2026-05-01T00:00:00Z")),
+      sign(sybil, attestation(sybil, guild, "attest.delivered-on-time", "yes", { quest: "quest:o" }, "2026-05-02T00:00:00Z")),
+    ]),
+    resolveKey
+  );
+  const facts = observe(guild, recs, CONTRACTS, ctx, { subjectType: "guild" });
+  assert.equal(facts.length, 1); // the sybil has no standing → not an admissible fact
+  assert.equal(facts[0].attester, client);
+  assert.equal(facts[0].value, "yes");
+  assert.ok(facts[0].at, "timestamp preserved → decay/weighting deferred to the consumer");
 });
 
 test("badge tally is deterministic + order-independent", async () => {
