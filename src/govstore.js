@@ -138,9 +138,9 @@ export async function reputation(env, subject, subjectType) {
 // ---- mock escrow (no real money) ------------------------------------------
 // Fund: with Stripe configured, return a hosted Checkout URL that AUTHORIZES the
 // bounty (manual capture → funds held, not captured); otherwise mock-fund now.
-export async function fundEscrow(env, questId, patronDid, amountCents, origin) {
+export async function fundEscrow(env, questId, patronDid, amountCents, origin, method = "card") {
   if (stripe.stripeConfigured(env)) {
-    const session = await stripe.createCheckoutSession(env, {
+    const base = {
       mode: "payment",
       success_url: `${origin}/?pay=done&quest=${questId}&session={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/?pay=cancel&quest=${questId}`,
@@ -154,11 +154,15 @@ export async function fundEscrow(env, questId, patronDid, amountCents, origin) {
           },
         },
       ],
-      payment_intent_data: {
-        capture_method: "manual", // authorize now, capture on delivery
-        metadata: { quest_id: String(questId), patron_did: patronDid },
-      },
-    });
+    };
+    const metadata = { quest_id: String(questId), patron_did: patronDid, fund_method: method };
+    // Card authorizes a HOLD (manual capture). ACH can't hold — it charges now
+    // and settles over a few days (the upfront-escrow-balance path).
+    const params =
+      method === "ach"
+        ? { ...base, payment_method_types: ["us_bank_account"], payment_intent_data: { metadata } }
+        : { ...base, payment_method_types: ["card"], payment_intent_data: { capture_method: "manual", metadata } };
+    const session = await stripe.createCheckoutSession(env, params);
     return { checkout_url: session.url };
   }
   // Mock fallback (no Stripe key configured).

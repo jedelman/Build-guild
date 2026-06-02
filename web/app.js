@@ -205,15 +205,21 @@ async function mountEscrow(q) {
   }
   if (!e || e.state === "none") {
     if (isPatron) {
-      mount.innerHTML = `<div class="row gap-sm"><input class="esc-amt" inputmode="decimal" placeholder="amount in $" style="max-width:9rem" />
-        <button class="btn" id="esc-fund">Fund escrow</button></div>
-        <p class="hint tight">No real money — stands in for Stripe Connect (#18). Funding makes a delivered quest reputation-bearing.</p>`;
+      mount.innerHTML = `<div class="row gap-sm">
+          <input class="esc-amt" inputmode="decimal" placeholder="amount in $" style="max-width:7rem" />
+          <select class="esc-method">
+            <option value="card">Hold on card</option>
+            <option value="ach">Pay now · bank/ACH</option>
+          </select>
+          <button class="btn" id="esc-fund">Fund escrow</button></div>
+        <p class="hint tight">Card authorizes a hold (captured on delivery). Bank/ACH charges now — lower fee, settles in a few days — better for larger bounties.</p>`;
       host.querySelector("#esc-fund").onclick = async () => {
         const dollars = Number(host.querySelector(".esc-amt").value);
         if (!dollars || dollars <= 0) return toast("Enter an amount.", true);
+        const method = host.querySelector(".esc-method").value;
         try {
-          const r = await cs.fundEscrow(q.id, Math.round(dollars * 100));
-          if (r && r.checkout_url) return void (window.location.href = r.checkout_url); // → Stripe authorize
+          const r = await cs.fundEscrow(q.id, Math.round(dollars * 100), method);
+          if (r && r.checkout_url) return void (window.location.href = r.checkout_url); // → Stripe authorize/charge
           toast("Escrow funded (mock).");
           openQuest(q.id);
         } catch (err) {

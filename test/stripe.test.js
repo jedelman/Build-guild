@@ -71,6 +71,19 @@ test("createCheckoutSession carries manual capture for escrow", async () => {
   assert.match(c.opts.body, /payment_intent_data%5Bcapture_method%5D=manual/);
 });
 
+test("ACH checkout session selects us_bank_account and does NOT manual-capture", async () => {
+  mockFetch({ id: "cs_2", url: "https://checkout.stripe.com/y" });
+  await createCheckoutSession(env, {
+    mode: "payment",
+    payment_method_types: ["us_bank_account"],
+    success_url: "https://app/ok",
+    cancel_url: "https://app/no",
+  });
+  const c = calls[0];
+  assert.match(c.opts.body, /payment_method_types%5B0%5D=us_bank_account/);
+  assert.doesNotMatch(c.opts.body, /capture_method/); // ACH can't authorize-and-hold
+});
+
 test("capture + transfer hit the right endpoints", async () => {
   mockFetch({ id: "pi_1" });
   await capturePaymentIntent(env, "pi_1");
