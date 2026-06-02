@@ -184,6 +184,29 @@ API (PoC, `src/governance.js`): `tallyBadges(subject, attestations, contracts, c
 {subjectType}) → {badges, conflicts}`, `isEligible(...)`, `buildContext(events)`. Pure +
 deterministic, same family as `deriveGuildState`.
 
+### Simulation findings (`sim/claimstead-sim.mjs` — agent-based, in-memory, **no PDS writes**)
+The harness reuses `src/governance.js` verbatim with synthetic keypairs; claims are
+self-signed and the repo is only distribution, so simulation just omits distribution.
+Seeded/reproducible adversarial runs surfaced:
+1. **Outsider Sybil flood — defended.** 60 unaffiliated Sybils attesting about a guild →
+   60/61 blocked by eligibility; only the real patron counts. Gating holds at scale.
+2. **Insider collusion ring — NOT defended by eligibility (key finding).** A closed ring of
+   6 colluders posting fake quests *to each other* each become legitimate patrons and farm
+   5 badges apiece, **for free**. Eligibility stops outsiders but not a self-dealing loop
+   that manufactures its own standing. **Lever:** escrow-gate reputation-bearing quests so
+   faking standing costs real money (the ring cycling $3,000 owes ~$87 in fees) — collusion
+   becomes a taxed activity, not free. This wires **Stripe-as-finalizer (#18) directly into
+   Sybil/collusion resistance.**
+3. **Single-eligible contracts grant unilateral power.** `delivered-on-time` is patron-only,
+   so a bad-faith client's unchallengeable "no" tanks a guild's badge with no counterparty
+   able to contest. **Lever:** contestable facts need **≥2-sided eligibility** (both patron
+   *and* party may attest delivery → disagreement surfaces as 1y/1n, visibly contested) or an
+   **objective anchor** (an escrow *release* is itself proof of delivery, independent of any
+   attestation).
+4. **Reputation concentrates with volume** (Gini ≈ 0.2 even among honest guilds) →
+   reinforces the **cold-start on-ramp** need (vouching, escrowed first quests) so the hall
+   isn't a closed aristocracy.
+
 ## 11. Feasibility verdict
 
 **Validated (running code — full suite 71/71; governance 8/8 + reputation 8/8):**
