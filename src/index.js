@@ -107,7 +107,7 @@ async function route(request, env, url) {
   const method = request.method;
   const gid = Number(id);
 
-  if (resource === "health") return json({ ok: true, ts: Date.now() });
+  if (resource === "health") return json({ ok: true, ts: Date.now(), payments: !!env.STRIPE_SECRET_KEY });
 
   // Client OTLP trace uploads (tail-sampled: only sent on error / bug report).
   if (resource === "telemetry" && method === "POST") return ingestTelemetry(env, request);
