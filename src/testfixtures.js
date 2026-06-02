@@ -12,9 +12,11 @@ import { createCustomConnectAccount, retrieveAccount, stripeConfigured } from ".
 export const testEnabled = (env) => env.TEST_FIXTURES === "1" || env.TEST_FIXTURES === 1;
 
 export const PERSONAS = [
+  // Quill is a standalone PATRON (not in the Test Guild, so never a payee) — act as
+  // Quill to post + fund quests, then as Ada/Bjorn (the party) to claim + get paid.
+  { did: "did:test:quill", handle: "quill.test", display_name: "Quill (patron)", klass: "Patron", role: "patron" },
   { did: "did:test:ada", handle: "ada.test", display_name: "Ada (test)", klass: "Architect" },
   { did: "did:test:bjorn", handle: "bjorn.test", display_name: "Bjorn (test)", klass: "Artificer" },
-  { did: "did:test:cleo", handle: "cleo.test", display_name: "Cleo (test)", klass: "Bard" },
 ];
 
 // Seed each persona: a builder row + a payouts-ready Stripe Custom test account,
@@ -28,7 +30,9 @@ export async function seedPersonas(env) {
       .run();
 
     let stripeStatus = "no-stripe";
-    if (stripeConfigured(env)) {
+    if (p.role === "patron") {
+      stripeStatus = "patron (no payout needed)"; // patrons pay, they don't receive
+    } else if (stripeConfigured(env)) {
       const existing = await env.DB.prepare("SELECT account_id FROM connect_accounts WHERE did = ?").bind(p.did).first();
       if (existing) {
         stripeStatus = "exists";
@@ -59,6 +63,7 @@ async function seedTestGuild(env) {
     g = { id: res.meta.last_row_id };
   }
   for (const p of PERSONAS) {
+    if (p.role === "patron") continue; // patron isn't a guild member (not a payee)
     const b = await env.DB.prepare("SELECT id FROM builders WHERE did = ?").bind(p.did).first();
     if (b) await env.DB.prepare("INSERT OR IGNORE INTO guild_members (guild_id, builder_id, role) VALUES (?, ?, 'member')").bind(g.id, b.id).run();
   }
