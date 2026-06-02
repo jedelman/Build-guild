@@ -45,6 +45,8 @@ import {
   releaseEscrowStripe,
   startOnboarding,
   connectStatus,
+  payoutsReady,
+  paymentsConfigured,
 } from "./govstore.js";
 
 const SESSION_COOKIE = "bg_session";
@@ -260,6 +262,12 @@ async function route(request, env, url) {
         // Claim as your own builder, or as a guild you belong to.
         const me = await sessionBuilder(request, env);
         if (!me) return fail("log in and create your builder first", 401);
+        // Gate: claiming a quest with a funded bounty requires a payout method.
+        if (paymentsConfigured(env)) {
+          const held = await getEscrow(env, gid);
+          if (held && held.state === "funded" && !(await payoutsReady(env, me.did)))
+            return fail("connect a payout method to claim a paid quest", 402);
+        }
         const body = (await readJson(request)) || {};
         if (body.guild_id) {
           const guild = await getGuild(env, Number(body.guild_id));

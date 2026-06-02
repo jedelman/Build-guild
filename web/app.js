@@ -128,6 +128,54 @@ async function mountPayouts() {
   };
 }
 
+// ---- payout-method nudges (connect Stripe to get paid) --------------------
+let payoutReadyCache = null;
+async function payoutReady() {
+  if (payoutReadyCache !== null) return payoutReadyCache;
+  try {
+    payoutReadyCache = (await cs.connectStatus()).payouts_ready;
+  } catch {
+    payoutReadyCache = true; // unconfigured/error → don't nag
+  }
+  return payoutReadyCache;
+}
+async function startPayoutOnboarding() {
+  try {
+    const { url } = await cs.connectOnboard();
+    window.location.href = url;
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+// Login nudge: a dismissible banner when you have a sheet but no payout method.
+async function mountPayoutBanner() {
+  if (!state.auth.authenticated || !state.me) return;
+  if (localStorage.getItem("bg-payout-dismissed") === "1") return;
+  if (document.querySelector(".payout-banner") || (await payoutReady())) return;
+  const bar = document.createElement("div");
+  bar.className = "payout-banner";
+  bar.innerHTML = `<span>${icon("reward")} Connect a payout method so bounties can pay out to you.</span>
+    <span class="row gap-sm"><button class="btn gold" id="pb-connect">Connect payouts</button>
+    <button type="button" class="linklike" id="pb-dismiss">Later</button></span>`;
+  document.querySelector(".topbar")?.insertAdjacentElement("afterend", bar);
+  bar.querySelector("#pb-connect").onclick = startPayoutOnboarding;
+  bar.querySelector("#pb-dismiss").onclick = () => {
+    localStorage.setItem("bg-payout-dismissed", "1");
+    bar.remove();
+  };
+}
+// Prompt to connect payouts (used right after enlisting).
+async function maybePromptPayouts() {
+  if (!state.me || (await payoutReady())) return;
+  const ok = await confirmDialog({
+    title: "Get paid for quests?",
+    body: "Connect a payout method (Stripe) so bounties can pay out to you. You can also do this anytime from your character sheet.",
+    confirmLabel: "Connect payouts",
+    cancelLabel: "Later",
+  });
+  if (ok) startPayoutOnboarding();
+}
+
 // Ternary (yes/no/unknown) attestation dialog over a set of contracts.
 function attestDialog(title, subject, contractIds, questRef) {
   return openModal(
@@ -1063,7 +1111,17 @@ async function openQuest(id) {
         toast("Quest claimed!");
         openQuest(id);
       } catch (e) {
-        toast(e.message, true);
+        if (/payout/i.test(e.message)) {
+          const ok = await confirmDialog({
+            title: "Connect payouts to claim",
+            body: "This quest has a funded bounty, so you need a payout method before you can claim it.",
+            confirmLabel: "Connect payouts",
+            cancelLabel: "Cancel",
+          });
+          if (ok) startPayoutOnboarding();
+        } else {
+          toast(e.message, true);
+        }
       }
     });
   for (const [btnId, status] of [["q-delivered", "delivered"], ["q-closed", "closed"]]) {
@@ -1628,6 +1686,7 @@ function renderEnlist(existing) {
         <button type="button" class="btn ghost" id="add-repo">+ Link a repo</button>
       </div>
 
+      <p class="hint tight">${icon("reward")} After saving, you'll be offered a payout method so bounties can pay out to you (you can also connect it later from your character sheet).</p>
       <button class="btn gold" type="submit">${editing ? "Save changes" : "Join the Build Guild"}</button>
     </form>`;
 
@@ -1867,6 +1926,7 @@ function renderEnlist(existing) {
       renderAuthBar(); // status avatar now resolves to your builder
       invalidateView();
       go("#/roster");
+      if (!editing) maybePromptPayouts(); // new builders: offer to connect payouts
     } catch (err) {
       toast(err.message, true);
     } finally {
@@ -1934,6 +1994,7 @@ function showLoadingSkeleton() {
       toast("Payment canceled.", true);
       history.replaceState(null, "", location.pathname + location.hash);
     }
+    mountPayoutBanner(); // nudge if signed in with a sheet but no payout method
   } catch (e) {
     app.removeAttribute("aria-busy");
     app.innerHTML = `<p class="empty">Couldn't reach the guild hall: ${esc(e.message)}</p>`;

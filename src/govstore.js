@@ -30,6 +30,12 @@ export async function startOnboarding(env, did, origin) {
   return { url: link.url };
 }
 
+// Cheap local check (no Stripe call) — does this DID have payouts enabled?
+export async function payoutsReady(env, did) {
+  const row = await env.DB.prepare("SELECT payouts_enabled FROM connect_accounts WHERE did = ?").bind(did).first();
+  return !!(row && row.payouts_enabled);
+}
+
 // Read connect status; refreshes from Stripe when configured + connected.
 export async function connectStatus(env, did) {
   const row = await env.DB.prepare("SELECT * FROM connect_accounts WHERE did = ?").bind(did).first();

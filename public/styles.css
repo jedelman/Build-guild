@@ -596,6 +596,15 @@ form.enlist label input, form.enlist label textarea { text-transform: none; lett
 .ternary button.on[data-v="no"] { background: var(--danger); color: var(--gold-ink); }
 .escrow-mount .mono { font-size: var(--fs-sm); color: var(--ink-dim); }
 
+/* payout-method nudge banner (between top bar and shell) */
+.payout-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s4); flex-wrap: wrap;
+  padding: var(--s2) var(--s5); font-size: var(--fs-sm); color: var(--ink-dim);
+  background: linear-gradient(90deg, rgba(216, 177, 90, 0.12), transparent);
+  border-bottom: 1px solid var(--gold-deep);
+}
+.payout-banner .btn { padding: var(--ctl-pad-y-sm) var(--ctl-pad-x-sm); }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
