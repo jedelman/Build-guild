@@ -6,7 +6,7 @@ import { verifyRecords, deriveGuildState, tallyBadges, observe, buildContext } f
 import { openHold, release as escrowRelease, feeFor, netToPayee } from "./escrow.js";
 import { contractsFor } from "./contracts.js";
 import * as stripe from "./stripe.js";
-import { APPLICATION_FEE_BPS } from "./payments.js";
+import { APPLICATION_FEE_BPS, payoutPlan } from "./payments.js";
 
 // ---- Stripe Connect onboarding (payees can receive payouts) ----------------
 export const paymentsConfigured = (env) => stripe.stripeConfigured(env);
@@ -206,11 +206,50 @@ export async function settlementTemplate(env, questId, patronDid, payeeDid, part
   return settlement; // caller stamps createdAt + signs as the patron, then posts to /gov/claims
 }
 
-// Mark the hold released once the signed settlement has been ingested, recording
-// the settlement's ref so party members can attest split-fairness against it.
+// Record payee + settlement ref + released state. No state guard (a Stripe release
+// captures/transfers first, setting 'released', then records here).
 export async function markReleased(env, questId, payeeDid, settlementRef = "") {
-  await env.DB.prepare("UPDATE escrow_holds SET state='released', payee_did=?, settlement_ref=?, released_at=datetime('now') WHERE quest_id = ? AND state='funded'")
+  await env.DB.prepare("UPDATE escrow_holds SET state='released', payee_did=?, settlement_ref=?, released_at=COALESCE(released_at, datetime('now')) WHERE quest_id = ?")
     .bind(payeeDid, settlementRef, questId)
     .run();
   return getEscrow(env, questId);
+}
+
+// Live release: capture the held PaymentIntent (card) and transfer the split to
+// the party's connected accounts (option a: party nets gross − Stripe fee − 1%).
+// Idempotent at the hold level — only a 'funded' Stripe hold proceeds.
+export async function releaseEscrowStripe(env, questId, partyDids = []) {
+  const row = await env.DB.prepare("SELECT * FROM escrow_holds WHERE quest_id = ? AND state = 'funded' AND provider = 'stripe' ORDER BY id DESC LIMIT 1").bind(questId).first();
+  if (!row || !row.payment_intent_id) throw new Error("no funded Stripe escrow to release");
+
+  let pi = await stripe.retrievePaymentIntent(env, row.payment_intent_id, ["latest_charge.balance_transaction"]);
+  if (pi.status === "requires_capture") {
+    await stripe.capturePaymentIntent(env, row.payment_intent_id);
+    pi = await stripe.retrievePaymentIntent(env, row.payment_intent_id, ["latest_charge.balance_transaction"]);
+  }
+  if (pi.status !== "succeeded")
+    throw new Error(`payment not capturable yet (status: ${pi.status}) — an ACH debit may still be settling`);
+
+  const stripeFeeCents = pi.latest_charge?.balance_transaction?.fee ?? 0;
+
+  // Resolve party members who can actually receive payouts.
+  const accounts = [];
+  for (const did of partyDids) {
+    const a = await env.DB.prepare("SELECT account_id, payouts_enabled FROM connect_accounts WHERE did = ?").bind(did).first();
+    if (a && a.payouts_enabled) accounts.push({ did, account_id: a.account_id });
+  }
+  const plan = payoutPlan(row.amount_cents, stripeFeeCents, accounts);
+
+  const transferIds = [];
+  for (const t of plan.transfers) {
+    const tr = await stripe.createTransfer(env, {
+      amount: t.cents,
+      currency: "usd",
+      destination: t.account,
+      transfer_group: `quest_${questId}`,
+    });
+    transferIds.push(tr.id);
+  }
+  await env.DB.prepare("UPDATE escrow_holds SET state='released', released_at=datetime('now') WHERE id = ?").bind(row.id).run();
+  return { ...plan, transferIds };
 }

@@ -42,6 +42,7 @@ import {
   confirmCheckout,
   getEscrow,
   markReleased,
+  releaseEscrowStripe,
   startOnboarding,
   connectStatus,
 } from "./govstore.js";
@@ -315,8 +316,15 @@ async function route(request, env, url) {
         const rec = ((await readJson(request)) || {}).record;
         if (!rec || rec.kind !== "quest" || rec.author !== session.did)
           return fail("a patron-signed settlement is required");
-        const { ref } = await putClaim(env, session.did, rec); // verifies signature + indexes the settlement
-        return json(await markReleased(env, gid, String(rec.body?.guild || ""), ref));
+        // Live Stripe holds: capture + transfer to the party first; then record.
+        const held = await getEscrow(env, gid);
+        let payout = null;
+        if (held && held.provider === "stripe" && held.state === "funded") {
+          payout = await releaseEscrowStripe(env, gid, rec.body?.party || []);
+        }
+        const { ref } = await putClaim(env, session.did, rec); // verify signature + index the settlement
+        const escrow = await markReleased(env, gid, String(rec.body?.guild || ""), ref);
+        return json({ escrow, payout });
       }
     }
   }

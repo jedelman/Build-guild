@@ -60,5 +60,9 @@ export const retrieveAccount = (env, id) => stripe(env, "GET", `/accounts/${id}`
 export const createCheckoutSession = (env, p) => stripe(env, "POST", "/checkout/sessions", p);
 export const retrieveSession = (env, id) => stripe(env, "GET", `/checkout/sessions/${id}`);
 export const capturePaymentIntent = (env, id) => stripe(env, "POST", `/payment_intents/${id}/capture`);
+export const retrievePaymentIntent = (env, id, expand = []) => {
+  const qs = expand.map((e, i) => `expand[${i}]=${encodeURIComponent(e)}`).join("&");
+  return stripe(env, "GET", `/payment_intents/${id}${qs ? "?" + qs : ""}`);
+};
 export const cancelPaymentIntent = (env, id) => stripe(env, "POST", `/payment_intents/${id}/cancel`);
 export const createTransfer = (env, p) => stripe(env, "POST", "/transfers", p);

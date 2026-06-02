@@ -38,6 +38,21 @@ export function settlementMath(grossCents, party, bps = APPLICATION_FEE_BPS) {
   return { grossCents, feeCents, netCents, splits: splitAmounts(netCents, party) };
 }
 
+// Build the per-payee transfer plan for option (a): the party nets
+// gross − Stripe processing fee − 1% application fee. `stripeFeeCents` is read
+// from the captured charge's balance transaction (so it's exact). `partyAccounts`
+// = [{did, account_id}] of party members with payouts enabled.
+export function payoutPlan(grossCents, stripeFeeCents, partyAccounts, bps = APPLICATION_FEE_BPS) {
+  if (!Array.isArray(partyAccounts) || partyAccounts.length === 0)
+    throw new Error("no connected payee to transfer to — a party member must connect payouts");
+  const appFeeCents = applicationFee(grossCents, bps);
+  const distributableCents = grossCents - stripeFeeCents - appFeeCents;
+  if (distributableCents <= 0) throw new Error("bounty too small to cover fees");
+  const splits = splitAmounts(distributableCents, partyAccounts.map((a) => a.did));
+  const transfers = splits.map((s, i) => ({ did: s.did, account: partyAccounts[i].account_id, cents: s.cents }));
+  return { appFeeCents, stripeFeeCents, distributableCents, transfers };
+}
+
 // ---- escrow state machine (authorize → captured → transferred | canceled) ----
 // Card authorizations expire (~7 days); authExpiresAt makes that explicit so the
 // provider can re-authorize or capture-early before it lapses.

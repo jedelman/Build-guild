@@ -11,6 +11,7 @@ import {
   markTransferred,
   cancel,
   authExpired,
+  payoutPlan,
   buildSettlement,
   APPLICATION_FEE_BPS,
   MAX_QUEST_DAYS,
@@ -76,6 +77,26 @@ test("invalid transitions throw", () => {
 test("cancel an authorized (un-captured) hold", () => {
   const a = authorize({ questId: 1, patronDid: "did:ex:p", amountCents: 1000, now: 1 });
   assert.equal(cancel(a, { now: 2 }).state, "canceled");
+});
+
+test("payoutPlan: option (a) — party nets gross − Stripe fee − 1%", () => {
+  // $1000 gross, Stripe fee $32.00 (read from balance txn), 1% app fee = $10.
+  const plan = payoutPlan(100000, 3200, [
+    { did: "did:a", account_id: "acct_a" },
+    { did: "did:b", account_id: "acct_b" },
+  ]);
+  assert.equal(plan.appFeeCents, 1000);
+  assert.equal(plan.stripeFeeCents, 3200);
+  assert.equal(plan.distributableCents, 95800); // 100000 − 3200 − 1000
+  assert.deepEqual(plan.transfers, [
+    { did: "did:a", account: "acct_a", cents: 47900 },
+    { did: "did:b", account: "acct_b", cents: 47900 },
+  ]);
+});
+
+test("payoutPlan guards: no payees, and fee-exceeding bounty", () => {
+  assert.throws(() => payoutPlan(100000, 3200, []), /no connected payee/);
+  assert.throws(() => payoutPlan(100, 3200, [{ did: "a", account_id: "acct_a" }]), /too small to cover fees/);
 });
 
 test("buildSettlement matches the locked lexicon shape (no PII, opaque ref)", () => {

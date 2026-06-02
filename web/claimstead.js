@@ -110,9 +110,10 @@ export const getEscrow = (questId) => api(`/quests/${questId}/escrow`);
 export const fundEscrow = (questId, cents, method = "card") =>
   api(`/quests/${questId}/escrow`, { method: "POST", body: { amount_cents: cents, method } });
 export const confirmCheckout = (questId, session) => api(`/quests/${questId}/escrow/confirm`, { method: "POST", body: { session } });
-// Release = the patron signs the settlement (delivery anchor) and posts it.
-export async function releaseEscrow(did, questId, payee, party = []) {
-  const record = await signed({ type: "org.buildguild.event", kind: "quest", author: did, body: { quest: questId, guild: payee, party } });
-  const escrow = await api(`/quests/${questId}/escrow/release`, { method: "POST", body: { record } });
-  return { escrow, settlementRef: await recordRef(record), payee };
+// Release = the patron signs the settlement (delivery anchor) and posts it; the
+// server captures + transfers (Stripe) and returns { escrow, payout }.
+export async function releaseEscrow(did, questId, payee, party = [], paymentRef = "") {
+  const record = await signed({ type: "org.buildguild.event", kind: "quest", author: did, body: { quest: questId, guild: payee, party, paymentRef } });
+  const result = await api(`/quests/${questId}/escrow/release`, { method: "POST", body: { record } });
+  return { result, settlementRef: await recordRef(record), payee };
 }

@@ -240,8 +240,13 @@ async function mountEscrow(q) {
     btn.textContent = "Release on delivery";
     btn.onclick = async () => {
       try {
-        const { settlementRef } = await cs.releaseEscrow(state.auth.did, q.id, payee, party);
-        toast("Released. Rate the delivery →");
+        const { settlementRef, result } = await cs.releaseEscrow(state.auth.did, q.id, payee, party, e.payment_intent_id);
+        const p = result && result.payout;
+        toast(
+          p
+            ? `Paid out $${(p.distributableCents / 100).toFixed(2)} to ${p.transfers.length} member(s) (Stripe $${(p.stripeFeeCents / 100).toFixed(2)} + 1% fee).`
+            : "Released. Rate the delivery →"
+        );
         await attestDialog("Rate this guild's delivery", payee, contractsBy("guild", "patron_of_quest"), settlementRef);
         openQuest(q.id);
       } catch (err) {
