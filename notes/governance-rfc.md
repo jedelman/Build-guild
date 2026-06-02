@@ -113,10 +113,21 @@ charter). **This is one of our open questions.**
 
 ## 9. Open questions for atproto core devs
 
-1. **Guild identity / shared custody.** Is multi-rotation-key `did:plc` (1–5 keys,
-   hierarchical, 72h recovery) an acceptable way to share/escrow control of a *guild*
-   account — or is a better collective-custody primitive emerging? Threshold/multisig at
-   the identity layer, ever?
+> **Update (community input, via @zicklag.dev):** Q1 now looks **largely resolved** —
+> see below. did:plc verifies operation signatures as plain low-S **ECDSA** (k256/P-256)
+> and is blind to how a signature was produced, so a guild can be one did:plc whose
+> rotation key is held **k-of-n via threshold-ECDSA** (GG20/CGGMP/DKLs — *not* FROST,
+> which is Schnorr), with **zero protocol changes**. Native multiple-rotationKeys is
+> OR/hierarchical (recovery), not consensus, so threshold sits on a *single* rotation
+> key, optionally paired with a higher-authority recovery key. Cleanly, the rotation key
+> gives **collective ownership of the guild's identity** while Claimstead attestations
+> handle **day-to-day governance** — separate layers. Residual sub-questions below.
+
+1. **Guild identity / shared custody (mostly answered).** Confirm: is threshold-ECDSA on a
+   did:plc rotation key the sanctioned path to collective guild custody, and are there
+   gotchas (e.g. the strict low-S requirement on MPC-produced signatures, recommended
+   threshold-ECDSA tooling for k256/P-256, liveness/recovery-key ergonomics)? Any appetite
+   for a native threshold primitive, or is "bring your own MPC" the expected answer?
 2. **Operating a group/service account.** With OAuth "not recommended for headless," what's
    the recommended 2026 way to run an app-operated guild account (stored creds? a sanctioned
    bot-OAuth path? the "multi-user → one org DID" idea in discussion #3424)?
