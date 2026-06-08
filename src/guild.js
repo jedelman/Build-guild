@@ -74,12 +74,17 @@ export function deriveGuild(charter, records, { now = Date.now() } = {}) {
 // it runs identically offline (the sim) and online (the API), and is testable without D1.
 export function guildGraphFromRecords(records, { now = Date.now() } = {}) {
   const graph = buildGraph(records);
-  const charter = records.find((r) => r.type === "org.buildguild.charter" && r._verified !== false);
+  // Prefer the GENESIS charter (no `prev`) as the replay root; amendments chain from it and
+  // are applied by the deriver, which reports the resulting charterVersion.
+  const charters = records.filter((r) => r.type === "org.buildguild.charter" && r._verified !== false);
+  const charter = charters.find((r) => r.prev == null) ?? charters[0];
   let collective = null;
   if (charter) {
     const g = deriveGuild(charter, records, { now });
     collective = {
       head: g.head,
+      charterVersion: g.charterVersion,
+      amendments: g.amendments,
       members: g.members,
       mandates: g.mandates.map((m) => ({ grantee: m.grantee, capability: m.capability, scope: m.scope, mode: m.mode })),
       proposals: Object.values(g.proposals).map((p) => ({ ref: p.ref, action: p.action, outcome: p.outcome, basis: p.basis, tally: p.tally })),

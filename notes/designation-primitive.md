@@ -286,8 +286,18 @@ outcomes) + the verified record DAG — and is served live at **`GET /api/guilds
 view via `?guild=<id>`. The offline sim writes the same payload through the same function,
 so online and offline render identically. Tested: `test/guild-graph-payload.test.js`.
 
-Still open here: charter-amendment execution via the vote path (the `amend` action tallies
-but doesn't yet replay a new charter), delegated *remove* of a delegated member via the
-vote path (revocation works today), and the guild-patron delegation in the agreement
-workflow. (`closesAt` survives only as an advisory "is voting open" gate — it gates
-decidability, never order.)
+### Charter amendment (self-amending)
+
+A passed `amend` now **executes**: it swaps the active charter `rules` for all SUBSEQUENT
+proposals, while the amend itself is judged by the *prior* charter's amend bar (so the
+constitution amends itself by its own rule). New rules come inline (`enacts.rules`) or from
+a referenced `org.buildguild.charter` record chained by `prev` (`enacts.charter`); the
+genesis cohort is preserved across versions. `deriveCollective` reports `charterVersion`,
+`charterRef`, and the applied `amendments` trail, and the swap is causal/order-independent.
+Built + tested: `test/collective-amend.test.js` (raises version + rebinds later proposals;
+prior-bar rejection leaves rules standing; referenced-charter chaining; 20-shuffle
+determinism).
+
+Still open here: delegated *remove* of a delegated member via the vote path (revocation
+works today), and the guild-patron delegation in the agreement workflow. (`closesAt`
+survives only as an advisory "is voting open" gate — it gates decidability, never order.)

@@ -84,7 +84,8 @@ function applyEffect(P, members, mandates) {
         if (m.via === e.target || (e.grantee && m.grantee === e.grantee && m.capability === e.capability && (e.scope == null || m.scope === e.scope)))
           m.active = false;
       break;
-    // "amend" (charter) handled by the charter chain, not here.
+    // "amend" mutates the active charter rules — handled inline in the replay loop (it
+    // needs the deriver's rule state), not here.
   }
 }
 
@@ -93,7 +94,16 @@ export function deriveCollective(charter, records, { now = Date.now() } = {}) {
   const guild = charter.guild;
   const mine = (r) => r && r._verified !== false && (r.guild === guild || r.guild == null);
   const genesis = rules.genesis || [];
-  const voteRule = (action) => rules.vote?.[action] ?? rules.vote?.default ?? DEFAULT_RULE;
+  // The charter is SELF-AMENDING: a passed `amend` swaps the active rules for SUBSEQUENT
+  // proposals (the genesis cohort never changes). `activeRules` mutates during replay; every
+  // bar lookup reads it, so a proposal is judged by the charter in force at its causal
+  // position, and the amend itself by the PRIOR charter's amend bar.
+  let activeRules = rules;
+  let activeCharterRef = charter._ref ?? "genesis";
+  let charterVersion = charter.version ?? 1;
+  const voteRule = (action) => activeRules.vote?.[action] ?? activeRules.vote?.default ?? DEFAULT_RULE;
+  const charterByRef = new Map(records.filter((r) => r.type === "org.buildguild.charter" && r._verified !== false && r._ref).map((r) => [r._ref, r]));
+  const amendments = [];
 
   const proposals = records.filter((r) => mine(r) && r.type === "org.buildguild.proposal");
   const votes = records.filter((r) => mine(r) && r.type === "org.buildguild.attestation" && (r.contract === "vote" || r.predicate === "vote"));
@@ -150,6 +160,23 @@ export function deriveCollective(charter, records, { now = Date.now() } = {}) {
     if (outcome === "passed") {
       applyEffect(P, members, mandates);
       if (ROSTER_ACTIONS.has(P.action)) { head = P._ref; headSnap.set(head, new Set(members)); } // roster changed → advance head + snapshot
+      else if (P.action === "amend") {
+        // Swap in the amended charter for LATER proposals. New rules come inline
+        // (`enacts.rules`) or from a referenced charter record (`enacts.charter`) that must
+        // chain from the charter currently in force. The genesis cohort is never re-seeded.
+        const e = P.enacts || {};
+        let nextRules = null, nextRef = activeCharterRef, nextVersion = charterVersion + 1;
+        if (e.rules && typeof e.rules === "object") { nextRules = e.rules; nextRef = P._ref; }
+        else if (e.charter && charterByRef.has(e.charter)) {
+          const nc = charterByRef.get(e.charter);
+          if (nc.prev === activeCharterRef || nc.prev == null) { nextRules = nc.rules; nextRef = nc._ref; nextVersion = nc.version ?? nextVersion; }
+        }
+        if (nextRules) {
+          activeRules = { ...nextRules, genesis }; // preserve founding cohort across amendments
+          activeCharterRef = nextRef; charterVersion = nextVersion;
+          amendments.push({ ref: P._ref, version: charterVersion, charter: nextRef });
+        }
+      }
     }
   }
 
@@ -157,6 +184,9 @@ export function deriveCollective(charter, records, { now = Date.now() } = {}) {
   return {
     guild,
     head, // the current membership head; a vote must pin this to be live
+    charterVersion, // current charter version after applying passed amendments
+    charterRef: activeCharterRef,
+    amendments, // [{ ref, version, charter }] — the applied amendment trail
     members: [...members].sort(),
     mandates: liveMandates,
     proposals: decided,
