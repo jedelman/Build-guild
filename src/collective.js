@@ -113,18 +113,27 @@ export function deriveCollective(charter, records, { now = Date.now() } = {}) {
   const mandates = [];
   const decided = {};
   const staleVotes = [];
-  let head = GENESIS; // the current membership head; votes must pin this to count
+  let head = GENESIS; // the current membership head; live votes must pin this to count
+  const headSnap = new Map([[GENESIS, new Set(members)]]); // roster AS OF each head — for FROZEN proposals
 
   for (const P of ordered) {
     if (!active(P, now)) continue;
     const closed = P.closesAt == null || Date.parse(P.closesAt) <= now;
-    const electorate = new Set(members); // snapshot AS OF this decision
+    const rule = voteRule(P.action);
+    // ANTI-GRIEF: a per-action charter policy. LIVE (default) judges against the current
+    // roster and stales votes on any churn — correct, but a griefer can stall a vote by
+    // churning the roster to reset everyone's basis. FROZEN pins the proposal to the head
+    // it OPENED on (its `basis`): its electorate and valid votes are the open-time roster,
+    // immune to later churn (the cost: it can be decided by/for a roster that has moved on).
+    const frozen = !!rule.freeze;
+    const effHead = frozen ? (P.basis ?? GENESIS) : head;
+    const electorate = new Set((frozen ? headSnap.get(effHead) : null) ?? members);
     let yes = 0, no = 0, cast = 0, stale = 0;
     for (const [voter, list] of Object.entries(byProp[P._ref] || {})) {
-      if (!electorate.has(voter)) continue; // only members-at-the-time count
-      // live votes pin the CURRENT head; basis-less votes are legacy/fresh
-      const live = list.filter((v) => v.basis == null || v.basis === head);
-      if (live.length < list.length) { stale++; staleVotes.push({ proposal: P._ref, voter, pinned: list.find((v) => v.basis && v.basis !== head)?.basis }); }
+      if (!electorate.has(voter)) continue; // only members of the governing roster count
+      // a live vote pins effHead (the current head, or the frozen open-time head); null = legacy/fresh
+      const live = list.filter((v) => v.basis == null || v.basis === effHead);
+      if (live.length < list.length) { stale++; staleVotes.push({ proposal: P._ref, voter, pinned: list.find((v) => v.basis && v.basis !== effHead)?.basis, head: effHead }); }
       if (!live.length) continue; // all of this voter's votes are stale → recast needed
       const uniq = new Set(live.map((v) => v.value));
       if (uniq.size > 1) continue; // equivocation voids this voter
@@ -132,16 +141,15 @@ export function deriveCollective(charter, records, { now = Date.now() } = {}) {
       if (c === "yes") yes++; else if (c === "no") no++; else continue;
       cast++;
     }
-    const rule = voteRule(P.action);
     const eligible = electorate.size;
     let outcome;
     if (!closed) outcome = "open";
     else if (eligible === 0 || (cast * 100) / eligible < rule.quorum) outcome = "failed_quorum";
     else outcome = (cast === 0 ? 0 : (yes * 100) / cast) >= rule.threshold ? "passed" : "rejected";
-    decided[P._ref] = { ref: P._ref, action: P.action, outcome, rule, head, tally: { yes, no, cast, stale, eligible } };
+    decided[P._ref] = { ref: P._ref, action: P.action, outcome, rule, head: effHead, basis: frozen ? "frozen" : "live", tally: { yes, no, cast, stale, eligible } };
     if (outcome === "passed") {
       applyEffect(P, members, mandates);
-      if (ROSTER_ACTIONS.has(P.action)) head = P._ref; // roster changed → advance head; pending old-basis votes go stale
+      if (ROSTER_ACTIONS.has(P.action)) { head = P._ref; headSnap.set(head, new Set(members)); } // roster changed → advance head + snapshot
     }
   }
 

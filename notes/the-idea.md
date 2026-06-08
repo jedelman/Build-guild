@@ -193,10 +193,13 @@ answered everything.
 
 No pitch is complete without its sharp edges, and trust is built by naming them:
 
-- **Live roster has a cost.** If the roster churns constantly, votes keep going stale and
-  have to be recast — and a bad actor could *abuse* that to stall a decision (keep admitting
-  people to reset everyone's vote). A real system needs a guard against that kind of
-  griefing; ours flags it as the next thing to build.
+- **Live roster has a cost — now with a guard.** If the roster churns constantly, votes
+  keep going stale and have to be recast — and a bad actor could *abuse* that to stall a
+  decision (keep admitting people to reset everyone's vote). The guard is **freeze-at-open**:
+  the charter can mark a kind of decision so that, once a vote opens, its electorate is
+  locked to the people present at that moment — later churn can't reset it. It's opt-in, per
+  kind of decision, because it trades "maximally current" for "can't be stalled" — and you
+  want that trade only where stalling is a real risk.
 - **"No boss" is not "no work."** Self-governance means the group actually has to vote,
   show up, and tend its own rules. The tools make it cheap and honest; they don't make it
   effortless.

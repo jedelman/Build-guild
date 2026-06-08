@@ -251,9 +251,21 @@ real graph edges, so the debug view *shows* the chain to walk.
 Built + tested overall: `src/collective.js` (`causalOrder` + head tracking + `staleVotes`);
 `test/collective*.test.js`, 99/99. The whole authority path is now clock-free.
 
-Still open here: a **liveness / anti-grief guard** — live roster means constant roster
-churn could starve a vote (keep admitting members to reset everyone's `basis`); needs a
-declared bound (e.g. a settle/cooldown window, or charter-chosen freeze-at-open per
-proposal). Plus delegated admits, charter-amendment via the vote path, and wiring
+### Anti-grief: per-action freeze-at-open
+
+Live roster has a liveness cost: a griefer can churn membership (keep admitting/removing)
+to advance the head and stale everyone's `basis`, so a vote never accumulates enough fresh
+votes to resolve. The guard is a **per-action charter policy**, `rules.vote[action].freeze`
+(default `false`). A `freeze:true` action pins each of its proposals to the head it
+**opened** on (its `basis`): the electorate is the open-time roster snapshot and votes stay
+valid through later churn — immune to the stall, at the cost that the decision may land
+against a roster that has since moved. Live stays the default (maximally current); freeze
+is opt-in for the churn-weaponizable actions (e.g. a critical `amend`). Crucially the guard
+is **clock-free** — it pins to a causal head, not a wall-time window — so it composes with
+causal ordering rather than smuggling a clock back in. Built + tested: `headSnap` in
+`src/collective.js`, `test/collective-antigrief.test.js` (frozen proposal byte-identical
+across 30 churn-shuffles + judged on the open-time roster; the live recast cost it avoids).
+
+Still open here: delegated admits, charter-amendment via the vote path, and wiring
 `collective.js` into the agreement demo. (`closesAt` survives only as an advisory "is
 voting open" gate — it gates decidability, never order.)
