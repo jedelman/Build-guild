@@ -78,49 +78,52 @@ paired by strongRef, mirroring governance's admit+accept). The pair locks **{par
 DIDs, reward, terms}**; "AGREED" = both exist and agree. This is the escrow lock,
 re-expressed as a co-signed claim.
 
-## 3. New lexicons (sketch; `lexicon: 1`)
+## 3. New lexicons (now in `lexicons/`, `lexicon: 1`)
 
-- **`org.buildguild.offer`** — `{ quest: strongRef, by: did, role: "patron"|"party",
-  party: [did], reward: string, terms: "upfront"|"on_delivery", createdAt }`. Either
-  side proposes terms. (The `quest` is the patron's public advert — a wish; the *binding*
-  reward/terms/party are whatever the offer+acceptance lock, and may differ from the
-  advert.)
-- **`org.buildguild.acceptance`** — `{ subject: strongRef (offer | amendment), by: did,
-  createdAt }`. The counterparty co-signs → AGREED (or an amendment takes effect).
-  Referencing the *exact* version via `cid` means terms can't be silently changed after
-  acceptance — any change has to come back through a new, co-signed amendment.
+The full JSON is in `lexicons/`; sketches below. **atproto convention: the author is the
+repo owner**, so no record carries an explicit author DID — explicit DIDs name *other*
+parties, and `role` declares which side the author is.
+
+- **`org.buildguild.offer`** — `{ quest: strongRef, role: "patron"|"party",
+  party: [did], reward: string, amount?: int, currency?, terms: "upfront"|"on_delivery",
+  milestones?: [{label, amount?}], deadline?, note?, createdAt }`. Either side proposes
+  terms. The `quest` is the patron's public advert — a wish; the *binding* reward/terms/
+  party are whatever the offer+acceptance lock, and may differ from the advert.
+- **`org.buildguild.acceptance`** — `{ subject: strongRef (offer | amendment), fetched?:
+  sha, note?, createdAt }`. The counterparty co-signs → AGREED (or an amendment takes
+  effect). The strongRef pins the *exact* version (content id), so terms can't be silently
+  changed after acceptance — any change has to come back through a new, co-signed
+  amendment. `fetched` optionally acknowledges receipt of a delivery sha.
 - **`org.buildguild.amendment`** — `{ supersedes: strongRef (offer | prior amendment),
-  by: did, role: "patron"|"party", changes: { reward?, terms?, party?, milestones?,
-  deadline? }, reason?, createdAt }`. The append-only unit of change: proposes a delta
-  to the agreed terms, takes effect only when the counterparty files an `acceptance`
-  against it (so amendment is as mutual as the original deal). Current terms = original
-  offer + ordered chain of accepted amendments; the diff between any two links is the
-  paper trail. Rejected/unaccepted amendments stay visible as proposed-but-not-agreed.
-- **`org.buildguild.delivery`** — `{ quest: strongRef, by: did, milestone?: string,
-  source: { repo: uri, commit: sha, ref?, path? }, note?, evidence?: [{type,value,note}],
-  createdAt }`. Party asserts delivery **anchored to a specific git commit** — the
-  primary, independently-testable proof (anyone can `git fetch` the sha and run it; no
-  trust in the assertion needed). `evidence[]` stays for the non-git tail (deploy link,
-  design file). One delivery per milestone in the loop.
-- **`org.buildguild.message`** — `{ subject: strongRef (quest/offer/…), body, replyTo?:
-  strongRef, createdAt }`. A signed, public, threaded comment in the author's repo —
-  the Tangled `…issue.comment` pattern (no standard cross-record comment lexicon
-  exists; `chat.bsky` is centralized/off-record). Doubles as the negotiation + dispute
-  trail. Private 1:1 is deferred (link out to Bluesky DMs if ever needed).
-- **`org.buildguild.witness`** — `{ delivery: strongRef, commit: sha, treeHash: sha,
-  fetchedAt, by: did, mirror?: uri }`. A trusted third party fetches the referenced sha
-  and attests on-protocol that the content existed and matched at time T, optionally
-  serving the bytes (`mirror`). See §7 — this is how evidence survives the repo's later
-  deletion.
+  role: "patron"|"party", changes: { party?, reward?, amount?, currency?, terms?,
+  milestones?, deadline? }, reason?, createdAt }`. The append-only unit of change:
+  proposes a delta, takes effect only when the counterparty files an `acceptance` against
+  it (so amendment is as mutual as the original deal). Current terms = original offer +
+  ordered chain of accepted amendments; the diff between any two links is the paper trail.
+  Rejected/unaccepted amendments stay visible as proposed-but-not-agreed.
+- **`org.buildguild.delivery`** — `{ quest: strongRef, agreement?: strongRef,
+  milestone?: string, source: { repo?, commit: sha, treeHash?, ref?, path? }, note?,
+  evidence?: [{type,value,note}], createdAt }`. Party asserts delivery **anchored to a
+  specific git commit** — the primary, independently-testable proof (anyone can fetch the
+  sha and run it; no trust in the assertion). `evidence[]` stays for the non-git tail
+  (deploy link, design file). One delivery per milestone in the loop.
+- **`org.buildguild.message`** — `{ subject: strongRef (quest/offer/…), replyTo?:
+  strongRef, body, createdAt }`. A signed, public, threaded comment in the author's repo —
+  the Tangled `…issue.comment` pattern (no standard cross-record comment lexicon exists;
+  `chat.bsky` is centralized/off-record). Doubles as the negotiation + dispute trail.
+  Private 1:1 is deferred (link out to Bluesky DMs if ever needed).
+- **`org.buildguild.witness`** — `{ delivery: strongRef, commit: sha, treeHash?: sha,
+  mirror?: uri, fetchedAt, createdAt }`. A trusted third party fetches the referenced sha
+  and attests on-protocol that the content matched at time T, optionally serving the bytes
+  (`mirror`). See §7 — this is how evidence survives the repo's later deletion.
+- **`org.buildguild.settlement`** (extended) — gains optional `agreement` (→ acceptance),
+  `for` (→ the delivery this slice pays), and `of` (the reward total), so a payment is one
+  *slice* and a client sums slices to `fully-paid`.
 
-- **`org.buildguild.settlement`** (extended) — add `{ amount: string, of?: string
-  (reward total), for?: strongRef → delivery }`. P2P removed the CC/ACH minimums and
-  per-transaction friction that forced one lump sum, so a settlement now pays a
-  **slice**: deposits, milestone payouts, drips. The agreement holds the total; a
-  client sums settlements to compute `part-paid` → `fully-paid`. `for` ties a payment
-  to the delivery (commit) it settles, so the deliver→pay loop is auditable end to end.
-
-Quests already carry `terms`.
+Why progressive settlement is now possible: P2P removed the CC/ACH minimums and
+per-transaction friction that forced one lump sum, so a settlement can pay a **slice**
+(deposit, milestone payout, drip) and the agreement holds the total. The `quest` itself
+stays a thin advert — it does *not* carry binding terms; those live on the offer.
 
 ## 4. P2P ripple effects (the actual review)
 
