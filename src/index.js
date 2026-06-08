@@ -39,16 +39,10 @@ import {
   putAttestation,
   guildState,
   reputation,
-  fundEscrow,
-  confirmCheckout,
-  getEscrow,
-  markReleased,
-  releaseEscrowStripe,
-  startOnboarding,
-  connectStatus,
-  payoutsReady,
-  paymentsConfigured,
+  getQuestSettlement,
+  auditGraph,
 } from "./govstore.js";
+import { auditTrail } from "./audit.js";
 
 const SESSION_COOKIE = "bg_session";
 // Lexicon-method the browser binds its Service Auth token to when establishing a
@@ -111,7 +105,7 @@ async function route(request, env, url) {
   const method = request.method;
   const gid = Number(id);
 
-  if (resource === "health") return json({ ok: true, ts: Date.now(), payments: !!env.STRIPE_SECRET_KEY });
+  if (resource === "health") return json({ ok: true, ts: Date.now() });
 
   // Client OTLP trace uploads (tail-sampled: only sent on error / bug report).
   if (resource === "telemetry" && method === "POST") return ingestTelemetry(env, request);
@@ -263,12 +257,6 @@ async function route(request, env, url) {
         // Claim as your own builder, or as a guild you belong to.
         const me = await sessionBuilder(request, env);
         if (!me) return fail("log in and create your builder first", 401);
-        // Gate: claiming a quest with a funded bounty requires a payout method.
-        if (paymentsConfigured(env)) {
-          const held = await getEscrow(env, gid);
-          if (held && held.state === "funded" && !(await payoutsReady(env, me.did)))
-            return fail("connect a payout method to claim a paid quest", 402);
-        }
         const body = (await readJson(request)) || {};
         if (body.guild_id) {
           const guild = await getGuild(env, Number(body.guild_id));
@@ -288,67 +276,35 @@ async function route(request, env, url) {
         const body = (await readJson(request)) || {};
         return json(await setQuestStatus(env, gid, body.status));
       }
-      // ---- mock escrow (no real money; Stripe Connect is #18) ----
-      if (action === "escrow" && !sub && method === "GET") {
-        return json((await getEscrow(env, gid)) || { state: "none" });
+      // ---- peer-to-peer payment record (no custody) ----
+      // The patron pays the party directly off-platform and posts a co-signed
+      // SETTLEMENT (with evidence). We just verify + index it; the payee confirms
+      // receipt with a `pays.promptly` attestation. GET returns the record, if any.
+      if (action === "payment" && method === "GET") {
+        return json((await getQuestSettlement(env, gid)) || { paid: false });
       }
-      if (action === "escrow" && !sub && method === "POST") {
+      if (action === "payment" && method === "POST") {
         const session = await currentSession(request, env);
         if (!session) return fail("log in", 401);
         const quest = await getQuest(env, gid);
         if (!quest) return fail("quest not found", 404);
-        if (quest.patron_did !== session.did) return fail("only the patron can fund escrow", 403);
-        const fundBody = (await readJson(request)) || {};
-        const cents = Math.round(Number(fundBody.amount_cents));
-        if (!Number.isInteger(cents) || cents <= 0) return fail("amount_cents must be a positive integer");
-        const fundMethod = fundBody.method === "ach" ? "ach" : "card";
-        return json(await fundEscrow(env, gid, session.did, cents, url.origin, fundMethod));
-      }
-      // Confirm a returned Stripe Checkout session → record the authorized hold.
-      if (action === "escrow" && sub === "confirm" && method === "POST") {
-        const session = await currentSession(request, env);
-        if (!session) return fail("log in", 401);
-        const quest = await getQuest(env, gid);
-        if (!quest) return fail("quest not found", 404);
-        if (quest.patron_did !== session.did) return fail("only the patron can confirm payment", 403);
-        const sid = ((await readJson(request)) || {}).session;
-        if (!sid) return fail("session id required");
-        return json(await confirmCheckout(env, gid, sid, session.did));
-      }
-      // Release: ingest the patron-signed settlement (delivery anchor), free the hold.
-      if (action === "escrow" && sub === "release" && method === "POST") {
-        const session = await currentSession(request, env);
-        if (!session) return fail("log in", 401);
-        const quest = await getQuest(env, gid);
-        if (!quest) return fail("quest not found", 404);
-        if (quest.patron_did !== session.did) return fail("only the patron can release", 403);
+        if (quest.patron_did !== session.did) return fail("only the patron can record payment", 403);
         const rec = ((await readJson(request)) || {}).record;
         if (!rec || rec.kind !== "quest" || rec.author !== session.did)
           return fail("a patron-signed settlement is required");
-        // Live Stripe holds: capture + transfer to the party first; then record.
-        const held = await getEscrow(env, gid);
-        let payout = null;
-        if (held && held.provider === "stripe" && held.state === "funded") {
-          payout = await releaseEscrowStripe(env, gid, rec.body?.party || []);
-        }
-        const { ref } = await putClaim(env, session.did, rec); // verify signature + index the settlement
-        const escrow = await markReleased(env, gid, String(rec.body?.guild || ""), ref);
-        return json({ escrow, payout });
+        const { ref } = await putClaim(env, session.did, rec); // verify signature + index
+        return json({ paid: true, ref });
       }
     }
   }
 
-  // ---------- Stripe Connect onboarding (#18) ----------
-  if (resource === "connect") {
-    const session = await currentSession(request, env);
-    if (id === "status" && method === "GET") {
-      if (!session) return json({ connected: false, payouts_ready: false });
-      return json(await connectStatus(env, session.did));
-    }
-    if (id === "onboard" && method === "POST") {
-      if (!session) return fail("log in first", 401);
-      return json(await startOnboarding(env, session.did, url.origin));
-    }
+  // ---------- audit: the public signed-claim graph + reference fraud lens ----
+  // Independent auditors pull the verified records and re-check them themselves;
+  // `flags` is one reference reading (collusion rings, reciprocity, unevidenced
+  // payments), not a verdict — bring your own algorithm.
+  if (resource === "audit" && method === "GET") {
+    const graph = await auditGraph(env, url.searchParams.get("subject"));
+    return json({ ...graph, flags: auditTrail(graph.attestations, graph.events).flags });
   }
 
   // ---------- TEST-ONLY persona harness (gated; 404 in prod) ----------

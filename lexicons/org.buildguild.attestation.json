@@ -15,6 +15,20 @@
           "value": { "type": "string", "enum": ["yes", "no", "unknown"], "description": "Ternary. yes/no carry signal; unknown is an explicit, dignified abstention." },
           "context": { "type": "ref", "ref": "com.atproto.repo.strongRef", "description": "Optional strongRef to the anchor that grants standing: the settlement for a delivery rating, the quest for a split rating, the proposal for a vote." },
           "note": { "type": "string", "maxLength": 300, "description": "Optional free-text context." },
+          "evidence": {
+            "type": "array",
+            "maxLength": 16,
+            "description": "Optional supporting proof an independent auditor can check — e.g. a crypto txid (publicly verifiable), a payment-rail reference, a deliverable URL, or a content hash. The richer the evidence, the more an auditor can trust the claim; un-evidenced payment claims are flagged.",
+            "items": {
+              "type": "object",
+              "required": ["type", "value"],
+              "properties": {
+                "type": { "type": "string", "maxLength": 40, "description": "txid | payment_ref | url | sha256 | …" },
+                "value": { "type": "string", "maxLength": 512 },
+                "note": { "type": "string", "maxLength": 200 }
+              }
+            }
+          },
           "createdAt": { "type": "string", "format": "datetime" }
         }
       }

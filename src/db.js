@@ -553,10 +553,11 @@ export async function getQuest(env, id) {
 /** Post a quest as the verified patron (DID/handle from the session). */
 export async function createQuest(env, { patron_did, patron_handle }, body) {
   if (!body?.title?.trim()) throw new Error("quest title is required");
+  const terms = body.terms === "upfront" ? "upfront" : "on_delivery"; // when payment is due (P2P, negotiated)
   const res = await env.DB.prepare(
-    "INSERT INTO quests (patron_did, patron_handle, title, brief, reward) VALUES (?, ?, ?, ?, ?)"
+    "INSERT INTO quests (patron_did, patron_handle, title, brief, reward, terms) VALUES (?, ?, ?, ?, ?, ?)"
   )
-    .bind(patron_did, patron_handle || "", body.title.trim(), body.brief || "", body.reward || "")
+    .bind(patron_did, patron_handle || "", body.title.trim(), body.brief || "", body.reward || "", terms)
     .run();
   const questId = res.meta.last_row_id;
 

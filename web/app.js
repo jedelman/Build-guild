@@ -98,83 +98,6 @@ async function mountReputation(subject, type, heading = "Reputation") {
   }
 }
 
-// Stripe Connect payouts panel (on your own character sheet) — connect an account
-// so bounties can pay out. Live behavior validates on the preview.
-async function mountPayouts() {
-  const host = document.createElement("div");
-  host.innerHTML = `<h3>Payouts <span class="badge">Stripe test</span></h3><div class="payouts-mount muted">…</div>`;
-  drawerBody.appendChild(host);
-  const mount = host.querySelector(".payouts-mount");
-  let s;
-  try {
-    s = await cs.connectStatus();
-  } catch {
-    mount.textContent = "Payments aren't enabled yet.";
-    return;
-  }
-  if (s.payouts_ready) {
-    mount.innerHTML = `<span class="badge ok">${icon("check")} payouts enabled</span>`;
-    return;
-  }
-  mount.innerHTML = `<p class="hint tight">Connect a Stripe account to receive bounty payouts (test mode).</p>
-    <button class="btn" id="connect-go">${s.connected ? "Finish payout setup" : "Connect payouts"}</button>`;
-  host.querySelector("#connect-go").onclick = async () => {
-    try {
-      const { url } = await cs.connectOnboard();
-      window.location.href = url;
-    } catch (e) {
-      toast(e.message, true);
-    }
-  };
-}
-
-// ---- payout-method nudges (connect Stripe to get paid) --------------------
-let payoutReadyCache = null;
-async function payoutReady() {
-  if (payoutReadyCache !== null) return payoutReadyCache;
-  try {
-    payoutReadyCache = (await cs.connectStatus()).payouts_ready;
-  } catch {
-    payoutReadyCache = true; // unconfigured/error → don't nag
-  }
-  return payoutReadyCache;
-}
-async function startPayoutOnboarding() {
-  try {
-    const { url } = await cs.connectOnboard();
-    window.location.href = url;
-  } catch (e) {
-    toast(e.message, true);
-  }
-}
-// Login nudge: a dismissible banner when you have a sheet but no payout method.
-async function mountPayoutBanner() {
-  if (!state.auth.authenticated || !state.me) return;
-  if (localStorage.getItem("bg-payout-dismissed") === "1") return;
-  if (document.querySelector(".payout-banner") || (await payoutReady())) return;
-  const bar = document.createElement("div");
-  bar.className = "payout-banner";
-  bar.innerHTML = `<span>${icon("reward")} Connect a payout method so bounties can pay out to you.</span>
-    <span class="row gap-sm"><button class="btn gold" id="pb-connect">Connect payouts</button>
-    <button type="button" class="linklike" id="pb-dismiss">Later</button></span>`;
-  document.querySelector(".topbar")?.insertAdjacentElement("afterend", bar);
-  bar.querySelector("#pb-connect").onclick = startPayoutOnboarding;
-  bar.querySelector("#pb-dismiss").onclick = () => {
-    localStorage.setItem("bg-payout-dismissed", "1");
-    bar.remove();
-  };
-}
-// Prompt to connect payouts (used right after enlisting).
-async function maybePromptPayouts() {
-  if (!state.me || (await payoutReady())) return;
-  const ok = await confirmDialog({
-    title: "Get paid for quests?",
-    body: "Connect a payout method (Stripe) so bounties can pay out to you. You can also do this anytime from your character sheet.",
-    confirmLabel: "Connect payouts",
-    cancelLabel: "Later",
-  });
-  if (ok) startPayoutOnboarding();
-}
 
 // Gated test-persona switcher — only appears when the server has TEST_FIXTURES on
 // (staging/preview). Lets you "act as" a seeded persona to drive the multi-party
@@ -193,7 +116,7 @@ async function mountTestSwitcher() {
   el.innerHTML = `<span class="ts-tag">🧪 act as</span>
     <select class="ts-select" aria-label="Act as a test persona">
       <option value="">${esc(who)}</option>
-      ${status.personas.map((p) => `<option value="${esc(p.did)}">${esc(p.display_name)}${p.payouts_ready ? " · 💸" : ""}</option>`).join("")}
+      ${status.personas.map((p) => `<option value="${esc(p.did)}">${esc(p.display_name)}</option>`).join("")}
     </select>
     <button type="button" class="linklike" id="ts-seed" title="Seed personas + Stripe test accounts">seed</button>`;
   document.body.appendChild(el);
@@ -268,13 +191,13 @@ const contractsBy = (subjectType, rule) =>
 
 // Mock escrow panel for a quest (patron funds, then releases on delivery — the
 // release is the objective settlement that makes the quest reputation-bearing).
-async function mountEscrow(q) {
+// Peer-to-peer payment panel. No custody: the patron pays the party directly and
+// RECORDS a co-signed settlement (with evidence); the payee confirms receipt +
+// rates. Reputation + the audit lens do the rest.
+async function mountPayment(q) {
   if (!state.auth.authenticated) return;
   const isPatron = q.patron_did === state.auth.did;
   const payee = q.claimed_guild_id ? `guild:${q.claimed_guild_id}` : null;
-
-  // The claiming guild's party DIDs — written into the settlement (so split-fairness
-  // attestations have eligible attesters) and used to spot party-member viewers.
   let party = [];
   if (payee) {
     try {
@@ -285,87 +208,81 @@ async function mountEscrow(q) {
   const isParty = party.includes(state.auth.did);
 
   const host = document.createElement("div");
-  host.innerHTML = `<h3>Escrow <span class="badge">mock</span></h3><div class="escrow-mount muted">…</div>`;
+  const termsLabel = q.terms === "upfront" ? "pay upfront" : "pay on delivery";
+  host.innerHTML = `<h3>Payment <span class="badge">peer-to-peer</span></h3>
+    <p class="caption">${q.reward ? esc(q.reward) + " · " : ""}${termsLabel}. Pay each other directly via any rail, then record it here — the platform never holds funds.</p>
+    <div class="pay-mount muted">…</div>`;
   drawerBody.appendChild(host);
-  const mount = host.querySelector(".escrow-mount");
-  let e;
+  const mount = host.querySelector(".pay-mount");
+
+  let pay;
   try {
-    e = await cs.getEscrow(q.id);
+    pay = await cs.getPayment(q.id);
   } catch {
     mount.textContent = "—";
     return;
   }
-  if (!e || e.state === "none") {
-    if (isPatron) {
-      mount.innerHTML = `<div class="row gap-sm">
-          <input class="esc-amt" inputmode="decimal" placeholder="amount in $" style="max-width:7rem" />
-          <select class="esc-method">
-            <option value="card">Hold on card</option>
-            <option value="ach">Pay now · bank/ACH</option>
-          </select>
-          <button class="btn" id="esc-fund">Fund escrow</button></div>
-        <p class="hint tight">Card authorizes a hold (captured on delivery). Bank/ACH charges now — lower fee, settles in a few days — better for larger bounties.</p>`;
-      host.querySelector("#esc-fund").onclick = async () => {
-        const dollars = Number(host.querySelector(".esc-amt").value);
-        if (!dollars || dollars <= 0) return toast("Enter an amount.", true);
-        const method = host.querySelector(".esc-method").value;
+
+  if (!pay || !pay.paid) {
+    if (isPatron && payee) {
+      mount.innerHTML = `<button class="btn gold" id="pay-rec">Record a payment</button>
+        <p class="hint tight">Attests you paid the party off-platform. Add a txid/reference so independent auditors can verify it.</p>`;
+      host.querySelector("#pay-rec").onclick = async () => {
+        const v = await formDialog({
+          title: "Record a payment",
+          submitLabel: "Record",
+          fields: [
+            { name: "amount", label: "Amount ($)", placeholder: "500" },
+            { name: "rail", label: "Paid via", placeholder: "venmo / zelle / btc / cash" },
+            { name: "ref", label: "Reference / txid", hint: "Evidence an auditor can check (a Venmo note, on-chain txid…)." },
+          ],
+        });
+        if (!v) return;
+        const evidence = v.ref ? [{ type: /^(0x)?[0-9a-f]{16,}$/i.test(v.ref) ? "txid" : "payment_ref", value: v.ref }] : [];
         try {
-          const r = await cs.fundEscrow(q.id, Math.round(dollars * 100), method);
-          if (r && r.checkout_url) return void (window.location.href = r.checkout_url); // → Stripe authorize/charge
-          toast("Escrow funded (mock).");
+          const { settlementRef } = await cs.recordPayment(state.auth.did, q.id, payee, party, {
+            amount: Math.round(Number(v.amount) * 100) || 0,
+            rail: v.rail,
+            ref: v.ref,
+            evidence,
+          });
+          toast("Payment recorded.");
+          await attestDialog("Rate this guild's delivery", payee, contractsBy("guild", "patron_of_quest"), settlementRef);
           openQuest(q.id);
         } catch (err) {
           toast(err.message, true);
         }
       };
     } else {
-      mount.innerHTML = `<span class="muted">Not funded.</span>`;
+      mount.innerHTML = `<span class="muted">No payment recorded yet.</span>`;
     }
     return;
   }
-  mount.innerHTML = `<div class="mono">$${(e.amount_cents / 100).toFixed(2)} held · fee $${(e.fee_cents / 100).toFixed(2)} · net to party $${(e.net_cents / 100).toFixed(2)} · <b>${esc(e.state)}</b></div>`;
-  const ref = e.settlement_ref || null;
-  if (isPatron && e.state === "funded" && payee) {
-    const btn = document.createElement("button");
-    btn.className = "btn gold";
-    btn.style.marginTop = "var(--s2)";
-    btn.textContent = "Release on delivery";
-    btn.onclick = async () => {
-      try {
-        const { settlementRef, result } = await cs.releaseEscrow(state.auth.did, q.id, payee, party, e.payment_intent_id);
-        const p = result && result.payout;
-        toast(
-          p
-            ? `Paid out $${(p.distributableCents / 100).toFixed(2)} to ${p.transfers.length} member(s) (Stripe $${(p.stripeFeeCents / 100).toFixed(2)} + 1% fee).`
-            : "Released. Rate the delivery →"
-        );
-        await attestDialog("Rate this guild's delivery", payee, contractsBy("guild", "patron_of_quest"), settlementRef);
-        openQuest(q.id);
-      } catch (err) {
-        toast(err.message, true);
-      }
-    };
-    mount.appendChild(btn);
+
+  const s = pay.settlement || {};
+  const ref = pay.ref;
+  const amt = s.amount ? `$${(s.amount / 100).toFixed(2)}` : "";
+  const evCount = (s.evidence || []).length;
+  mount.innerHTML = `<div class="mono">${amt}${s.rail ? " via " + esc(s.rail) : ""} · <b>recorded</b> ·
+    ${evCount ? evCount + " evidence" : `<span class="rep-badge bad">no evidence</span>`}</div>`;
+  if (isPatron && payee) {
+    const b = document.createElement("button");
+    b.className = "btn ghost";
+    b.style.marginTop = "var(--s2)";
+    b.textContent = "Rate this guild";
+    b.onclick = () => attestDialog("Rate this guild's delivery", payee, contractsBy("guild", "patron_of_quest"), ref);
+    mount.appendChild(b);
   }
-  if (e.state === "released" && isPatron && payee) {
-    const btn = document.createElement("button");
-    btn.className = "btn ghost";
-    btn.style.marginTop = "var(--s2)";
-    btn.textContent = "Rate this guild";
-    btn.onclick = () => attestDialog("Rate this guild's delivery", payee, contractsBy("guild", "patron_of_quest"), ref);
-    mount.appendChild(btn);
-  }
-  // Party members rate the split (about the guild) + the client (about the patron).
-  if (e.state === "released" && isParty && ref && payee) {
-    const btn = document.createElement("button");
-    btn.className = "btn ghost";
-    btn.style.marginTop = "var(--s2)";
-    btn.textContent = "Rate the split & client";
-    btn.onclick = async () => {
+  if (isParty && ref && payee) {
+    const b = document.createElement("button");
+    b.className = "btn gold";
+    b.style.marginTop = "var(--s2)";
+    b.textContent = "Confirm received & rate";
+    b.onclick = async () => {
+      await attestDialog("Confirm payment + rate the client", q.patron_did, contractsBy("client", "party_of_quest"), ref);
       await attestDialog("Was the reward split fair?", payee, contractsBy("guild", "party_of_quest"), ref);
-      await attestDialog("Rate the client", q.patron_did, contractsBy("client", "party_of_quest"), ref);
     };
-    mount.appendChild(btn);
+    mount.appendChild(b);
   }
 }
 
@@ -1142,7 +1059,7 @@ async function openQuest(id) {
         : '<p class="muted">No parties cover these skills yet — recruit some builders!</p>'
     }`);
 
-  mountEscrow(q);
+  mountPayment(q);
   if (q.patron_did) mountReputation(q.patron_did, "client", "Client reputation");
 
   const claim = document.getElementById("claim-quest");
@@ -1155,17 +1072,7 @@ async function openQuest(id) {
         toast("Quest claimed!");
         openQuest(id);
       } catch (e) {
-        if (/payout/i.test(e.message)) {
-          const ok = await confirmDialog({
-            title: "Connect payouts to claim",
-            body: "This quest has a funded bounty, so you need a payout method before you can claim it.",
-            confirmLabel: "Connect payouts",
-            cancelLabel: "Cancel",
-          });
-          if (ok) startPayoutOnboarding();
-        } else {
-          toast(e.message, true);
-        }
+        toast(e.message, true);
       }
     });
   for (const [btnId, status] of [["q-delivered", "delivered"], ["q-closed", "closed"]]) {
@@ -1192,16 +1099,18 @@ async function postQuestPrompt() {
     description: "Describe the work and the reward. You'll be matched to parties by their peer-endorsed peaks.",
     submitLabel: "Post quest",
     fields: [
-      { name: "title", label: "Quest title", required: true, placeholder: "Ship a Stripe checkout flow" },
+      { name: "title", label: "Quest title", required: true, placeholder: "Ship a checkout flow" },
       { name: "brief", label: "Brief", type: "textarea", placeholder: "What needs doing?" },
-      { name: "reward", label: "Reward", placeholder: "$500, revenue share, kudos…", hint: "Free text for now — real escrow is coming." },
+      { name: "reward", label: "Reward", placeholder: "$500 · Venmo, revenue share, kudos…", hint: "Paid peer-to-peer; recorded here on completion." },
+      { name: "terms", label: "Payment terms", placeholder: "on delivery", hint: "Type 'upfront' to pay at claim; blank = on delivery." },
       { name: "skills", label: "Required skills", placeholder: "Rust, Design, Payments", hint: "Comma-separated." },
     ],
   });
   if (!v) return;
   const skills = v.skills.split(",").map((s) => ({ name: s.trim() })).filter((s) => s.name);
+  const terms = /upfront/i.test(v.terms || "") ? "upfront" : "on_delivery";
   try {
-    const q = await api("/quests", { method: "POST", body: { title: v.title, brief: v.brief, reward: v.reward, skills } });
+    const q = await api("/quests", { method: "POST", body: { title: v.title, brief: v.brief, reward: v.reward, terms, skills } });
     await refresh();
     invalidateView();
     toast("Quest posted!");
@@ -1495,7 +1404,6 @@ async function openBuilder(id) {
     }`);
 
   if (b.did) mountReputation(b.did, "builder");
-  if (mine) mountPayouts();
 
   // Endorse buttons (on other builders' skills). Re-open the drawer after, so
   // the count + toggle reflect the freshly indexed state.
@@ -1730,7 +1638,6 @@ function renderEnlist(existing) {
         <button type="button" class="btn ghost" id="add-repo">+ Link a repo</button>
       </div>
 
-      <p class="hint tight">${icon("reward")} After saving, you'll be offered a payout method so bounties can pay out to you (you can also connect it later from your character sheet).</p>
       <button class="btn gold" type="submit">${editing ? "Save changes" : "Join the Build Guild"}</button>
     </form>`;
 
@@ -1970,7 +1877,6 @@ function renderEnlist(existing) {
       renderAuthBar(); // status avatar now resolves to your builder
       invalidateView();
       go("#/roster");
-      if (!editing) maybePromptPayouts(); // new builders: offer to connect payouts
     } catch (err) {
       toast(err.message, true);
     } finally {
@@ -2016,29 +1922,6 @@ function showLoadingSkeleton() {
     // (which may be a shared deep link like #/quest/5).
     window.addEventListener("hashchange", applyRoute);
     applyRoute();
-    // Returning from Stripe Connect onboarding (?connect=done|refresh).
-    const params = new URLSearchParams(location.search);
-    if (params.get("connect")) {
-      toast("Payout setup updated — open your character sheet to check status.");
-      history.replaceState(null, "", location.pathname + location.hash);
-    }
-    // Returning from Stripe Checkout (?pay=done&quest=&session= | ?pay=cancel).
-    if (params.get("pay") === "done" && params.get("quest")) {
-      const qid = params.get("quest");
-      const sid = params.get("session");
-      history.replaceState(null, "", location.pathname);
-      try {
-        if (sid) await cs.confirmCheckout(Number(qid), sid);
-        toast("Payment authorized — funds held in escrow.");
-      } catch (e) {
-        toast("Couldn't confirm payment: " + e.message, true);
-      }
-      go(`#/quest/${qid}`);
-    } else if (params.get("pay") === "cancel") {
-      toast("Payment canceled.", true);
-      history.replaceState(null, "", location.pathname + location.hash);
-    }
-    mountPayoutBanner(); // nudge if signed in with a sheet but no payout method
     mountTestSwitcher(); // gated test-persona switcher (staging/preview only)
   } catch (e) {
     app.removeAttribute("aria-busy");

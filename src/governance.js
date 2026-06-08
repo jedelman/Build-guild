@@ -260,7 +260,7 @@ export function observe(subject, verifiedAttestations, contracts, context = {}, 
     if (subjectType && contract.subjectType && contract.subjectType !== "any" && contract.subjectType !== subjectType) continue;
     if (!["yes", "no", "unknown"].includes(a.value)) continue;
     if (!isEligible(a.attester, a, contract, context)) continue; // no standing → not an admissible fact
-    facts.push({ contract: a.contract, attester: a.attester, value: a.value, at: a.createdAt, context: a.context ?? null, ref: a._ref });
+    facts.push({ contract: a.contract, attester: a.attester, value: a.value, at: a.createdAt, context: a.context ?? null, evidence: a.evidence ?? null, ref: a._ref });
   }
   // deterministic order so every consumer sees the same stream
   return facts.sort((x, y) => (x.at === y.at ? (x.ref < y.ref ? -1 : 1) : x.at < y.at ? -1 : 1));

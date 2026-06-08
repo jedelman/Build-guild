@@ -1,59 +1,31 @@
 // Test-persona harness — a lightweight, GATED stand-in for real Bluesky accounts so
-// the whole multi-party flow (governance, attestations, payouts) can be driven solo
-// on staging/previews. Opaque did:test: identities (nothing resolves them); a Stripe
-// Custom test account per persona (transfers-ready instantly); an "act as" session.
+// the whole multi-party flow (governance, attestations, P2P payment records) can be
+// driven solo on staging/previews. Opaque did:test: identities; an "act as" session.
 //
-// HARD GATE: every route that uses this checks env.TEST_FIXTURES — set only on
-// staging/preview (see the wrangler template). Production omits it, so /api/test/*
-// 404s and none of this can ever touch real users.
+// HARD GATE: routes check env.TEST_FIXTURES — set only on staging/preview (see the
+// wrangler template). Production omits it, so /api/test/* 404s.
 import { createSession } from "./db.js";
-import { createCustomConnectAccount, retrieveAccount, stripeConfigured } from "./stripe.js";
 
 export const testEnabled = (env) => env.TEST_FIXTURES === "1" || env.TEST_FIXTURES === 1;
 
 export const PERSONAS = [
-  // Quill is a standalone PATRON (not in the Test Guild, so never a payee) — act as
-  // Quill to post + fund quests, then as Ada/Bjorn (the party) to claim + get paid.
+  // Quill is a standalone PATRON (not in the Test Guild) — act as Quill to post,
+  // pay, and rate; act as Ada/Bjorn (the party) to claim, deliver, and get paid.
   { did: "did:test:quill", handle: "quill.test", display_name: "Quill (patron)", klass: "Patron", role: "patron" },
   { did: "did:test:ada", handle: "ada.test", display_name: "Ada (test)", klass: "Architect" },
   { did: "did:test:bjorn", handle: "bjorn.test", display_name: "Bjorn (test)", klass: "Artificer" },
 ];
 
-// Seed each persona: a builder row + a payouts-ready Stripe Custom test account,
-// and a shared "Test Guild" they all belong to (so it can claim quests as a party).
-// Idempotent.
+// Seed each persona as a builder + a shared "Test Guild" (the party). Idempotent.
+// No payout setup needed — payment is peer-to-peer.
 export async function seedPersonas(env) {
-  const out = [];
   for (const p of PERSONAS) {
     await env.DB.prepare("INSERT OR IGNORE INTO builders (handle, did, display_name, klass) VALUES (?, ?, ?, ?)")
       .bind(p.handle, p.did, p.display_name, p.klass)
       .run();
-
-    let stripeStatus = "no-stripe";
-    if (p.role === "patron") {
-      stripeStatus = "patron (no payout needed)"; // patrons pay, they don't receive
-    } else if (stripeConfigured(env)) {
-      const existing = await env.DB.prepare("SELECT account_id FROM connect_accounts WHERE did = ?").bind(p.did).first();
-      if (existing) {
-        stripeStatus = "exists";
-      } else {
-        try {
-          const acct = await createCustomConnectAccount(env, p);
-          const full = await retrieveAccount(env, acct.id);
-          const ready = !!(full.payouts_enabled || full.capabilities?.transfers === "active");
-          await env.DB.prepare("INSERT OR REPLACE INTO connect_accounts (did, account_id, charges_enabled, payouts_enabled, details_submitted) VALUES (?, ?, ?, ?, ?)")
-            .bind(p.did, acct.id, full.charges_enabled ? 1 : 0, ready ? 1 : 0, full.details_submitted ? 1 : 0)
-            .run();
-          stripeStatus = ready ? "payouts-ready" : "pending";
-        } catch (e) {
-          stripeStatus = "stripe-error: " + e.message;
-        }
-      }
-    }
-    out.push({ ...p, stripe: stripeStatus });
   }
   await seedTestGuild(env);
-  return out;
+  return listPersonas(env);
 }
 
 async function seedTestGuild(env) {
@@ -74,8 +46,7 @@ export async function listPersonas(env) {
   const out = [];
   for (const p of PERSONAS) {
     const b = await env.DB.prepare("SELECT id FROM builders WHERE did = ?").bind(p.did).first();
-    const c = await env.DB.prepare("SELECT payouts_enabled FROM connect_accounts WHERE did = ?").bind(p.did).first();
-    out.push({ ...p, seeded: !!b, payouts_ready: !!(c && c.payouts_enabled) });
+    out.push({ ...p, seeded: !!b });
   }
   return out;
 }

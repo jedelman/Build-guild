@@ -111,8 +111,16 @@ export const guildState = (guildId) => api(`/guilds/${guildId}/state`);
 // ---- reputation ------------------------------------------------------------
 export const reputation = (subject, type) =>
   api(`/gov/reputation?subject=${encodeURIComponent(subject)}&type=${type}`);
-export async function attest(did, subject, contract, value, questRef) {
-  const record = await signed({ type: "org.buildguild.attestation", attester: did, subject, contract, value, context: questRef ? { quest: questRef } : null });
+export async function attest(did, subject, contract, value, questRef, evidence) {
+  const record = await signed({
+    type: "org.buildguild.attestation",
+    attester: did,
+    subject,
+    contract,
+    value,
+    context: questRef ? { quest: questRef } : null,
+    evidence: evidence && evidence.length ? evidence : undefined,
+  });
   await api("/gov/attestations", { method: "POST", body: { record } });
   return record;
 }
@@ -122,19 +130,17 @@ export const testStatus = () => api("/test/status");
 export const testSeed = () => api("/test/seed", { method: "POST", body: {} });
 export const actAs = (did) => api("/test/act-as", { method: "POST", body: { did } });
 
-// ---- Stripe Connect (payouts onboarding) -----------------------------------
-export const connectStatus = () => api("/connect/status");
-export const connectOnboard = () => api("/connect/onboard", { method: "POST", body: {} });
-
-// ---- mock escrow -----------------------------------------------------------
-export const getEscrow = (questId) => api(`/quests/${questId}/escrow`);
-export const fundEscrow = (questId, cents, method = "card") =>
-  api(`/quests/${questId}/escrow`, { method: "POST", body: { amount_cents: cents, method } });
-export const confirmCheckout = (questId, session) => api(`/quests/${questId}/escrow/confirm`, { method: "POST", body: { session } });
-// Release = the patron signs the settlement (delivery anchor) and posts it; the
-// server captures + transfers (Stripe) and returns { escrow, payout }.
-export async function releaseEscrow(did, questId, payee, party = [], paymentRef = "") {
-  const record = await signed({ type: "org.buildguild.event", kind: "quest", author: did, body: { quest: questId, guild: payee, party, paymentRef } });
-  const result = await api(`/quests/${questId}/escrow/release`, { method: "POST", body: { record } });
-  return { result, settlementRef: await recordRef(record), payee };
+// ---- peer-to-peer payment (no custody) -------------------------------------
+// The patron records that they paid the party directly (off-platform), signing a
+// settlement with the rail + reference + optional evidence. Returns the settlement
+// ref so attestations can point at it.
+export const getPayment = (questId) => api(`/quests/${questId}/payment`);
+export async function recordPayment(did, questId, payee, party, { amount, currency = "usd", rail, ref, evidence } = {}) {
+  const body = { quest: questId, guild: payee, party, amount, currency, rail, paymentRef: ref || "", evidence: evidence || [] };
+  const record = await signed({ type: "org.buildguild.event", kind: "quest", author: did, body });
+  await api(`/quests/${questId}/payment`, { method: "POST", body: { record } });
+  return { settlementRef: await recordRef(record) };
 }
+
+// ---- audit (public signed-claim graph + reference fraud flags) --------------
+export const audit = (subject) => api("/audit" + (subject ? `?subject=${encodeURIComponent(subject)}` : ""));
