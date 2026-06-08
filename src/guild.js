@@ -48,7 +48,7 @@ export function deriveGuild(charter, records, { now = Date.now() } = {}) {
   const revoked = (d) => revocations.some((r) =>
     active(r, now) &&
     (r.target === d._ref || (r.grantee === d.grantee && r.capability === d.capability && (r.scope == null || r.scope === d.scope))) &&
-    (r.author === d.author || canAdmit(r.author))); // grantor, or anyone who could have granted it
+    (r.author === d.author || r.author === d.grantee || canAdmit(r.author))); // grantor, the member themselves (leaving), or anyone who could have granted it
 
   // Fixpoint: add members admitted by an authorized, accepted, un-revoked delegated grant
   // (or an open self-join). Iterate because a delegated-admitted member who ALSO holds an
@@ -102,5 +102,7 @@ export function guildGraphFromRecords(records, { now = Date.now() } = {}) {
       staleVotes: g.staleVotes,
     };
   }
-  return { charter: charter ? { version: charter.version, prose: charter.prose } : null, collective, graph, records };
+  // `rules` is exposed so the browser can compute join/recruit affordances (openJoin,
+  // whether members may admit directly) without re-deriving the charter itself.
+  return { charter: charter ? { version: charter.version, prose: charter.prose, rules: charter.rules } : null, collective, graph, records };
 }

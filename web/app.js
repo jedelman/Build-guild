@@ -7,6 +7,7 @@ import { reconcileSkillKeys } from "../src/skills.js";
 import * as cs from "./claimstead.js";
 import { CONTRACTS } from "../src/contracts.js";
 import { DEFAULT_RULES } from "../src/charter.js";
+import { admitPath } from "../src/membership.js";
 // Telemetry must never be able to break the app.
 try {
   initTelemetry();
@@ -287,6 +288,41 @@ async function mountPayment(q, into = drawerBody) {
   }
 }
 
+const clampPct = (s, fallback) => { const n = Math.round(Number(s)); return Number.isFinite(n) && n >= 1 && n <= 100 ? n : fallback; };
+
+// Guided charter builder. Returns { prose, rules } (or null if cancelled). The adopter is
+// the genesis cohort; everything here is amendable later by an `amend` vote.
+async function charterBuilderDialog() {
+  const me = [state.auth.did];
+  const d = DEFAULT_RULES(me);
+  const v = await formDialog({
+    title: "Compose this guild's charter",
+    description: "Found a constitution. You're the genesis cohort — all of this is amendable later by vote.",
+    submitLabel: "Adopt charter",
+    fields: [
+      { name: "prose", label: "Mission", type: "textarea", value: "We chart together and split fairly." },
+      { name: "openJoin", label: "Who can join?", type: "select", value: "open", options: [
+        { value: "open", label: "Anyone — open commons" },
+        { value: "closed", label: "Invite or vote only" }] },
+      { name: "admitMode", label: "Admitting members", type: "select", value: "member", options: [
+        { value: "member", label: "Any member can invite directly" },
+        { value: "vote", label: "Admission needs a vote" }] },
+      { name: "admit", label: "Admit-vote threshold (%)", type: "number", value: d.vote.admit.threshold, hint: "Applies when admission goes to a vote." },
+      { name: "amend", label: "Amend-charter threshold (%)", type: "number", value: d.vote.amend.threshold },
+    ],
+  });
+  if (!v) return null;
+  const rules = DEFAULT_RULES(me);
+  rules.membership = { ...rules.membership, openJoin: v.openJoin !== "closed" };
+  rules.roles = { member: { can: v.admitMode === "vote" ? ["propose", "vote"] : ["propose", "vote", "admit"] } };
+  rules.vote = {
+    ...rules.vote,
+    admit: { ...rules.vote.admit, threshold: clampPct(v.admit, d.vote.admit.threshold) },
+    amend: { ...rules.vote.amend, threshold: clampPct(v.amend, d.vote.amend.threshold) },
+  };
+  return { prose: (v.prose || "").trim() || "We chart together and split fairly.", rules };
+}
+
 // Compact governance panel: derived state from signed claims, adopt-charter,
 // propose, and vote — all signed client-side, verified + indexed server-side.
 // The Governance tab of a guild page. Derived state from signed claims; everyone sees the
@@ -302,19 +338,15 @@ async function renderGovernancePanel(mount, guildId, pre) {
   const refreshGov = () => renderGuildPage(guildId, "governance");
 
   if (!s.charter) {
-    mount.innerHTML = `<p class="hint">No charter yet — adopt one to enable proposals + votes.
+    mount.innerHTML = `<p class="hint">No charter yet — adopt one to enable proposals + votes. Until then this guild runs on the open-commons default (anyone may join).
       <a class="inline-link" href="${GOV_GUIDE}" target="_blank" rel="noopener">How governance works ↗</a></p>
-      ${authed ? '<button class="btn gold" id="gov-adopt">Adopt default charter</button>' : '<p class="muted">Log in with Bluesky to adopt a charter.</p>'}`;
+      ${authed ? '<button class="btn gold" id="gov-adopt">Compose a charter</button>' : '<p class="muted">Log in with Bluesky to adopt a charter.</p>'}`;
     const adopt = mount.querySelector("#gov-adopt");
     if (adopt) adopt.onclick = async () => {
-      const ok = await confirmDialog({
-        title: "Adopt the default charter?",
-        body: "You become the genesis cohort. Vote bars: admit 50% · grant mandate 60% · recall 34% · amend 75%. Nothing is locked in — the charter can be amended later by vote.",
-        confirmLabel: "Adopt charter",
-      });
-      if (!ok) return;
+      const draft = await charterBuilderDialog();
+      if (!draft) return;
       try {
-        await cs.adoptCharter(state.auth.did, guildId, "We chart together and split fairly.", DEFAULT_RULES([state.auth.did]));
+        await cs.adoptCharter(state.auth.did, guildId, draft.prose, draft.rules);
         toast("Charter adopted.");
         refreshGov();
       } catch (err) { toast(err.message, true); }
@@ -469,7 +501,9 @@ function formDialog({ title, description = "", fields, submitLabel = "Save", can
       const ctrl =
         f.type === "textarea"
           ? `<textarea name="${esc(f.name)}" rows="${f.rows || 3}" placeholder="${esc(f.placeholder || "")}"${f.required ? " required" : ""}>${esc(f.value || "")}</textarea>`
-          : `<input name="${esc(f.name)}" type="text" placeholder="${esc(f.placeholder || "")}" value="${esc(f.value || "")}"${f.required ? " required" : ""} autocomplete="off" />`;
+          : f.type === "select"
+            ? `<select name="${esc(f.name)}"${f.required ? " required" : ""}>${(f.options || []).map((o) => `<option value="${esc(o.value)}"${String(o.value) === String(f.value ?? "") ? " selected" : ""}>${esc(o.label)}</option>`).join("")}</select>`
+            : `<input name="${esc(f.name)}" type="${f.type === "number" ? "number" : "text"}"${f.type === "number" ? ` min="${f.min ?? 0}" max="${f.max ?? 100}"` : ""} placeholder="${esc(f.placeholder || "")}" value="${esc(f.value ?? "")}"${f.required ? " required" : ""} autocomplete="off" />`;
       return `<label class="modal-field"><span>${esc(f.label)}${f.required ? ' <em class="req" aria-hidden="true">*</em>' : ""}</span>
         ${ctrl}${f.hint ? `<small class="hint">${esc(f.hint)}</small>` : ""}</label>`;
     })
@@ -1507,69 +1541,111 @@ async function renderGuildPage(id, tab = "overview") {
     </article>`;
   const panel = document.getElementById("guild-tab");
   if (tab === "governance") return renderGovernancePanel(panel, id, graph);
-  if (tab === "party") return renderGuildParty(panel, g, recruits, id, inGuild);
-  return renderGuildOverview(panel, g, id, inGuild, meId);
+  if (tab === "party") return renderGuildParty(panel, g, recruits, id, inGuild, graph);
+  return renderGuildOverview(panel, g, id, inGuild, meId, graph);
 }
 
-function renderGuildOverview(panel, g, id, inGuild, meId) {
+// Membership affordances: the projected roster (g.members = authoritative) for who's in,
+// + the signed-claim graph (charter rules, mandates, pending invites) for what you may do.
+function guildMembership(g, graph, id) {
+  const rules = (graph && graph.charter && graph.charter.rules) || DEFAULT_RULES([]);
+  const memberDids = new Set(g.members.map((m) => m.did).filter(Boolean));
+  const mandates = graph?.collective?.mandates || [];
+  const charter = { guild: String(id), rules };
+  const derived = {
+    isMember: (d) => memberDids.has(d),
+    holdsCapability: (d, cap) =>
+      mandates.some((m) => m.grantee === d && m.capability === cap) || (cap === "role:member" && memberDids.has(d)),
+  };
+  return { rules, charter, derived, head: graph?.collective?.head };
+}
+
+// The ref of an unaccepted, un-revoked role:member invite addressed to `myDid`.
+function pendingInviteRef(graph, myDid) {
+  const recs = graph?.records || [];
+  const accepted = new Set(recs.filter((r) => r.type === "org.buildguild.acceptance" && r.author === myDid).map((r) => r.subject));
+  const revoked = new Set(recs.filter((r) => r.type === "org.buildguild.revocation").map((r) => r.target).filter(Boolean));
+  const grant = recs.find((r) => r.type === "org.buildguild.designation" && r.capability === "role:member" &&
+    r.grantee === myDid && r.author !== myDid && !accepted.has(r._ref) && !revoked.has(r._ref));
+  return grant?._ref || null;
+}
+
+function renderGuildOverview(panel, g, id, inGuild, meId, graph) {
+  const myDid = state.auth.did;
+  const { rules } = guildMembership(g, graph, id);
+  const openJoin = rules?.membership?.openJoin !== false; // open unless the charter says otherwise
+  const myRole = (g.members.find((m) => m.id === meId) || {}).role;
+  const inviteRef = !inGuild && myDid ? pendingInviteRef(graph, myDid) : null;
+
+  let actionHTML = "";
+  if (!state.auth.authenticated) actionHTML = `<button class="btn gold" id="login-to-join">Log in with Bluesky to join</button>`;
+  else if (!meId) actionHTML = `<span class="muted">Enlist (create your builder) to join.</span>`;
+  else if (inGuild) actionHTML = myRole === "founder"
+    ? `<span class="muted">You're a founding member of this guild.</span>`
+    : `<button class="btn ghost" id="m-leave">Leave guild</button>`;
+  else if (inviteRef) actionHTML = `<button class="btn gold" id="m-accept">Accept invitation</button> <span class="hint">You've been invited to this guild.</span>`;
+  else if (openJoin) actionHTML = `<button class="btn gold" id="m-join">Join this guild</button>`;
+  else actionHTML = `<span class="muted">This guild is invite-only — ask a member to invite you.</span>`;
+
   panel.innerHTML = `
     ${g.charter ? `<p class="tagline">${esc(g.charter)}</p>` : ""}
     <h3>Guild Power</h3>
     <div class="power"><div class="meter"><span style="width:${Math.min(100, g.diversity)}%"></span></div><span class="val">${g.diversity}</span></div>
     <p class="caption">Rewards complementary, peer-endorsed peaks across the party; redundant overlap drags it down.</p>
-    <div class="row my-3">
-      ${
-        state.auth.authenticated && meId
-          ? `<button class="btn ${inGuild ? "ghost" : "gold"}" id="join-toggle">${inGuild ? "Leave guild" : "Join this guild"}</button>`
-          : state.auth.authenticated
-            ? `<span class="muted">Enlist (create your builder) to join.</span>`
-            : `<button class="btn gold" id="login-to-join">Log in with Bluesky to join</button>`
-      }
-    </div>
+    <div class="row my-3">${actionHTML}</div>
     <div id="guild-rep"></div>`;
+
   const loginToJoin = panel.querySelector("#login-to-join");
   if (loginToJoin) loginToJoin.addEventListener("click", startLogin);
-  const toggle = panel.querySelector("#join-toggle");
-  if (toggle)
-    toggle.addEventListener("click", async () => {
-      const action = inGuild ? "leave" : "join";
-      try {
-        await api(`/guilds/${id}/${action}`, { method: "POST", body: {} });
-        await refresh();
-        invalidateView();
-        toast(inGuild ? "Left the guild" : "Joined the guild!");
-        renderGuildPage(id, "overview");
-      } catch (e) {
-        toast(e.message, true);
-      }
-    });
+
+  const member = async (fn, msg) => {
+    try { await fn(); await refresh(); invalidateView(); toast(msg); renderGuildPage(id, "overview"); }
+    catch (e) { toast(e.message, true); }
+  };
+  const join = panel.querySelector("#m-join"); if (join) join.onclick = () => member(() => cs.joinGuild(myDid, id), "Joined the guild!");
+  const leave = panel.querySelector("#m-leave"); if (leave) leave.onclick = () => member(() => cs.leaveGuild(myDid, id), "Left the guild.");
+  const accept = panel.querySelector("#m-accept"); if (accept) accept.onclick = () => member(() => cs.acceptGrant(myDid, id, inviteRef), "Welcome — you've joined!");
+
   mountReputation(`guild:${id}`, "guild", "Reputation", panel.querySelector("#guild-rep"));
 }
 
-function renderGuildParty(panel, g, recruits, id, inGuild) {
+function renderGuildParty(panel, g, recruits, id, inGuild, graph) {
   const championOf = Object.fromEntries(g.champions.map((c) => [c.display_name, c.champions]));
+  const myDid = state.auth.did;
+  const m = guildMembership(g, graph, id);
+  // "Recruit follows the charter": invite directly if you may admit, else open an admit vote.
+  const recruitBtn = (r) => {
+    if (!inGuild || !state.auth.authenticated) return "";
+    const did = r.builder.did;
+    if (!did) return `<span class="hint">Unverified — can't invite yet</span>`;
+    const path = admitPath(m.charter, m.derived, myDid, did);
+    const attrs = `data-did="${esc(did)}" data-name="${esc(r.builder.display_name)}" data-path="${path}"`;
+    if (path === "grant") return `<button class="btn ghost recruit" ${attrs}>Invite</button>`;
+    if (path === "propose") return `<button class="btn ghost recruit" ${attrs}>Propose admit</button>`;
+    return "";
+  };
   panel.innerHTML = `
     <h3>Party</h3>
     ${g.members
-      .map((m) => {
-        const champs = championOf[m.display_name] || [];
+      .map((mem) => {
+        const champs = championOf[mem.display_name] || [];
         return `<div class="subform"><div class="row between">
-          ${entityLink("builder", m.id, m.display_name, "strong-link")}<span class="badge role">${esc(m.role)}</span></div>
-          <div class="klass">${esc(m.klass)}</div>
+          ${entityLink("builder", mem.id, mem.display_name, "strong-link")}<span class="badge role">${esc(mem.role)}</span></div>
+          <div class="klass">${esc(mem.klass)}</div>
           ${champs.length ? `<div class="hint">Carries: ${champs.map(esc).join(", ")}</div>` : `<div class="hint">Supporting — no top peak yet</div>`}</div>`;
       })
       .join("")}
     <h3>Combined skill-map</h3>
     ${g.skill_map.map((s) => skillBar({ name: `${s.name} · ${s.champion}`, peak: s.peak })).join("") || '<p class="muted">No skills yet.</p>'}
     <h3>Recommended recruits</h3>
-    <p class="caption">Builders who'd fill the party's current gaps. Guild members can recruit them.</p>
+    <p class="caption">Builders who'd fill the party's current gaps. Inviting them sends a request they co-sign to join.</p>
     ${
       recruits.length
         ? recruits
             .map(
               (r) => `<div class="subform"><div class="row between">
         ${entityLink("builder", r.builder.id, r.builder.display_name, "strong-link")}
-        ${inGuild ? `<button class="btn ghost recruit" data-id="${r.builder.id}">Recruit</button>` : ""}</div>
+        ${recruitBtn(r)}</div>
         <div class="hint">Fills: ${r.fills.map(esc).join(", ")}</div></div>`
             )
             .join("")
@@ -1578,11 +1654,12 @@ function renderGuildParty(panel, g, recruits, id, inGuild) {
   wireEntityLinks(panel);
   panel.querySelectorAll(".recruit").forEach((btn) =>
     btn.addEventListener("click", async () => {
+      const { did, name, path } = btn.dataset;
       try {
-        await api(`/guilds/${id}/join`, { method: "POST", body: { builder_id: Number(btn.dataset.id) } });
+        if (path === "grant") { await cs.designate(myDid, id, did); toast(`Invited ${name} — they'll co-sign to join.`); }
+        else { await cs.proposeAdmit(myDid, id, did, name, m.head); toast("Admission proposed — the guild votes."); }
         await refresh();
         invalidateView();
-        toast("Recruit added to the party!");
         renderGuildPage(id, "party");
       } catch (e) {
         toast(e.message, true);
@@ -1932,6 +2009,14 @@ document.addEventListener("submit", async (e) => {
   e.preventDefault();
   const handle = form.querySelector(".login-handle")?.value.trim();
   if (!handle) return;
+  // Test personas are did:test:* — they can't go through real atproto OAuth (that throws
+  // "unsupported DID method"). Typing a persona handle here acts as them, like the switcher.
+  const persona = await matchTestPersona(handle);
+  if (persona) {
+    try { await cs.actAs(persona.did); window.location.href = "/"; }
+    catch (err) { toast(err.message, true); }
+    return;
+  }
   if (!oauthClient) return toast("Login isn't ready yet — one moment.", true);
   try {
     await oauthClient.signIn(handle); // redirects to the user's PDS; never returns
@@ -1939,6 +2024,17 @@ document.addEventListener("submit", async (e) => {
     toast("Login failed: " + (err?.message || err), true);
   }
 });
+
+// Match a typed handle to a seeded test persona (only when the harness is enabled; in prod
+// /test/status 404s and this returns null, so real OAuth runs as normal).
+async function matchTestPersona(input) {
+  let status;
+  try { status = await cs.testStatus(); } catch { return null; }
+  if (!status?.enabled) return null;
+  const norm = (s) => String(s || "").trim().toLowerCase().replace(/^@/, "");
+  const q = norm(input), base = q.replace(/\.test$/, "");
+  return (status.personas || []).find((p) => { const h = norm(p.handle); return h === q || h.replace(/\.test$/, "") === base; }) || null;
+}
 
 // Skeleton placeholder shown while the first data load is in flight, so the
 // initial paint has structure instead of a blank page.

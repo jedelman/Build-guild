@@ -9,8 +9,6 @@ import {
   listGuilds,
   getGuild,
   createGuild,
-  joinGuild,
-  leaveGuild,
   suggestSkills,
   syncBuilderSkills,
   syncBuilderRepos,
@@ -225,15 +223,10 @@ async function route(request, env, url) {
       if (method === "GET" && action === "graph") {
         return json(await guildGraph(env, gid));
       }
-      if (method === "POST" && (action === "join" || action === "leave")) {
-        // You can only join/leave as your own builder.
-        const me = await sessionBuilder(request, env);
-        if (!me) return fail("log in and create your builder first", 401);
-        if (action === "join") await joinGuild(env, gid, me.id);
-        else await leaveGuild(env, gid, me.id);
-        const guild = await getGuild(env, gid);
-        return guild ? json(guild) : fail("guild not found", 404);
-      }
+      // Joining/leaving/recruiting is no longer a unilateral REST write — membership is the
+      // derived set from signed claims (a self role:member grant to join, an invite the
+      // recruit co-signs, a self-revocation to leave; see web/claimstead.js + govstore
+      // reprojectGuildMembers). The old POST join/leave path bypassed consent and is gone.
     }
   }
 

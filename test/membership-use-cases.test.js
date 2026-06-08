@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { generateKeypair, signRecord, verifyRecords } from "../src/governance.js";
 import { deriveGuild } from "../src/guild.js";
 import { DEFAULT_RULES, defaultCharter } from "../src/charter.js";
-import { admitPath } from "../src/membership.js";
+import { admitPath, projectMembership } from "../src/membership.js";
 
 const GUILD = "did:guild:uc";
 const keyring = new Map(), secrets = new Map();
@@ -17,7 +17,14 @@ async function actor(did) {
 const resolveKey = (did) => keyring.get(did) || null;
 const vr = async (did, rec) => (await verifyRecords([await signRecord({ ...rec, author: did }, secrets.get(did))], resolveKey))[0];
 
-const closed = (genesis, patch = {}) => { const r = DEFAULT_RULES(genesis); r.membership = { ...r.membership, openJoin: false, ...patch }; return r; };
+// A curated guild: invite/vote-only (openJoin off) AND members can't admit directly, so
+// admission goes to a vote — the opposite of the open commons default.
+const closed = (genesis, patch = {}) => {
+  const r = DEFAULT_RULES(genesis);
+  r.membership = { ...r.membership, openJoin: false, ...patch };
+  r.roles = { member: { can: ["propose", "vote"] } };
+  return r;
+};
 const charter = (genesis, rules) => vr(genesis[0], {
   type: "org.buildguild.charter", guild: GUILD, version: 1, prose: "uc",
   rules: rules || DEFAULT_RULES(genesis), createdAt: "2026-06-01T00:00:00Z",
@@ -82,6 +89,27 @@ test("UC2: vote charter — a bare member can't grant directly; admission goes t
   assert.equal(deriveGuild(ch, recs).isMember(N), true, "a passed admit vote admits N");
 });
 
+test("UC2: default OPEN guild — a member invites directly (admitPath 'grant'); recruit co-signs", async () => {
+  const A = await actor("uc:A9"), M = await actor("uc:M9"), N = await actor("uc:N9");
+  const ch = await charter([A]); // DEFAULT_RULES → members can admit
+  const recs = [await designate(M, M)]; // M self-joins
+  assert.equal(admitPath(ch, deriveGuild(ch, recs), M, N), "grant", "a member invites directly under the open default");
+  const gN = await designate(M, N);
+  recs.push(gN, await accept(N, gN._ref));
+  assert.equal(deriveGuild(ch, recs).isMember(N), true, "N joins by co-signing M's invite");
+});
+
+test("UC1: a recruited member can LEAVE (self-revoke) though someone else admitted them", async () => {
+  const A = await actor("uc:A10"), N = await actor("uc:N10");
+  const rules = closed([A]); rules.roles = { member: { can: ["propose", "vote", "admit"] } };
+  const ch = await charter([A], rules);
+  const gN = await designate(A, N);
+  const recs = [gN, await accept(N, gN._ref)];
+  assert.equal(deriveGuild(ch, recs).isMember(N), true);
+  recs.push(await revoke(N, gN._ref)); // N revokes their OWN membership (grant authored by A)
+  assert.equal(deriveGuild(ch, recs).isMember(N), false, "anyone may leave by revoking their own membership");
+});
+
 test("UC2: a non-member cannot recruit", async () => {
   const A = await actor("uc:A6"), X = await actor("uc:X6"), N = await actor("uc:N6");
   const ch = await charter([A], closed([A]));
@@ -116,4 +144,33 @@ test("UC3: defaultCharter() is an open-join, version-0 (synthesized) charter", (
   assert.equal(c.guild, "g1");
   assert.equal(c.version, 0, "0 marks a synthesized default (no signed charter adopted)");
   assert.deepEqual(c.rules.genesis, ["did:x"]);
+});
+
+// ---- projection: what reprojectGuildMembers persists (pure half) -----------
+
+test("projection: founders are members even with no charter or claims", () => {
+  const A = "did:p:A", B = "did:p:B";
+  const { members, roles } = projectMembership(GUILD, [A, B], []);
+  assert.deepEqual(members, [A, B].sort());
+  assert.equal(roles.get(A), "founder");
+  assert.equal(roles.get(B), "founder");
+});
+
+test("projection: a self-join is role 'member'; founders stay 'founder'; leaving drops the member", async () => {
+  const A = await actor("pj:A"), N = await actor("pj:N");
+  const self = await designate(N, N); // open synthesized default → self-join admits
+  let p = projectMembership(GUILD, [A], [self]);
+  assert.deepEqual(p.members, [A, N].sort());
+  assert.equal(p.roles.get(A), "founder");
+  assert.equal(p.roles.get(N), "member");
+
+  p = projectMembership(GUILD, [A], [self, await revoke(N, self._ref)]);
+  assert.deepEqual(p.members, [A], "self-revoke leaves; founder remains");
+});
+
+test("projection: an adopted charter in the records governs (closed → self-join ignored)", async () => {
+  const A = await actor("pj:A2"), N = await actor("pj:N2");
+  const ch = await charter([A], closed([A]));
+  const p = projectMembership(GUILD, [A], [ch, await designate(N, N)]);
+  assert.deepEqual(p.members, [A], "closed adopted charter ⇒ a self-join doesn't admit");
 });

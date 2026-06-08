@@ -24,7 +24,9 @@ export const VOTE_ACTIONS = ["admit", "remove", "grant_mandate", "recall", "amen
 export const DEFAULT_RULES = (genesis = []) => ({
   genesis,
   vote: { ...DEFAULT_VOTE_BARS },
-  roles: { member: { can: ["propose", "vote"] } },
+  // Open commons by default: members may propose, vote, AND invite (admit directly — the
+  // invitee still co-signs). A curated guild drops "admit" so admission goes to a vote.
+  roles: { member: { can: ["propose", "vote", "admit"] } },
   // Open commons by default: anyone may self-join; recruits still co-sign to join.
   membership: { openJoin: true, requireAcceptance: true },
 });
