@@ -229,6 +229,18 @@ main { flex: 1 1 auto; min-width: 0; max-width: var(--maxw); margin: 0 auto; pad
 .hero h2, .drawer-panel h2 { text-wrap: balance; }
 .section-head p { margin: var(--s1) 0 0; color: var(--faint); font-size: var(--fs-base); max-width: 52ch; }
 
+/* Entity pages (quest, guild) render in <main> with a back link to their list view. */
+.backlink {
+  display: inline-flex; align-items: center; gap: var(--s1);
+  color: var(--accent); font-size: var(--fs-sm); font-weight: 600;
+  letter-spacing: var(--ls-wide); text-decoration: none; margin-bottom: var(--s4);
+  border-radius: var(--r-sm); padding: var(--s1) var(--s2) var(--s1) var(--s1);
+  transition: color 0.15s var(--ease), background 0.15s var(--ease);
+}
+.backlink:hover { color: var(--gold-soft); background: var(--surface); }
+.backlink .icon { width: 1.1em; height: 1.1em; transform: rotate(90deg); }
+.entity-page { max-width: 720px; }
+
 /* ---- cards ----------------------------------------------------------------*/
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: var(--s4); }
 
