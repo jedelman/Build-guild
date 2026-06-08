@@ -8,7 +8,7 @@
 // Fields whose value is a ref to another record (a strongRef `_ref`).
 const REF_FIELDS = [
   "subject", "supersedes", "prev", "quest", "agreement",
-  "for", "delivery", "target", "context", "supersededBy",
+  "for", "delivery", "target", "context", "supersededBy", "basis",
 ];
 
 const shortType = (t) => (t || "?").replace(/^org\.buildguild\./, "").replace(/^sh\.tangled\./, "");

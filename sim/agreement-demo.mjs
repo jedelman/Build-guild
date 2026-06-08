@@ -46,19 +46,21 @@ const charter = await vr(A, {
 });
 
 // --- the guild governs itself (microvotes) ---
-const vote = (who, prop, val) => vr(who, { type: "org.buildguild.attestation", guild: GUILD, contract: "vote", subject: prop._ref, value: val, createdAt: at() });
+// Votes pin `basis` = the membership HEAD they were cast under (genesis = charter).
+const vote = (who, prop, val, basis) => vr(who, { type: "org.buildguild.attestation", guild: GUILD, contract: "vote", subject: prop._ref, value: val, basis, createdAt: at() });
 
-// admit recruit M
+// admit recruit M — voted under the GENESIS head (the charter)
 const pAdmit = await vr(A, { type: "org.buildguild.proposal", guild: GUILD, action: "admit", enacts: { grantee: M }, question: "Admit M to the guild?", createdAt: at() });
-await vote(A, pAdmit, "yes"); await vote(B, pAdmit, "yes");
+await vote(A, pAdmit, "yes", charter._ref); await vote(B, pAdmit, "yes", charter._ref);
+const head = pAdmit._ref; // admitting M advanced the roster head; later votes pin it
 // grant W a delivery-witness mandate (trust)
 const pWit = await vr(B, { type: "org.buildguild.proposal", guild: GUILD, action: "grant_mandate", enacts: { grantee: W, capability: "delivery.witness", scope: GUILD, mode: "trust" }, question: "Trust W as a delivery witness?", createdAt: at() });
-await vote(A, pWit, "yes"); await vote(B, pWit, "yes"); await vote(C, pWit, "yes");
+await vote(A, pWit, "yes", head); await vote(B, pWit, "yes", head); await vote(C, pWit, "yes", head);
 // grant M a scoped 'admit' mandate, then RECALL it (cheap)
 const pGrant = await vr(A, { type: "org.buildguild.proposal", guild: GUILD, action: "grant_mandate", enacts: { grantee: M, capability: "admit", scope: GUILD }, question: "Mandate M to admit?", createdAt: at() });
-await vote(A, pGrant, "yes"); await vote(B, pGrant, "yes"); await vote(C, pGrant, "yes");
+await vote(A, pGrant, "yes", head); await vote(B, pGrant, "yes", head); await vote(C, pGrant, "yes", head);
 const pRecall = await vr(C, { type: "org.buildguild.proposal", guild: GUILD, action: "recall", enacts: { grantee: M, capability: "admit", scope: GUILD }, question: "Recall M's admit mandate?", createdAt: at() });
-await vote(C, pRecall, "yes"); // one vote clears the low recall bar
+await vote(C, pRecall, "yes", head); // one vote clears the low recall bar
 
 // --- the agreement: member A posts a quest; X claims for party [X, M] ---
 const quest = await vr(A, { type: "org.buildguild.quest", title: "Chart the northern reach", reward: "$1500", createdAt: at() });

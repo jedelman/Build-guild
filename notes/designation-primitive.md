@@ -211,12 +211,34 @@ families: collective opinion confers authority.** Concretely (anarcho-syndicalis
   capability bundles; the root is just the genesis cohort + the per-action vote rules.
 
 The cost, paid deliberately: membership and authority are **temporal and mutually
-recursive** — a vote is tallied against the electorate *as of its decision*, and passing
-it changes the electorate later votes face. So state is derived by **temporal replay** of
-proposals in close-time order. Built + tested: `src/collective.js`,
-`test/collective.test.js` (genesis cohort, admit-by-vote with a growing electorate,
-scoped mandate + cheap recall, per-action bars, non-member votes ignored).
+recursive** — a vote is tallied against the electorate as of its decision, and passing it
+changes the electorate later votes face.
 
-Still open here: delegated admits (a mandate-holder issuing `role:member` designations
-directly vs. every admit being its own vote), charter-amendment execution via the vote
-path, and wiring `collective.js` into `agreement.js`/the demo (guild-patron delegation).
+### Sequencing is content-addressed, not clock-based (live roster)
+
+Ordering authority decisions by a self-asserted `createdAt` is wrong: a timestamp is a
+forgeable, skewed *claim*, and "races" (e.g. same-tick grant/recall) are the symptom. The
+fix is **causal, content-addressed sequencing** — but note a strict single hash-*chain*
+needs a sequencer to pick the next link, which re-centralizes on single-writer repos; so
+the right shape is a causal **DAG** (git/CRDT-style): acts pin, by cid, the state they
+were built on, and an auditor replays in causal order with concurrent acts *detectably*
+concurrent rather than silently tie-broken.
+
+For voting (decided: **live roster**), this lands as a `basis` pin: a vote carries the
+**membership HEAD** it was cast under (the cid of the last roster-changing act it saw; the
+charter at genesis). A vote counts only while it pins the *current* head — so the instant
+the roster changes the head advances and every pending old-basis vote is **stale by
+inspection** (walk the `basis` link; no clock needed) and must be recast. Built + tested:
+`src/collective.js` (head tracking + `staleVotes`), `test/collective-basis.test.js`,
+plus order-independence over 50 shuffles (`test/collective-adversarial.test.js`). `basis`
+is a real graph edge, so the debug view *shows* the chain.
+
+Built + tested overall: `src/collective.js`; `test/collective*.test.js` (genesis cohort,
+admit-by-vote with a growing electorate, scoped mandate + cheap recall, per-action bars,
+non-member votes ignored, basis-staleness + recast).
+
+Still open here: **proposal *ordering* is still by `createdAt` (interim)** — replacing it
+with pure causal-DAG order (so even the sequence is clock-free, and concurrent membership
+changes resolve by a declared rule, not timestamp) is the next step, along with a
+liveness/anti-grief guard (constant roster churn could starve a vote), delegated admits,
+charter-amendment via the vote path, and wiring `collective.js` into the agreement demo.

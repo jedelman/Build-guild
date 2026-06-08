@@ -16,6 +16,15 @@
 // `enacts`; a vote is an org.buildguild.attestation (contract "vote", subject =
 // proposal). See notes/designation-primitive.md.
 
+// CAUSAL BASIS (live roster): a vote pins `basis` = the membership HEAD it was cast
+// under (the cid of the last roster-changing act it saw; the charter is the genesis
+// head). A vote counts only if its basis equals the head that is current when its
+// proposal is evaluated — so the moment the roster changes, every pending vote pinning
+// the old head is STALE and must be recast. Staleness is thus detectable by walking the
+// basis link, not guessed from a clock. (Proposals are still sequenced by createdAt as
+// an interim ordering; replacing that with pure causal order is the next step. Votes
+// without a `basis` are treated as legacy/fresh.)
+
 const active = (r, now) => r && r._verified !== false && (!r.expiry || Date.parse(r.expiry) > now);
 const inScope = (m, scope) => m.scope === scope || m.scope === "*" || scope === "*";
 const DEFAULT_RULE = { threshold: 50, quorum: 50 }; // integer percents
@@ -48,9 +57,12 @@ export function deriveCollective(charter, records, { now = Date.now() } = {}) {
   const proposals = records.filter((r) => mine(r) && r.type === "org.buildguild.proposal");
   const votes = records.filter((r) => mine(r) && r.type === "org.buildguild.attestation" && (r.contract === "vote" || r.predicate === "vote"));
 
-  // index votes by proposal → voter → choices (for equivocation voiding)
+  // index votes by proposal → voter → {value, basis} (basis pins the roster head)
   const byProp = {};
-  for (const v of votes) ((byProp[v.subject] ??= {})[v.author] ??= []).push(v.value);
+  for (const v of votes) ((byProp[v.subject] ??= {})[v.author] ??= []).push({ value: v.value, basis: v.basis ?? null });
+
+  const ROSTER_ACTIONS = new Set(["admit", "remove"]);
+  const GENESIS = charter._ref ?? "genesis"; // the genesis membership head
 
   const decideAt = (p) => p.closesAt ?? p.createdAt;
   const ordered = [...proposals].sort((a, b) => {
@@ -61,15 +73,21 @@ export function deriveCollective(charter, records, { now = Date.now() } = {}) {
   const members = new Set(genesis);
   const mandates = [];
   const decided = {};
+  const staleVotes = [];
+  let head = GENESIS; // the current membership head; votes must pin this to count
 
   for (const P of ordered) {
     if (!active(P, now)) continue;
     const closed = P.closesAt == null || Date.parse(P.closesAt) <= now;
     const electorate = new Set(members); // snapshot AS OF this decision
-    let yes = 0, no = 0, cast = 0;
-    for (const [voter, choices] of Object.entries(byProp[P._ref] || {})) {
+    let yes = 0, no = 0, cast = 0, stale = 0;
+    for (const [voter, list] of Object.entries(byProp[P._ref] || {})) {
       if (!electorate.has(voter)) continue; // only members-at-the-time count
-      const uniq = new Set(choices);
+      // live votes pin the CURRENT head; basis-less votes are legacy/fresh
+      const live = list.filter((v) => v.basis == null || v.basis === head);
+      if (live.length < list.length) { stale++; staleVotes.push({ proposal: P._ref, voter, pinned: list.find((v) => v.basis && v.basis !== head)?.basis }); }
+      if (!live.length) continue; // all of this voter's votes are stale → recast needed
+      const uniq = new Set(live.map((v) => v.value));
       if (uniq.size > 1) continue; // equivocation voids this voter
       const c = [...uniq][0];
       if (c === "yes") yes++; else if (c === "no") no++; else continue;
@@ -81,16 +99,21 @@ export function deriveCollective(charter, records, { now = Date.now() } = {}) {
     if (!closed) outcome = "open";
     else if (eligible === 0 || (cast * 100) / eligible < rule.quorum) outcome = "failed_quorum";
     else outcome = (cast === 0 ? 0 : (yes * 100) / cast) >= rule.threshold ? "passed" : "rejected";
-    decided[P._ref] = { ref: P._ref, action: P.action, outcome, rule, tally: { yes, no, cast, eligible } };
-    if (outcome === "passed") applyEffect(P, members, mandates);
+    decided[P._ref] = { ref: P._ref, action: P.action, outcome, rule, head, tally: { yes, no, cast, stale, eligible } };
+    if (outcome === "passed") {
+      applyEffect(P, members, mandates);
+      if (ROSTER_ACTIONS.has(P.action)) head = P._ref; // roster changed → advance head; pending old-basis votes go stale
+    }
   }
 
   const liveMandates = mandates.filter((m) => m.active);
   return {
     guild,
+    head, // the current membership head; a vote must pin this to be live
     members: [...members].sort(),
     mandates: liveMandates,
     proposals: decided,
+    staleVotes,
     isMember: (did) => members.has(did),
     // A capability is held via an active mandate, or membership for role:member.
     holdsCapability: (did, cap, scope = "*") =>

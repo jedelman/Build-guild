@@ -14,6 +14,7 @@
           "predicate": { "type": "string", "maxLength": 120, "description": "The ontology contract id, e.g. 'deliver.on-time', 'splits.fair', 'pays.promptly', 'skill:rust', 'vote', 'member'." },
           "value": { "type": "string", "enum": ["yes", "no", "unknown"], "description": "Ternary. yes/no carry signal; unknown is an explicit, dignified abstention." },
           "context": { "type": "ref", "ref": "com.atproto.repo.strongRef", "description": "Optional strongRef to the anchor that grants standing: the settlement for a delivery rating, the quest for a split rating, the proposal for a vote." },
+          "basis": { "type": "ref", "ref": "com.atproto.repo.strongRef", "description": "For VOTES: the membership HEAD this vote was cast under (the cid of the last roster-changing act seen; the charter at genesis). A vote counts only while it pins the current head — when the roster changes the head advances and old-basis votes are stale by inspection (live-roster governance). See notes/designation-primitive.md §8." },
           "note": { "type": "string", "maxLength": 300, "description": "Optional free-text context." },
           "evidence": {
             "type": "array",
