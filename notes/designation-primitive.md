@@ -135,7 +135,39 @@ unified resolver. Two primitives now carry governance + work: **attestation** (o
 and **designation** (authority/trust), with **acceptance** (consent) and **revocation**
 (un-grant) as their shared verbs.
 
-## 6. Open questions
+## 6. The closed primitive set (the symmetry check)
+
+The consolidation passes (designation, membership, and a check of `acceptance`/`withdraw`)
+leave a small, principled set on **two axes**:
+
+- **Opinion** (descriptive — judgments that aggregate, weighted by eligibility):
+  `attestation` (yes/no/unknown). "I judge X."
+- **Performative** (acts that change obligations or authority): `designation` (grant),
+  `acceptance` (consent — binds the signer), `revocation` (un-grant). "I do X."
+
+This is the same opinion-vs-act line that moved membership out of attestation: consent
+*binds you*, so `acceptance` is a performative and correctly stays its own primitive
+rather than collapsing into a `yes` attestation.
+
+`acceptance` checks out as genuinely one shape across offers, amendments, and
+designations — `{ subject: strongRef, fetched?, note?, createdAt }` (the `fetched`
+delivery-ack is the only context-specific, optional field).
+
+**Two non-verbs, settled:**
+- **withdraw** — retracting your *own* not-yet-final record is just deleting a record you
+  own in your own repo (the self case already under revocation, §3). Not a separate
+  primitive. (Revocation needed a *record* only because authority-revocation is cross-repo;
+  withdraw never is.)
+- **decline** — an eligible principal *refusing* (vs. merely not-yet-deciding) is the one
+  place a fifth thing could go. For v1 it's unneeded: an offer that doesn't reach full
+  consent simply stalls in `part-agreed` until the offerer withdraws. If that limbo proves
+  annoying, add decline as the explicit negative of `acceptance` (a performative — rejecting
+  an offer terminates it) — not before.
+
+So: **one opinion primitive + three performatives, with consent (`acceptance`) shared
+across all agreements.** The set is closed.
+
+## 7. Open questions
 
 - **Capability ontology** — publish capabilities as `org.buildguild.contract`-style
   definitions (so "who may grant X" is itself on-record and forkable), or keep a hardcoded

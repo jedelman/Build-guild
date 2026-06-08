@@ -133,7 +133,7 @@ Between AGREED and the first delivery the party works and the thread stays open;
 | `fully-paid` | — | Σ settlement amounts ≥ reward |
 | `confirmed` | payee | `pays.promptly` attestation (the receipt co-sign) |
 | ratings | both | attestations (`deliver.*`, `splits.fair`, `pays.promptly`, `specs.clearly`) |
-| `withdrawn` | offerer | delete/tombstone the offer (before acceptance) |
+| `withdrawn` | offerer | delete/tombstone the offer (self-revocation; before AGREED) |
 | `disputed` | either | contested attestation (`deliver:no` / `pays.promptly:no`) + evidence |
 
 **The keystone — the agreement = an offer + a co-signature from every named principal**

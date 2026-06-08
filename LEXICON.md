@@ -51,6 +51,11 @@ co-signed, amendable agreement, and delivery is anchored to a git commit.
   officer revokes a grant another officer issued — cross-repo, so it can't be a delete).
   Both: see `notes/designation-primitive.md`.
 
+**The verbs, in one line.** Two axes: `attestation` = **opinions** (yes/no/unknown,
+aggregated by eligibility); `designation` / `acceptance` / `revocation` = **performative
+acts** (grant / consent / un-grant). Retracting your own not-yet-final record is just
+deletion — not a separate verb. The set is closed; see `notes/designation-primitive.md` §6.
+
 **Ancestors (still valid, superseded going forward):** `org.buildguild.skill`,
 `org.buildguild.endorsement`, `org.buildguild.repo`. New code uses `attestation`
 (`skill:<name>` predicate) for the same job.
