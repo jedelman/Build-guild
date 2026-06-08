@@ -25,8 +25,10 @@ export function deriveGuild(charter, records, { now = Date.now() } = {}) {
   const acceptances = records.filter((r) => mine(r) && r.type === "org.buildguild.acceptance");
   const revocations = records.filter((r) => mine(r) && r.type === "org.buildguild.revocation");
 
-  // role: capabilities take effect only when the DESIGNEE co-signs (acceptance.author == grantee).
-  const accepted = (d) => acceptances.some((a) => a._verified !== false && a.subject === d._ref && a.author === d.grantee);
+  // role: capabilities take effect only when the DESIGNEE co-signs (acceptance.author ==
+  // grantee). A SELF-grant (author == grantee) is inherently self-consented — used by the
+  // open-join path, where a newcomer admits themselves under an open charter.
+  const accepted = (d) => d.author === d.grantee || acceptances.some((a) => a._verified !== false && a.subject === d._ref && a.author === d.grantee);
   const memberRoleCan = (action) => Array.isArray(charter.rules?.roles?.member?.can) && charter.rules.roles.member.can.includes(action);
 
   const members = new Set(col.members);
@@ -37,22 +39,30 @@ export function deriveGuild(charter, records, { now = Date.now() } = {}) {
   // who may issue a delegated admit: an `admit` mandate-holder, or any member if the
   // charter opens admission to the member role.
   const canAdmit = (did) => holds(did, "admit", guild) || (members.has(did) && memberRoleCan("admit"));
+  // open-join: under a charter with membership.openJoin, anyone may admit THEMSELVES
+  // (a self-signed role:member grant). Closed guilds (openJoin off) fall through to the
+  // delegated/voted admit paths, so a self-grant alone never admits.
+  const openJoin = charter.rules?.membership?.openJoin === true;
+  const selfAdmit = (d) => openJoin && d.author === d.grantee;
 
   const revoked = (d) => revocations.some((r) =>
     active(r, now) &&
     (r.target === d._ref || (r.grantee === d.grantee && r.capability === d.capability && (r.scope == null || r.scope === d.scope))) &&
     (r.author === d.author || canAdmit(r.author))); // grantor, or anyone who could have granted it
 
-  // Fixpoint: add members admitted by an authorized, accepted, un-revoked delegated grant.
-  // Iterate because a delegated-admitted member who ALSO holds an admit mandate (or open
-  // admission) may admit further. Order-independent (set-based), so two verifiers agree.
-  const admittedVia = new Map(); // grantee → designation ref
+  // Fixpoint: add members admitted by an authorized, accepted, un-revoked delegated grant
+  // (or an open self-join). Iterate because a delegated-admitted member who ALSO holds an
+  // admit mandate (or open admission) may admit further. Order-independent (set-based), so
+  // two verifiers agree.
+  const admittedVia = new Map(); // grantee → designation ref (delegated admits only)
   for (let i = 0; i <= designations.length; i++) {
     let changed = false;
     for (const d of designations) {
       if (d.capability !== "role:member" || !inScope(d.scope, guild) || members.has(d.grantee)) continue;
-      if (!active(d, now) || !accepted(d) || !canAdmit(d.author) || revoked(d)) continue;
-      members.add(d.grantee); admittedVia.set(d.grantee, d._ref); changed = true;
+      if (!active(d, now) || !accepted(d) || !(canAdmit(d.author) || selfAdmit(d)) || revoked(d)) continue;
+      members.add(d.grantee);
+      if (!selfAdmit(d)) admittedVia.set(d.grantee, d._ref); // self-joins aren't delegated
+      changed = true;
     }
     if (!changed) break;
   }

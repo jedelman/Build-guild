@@ -6,6 +6,7 @@ import { Agent } from "@atproto/api";
 import { reconcileSkillKeys } from "../src/skills.js";
 import * as cs from "./claimstead.js";
 import { CONTRACTS } from "../src/contracts.js";
+import { DEFAULT_RULES } from "../src/charter.js";
 // Telemetry must never be able to break the app.
 try {
   initTelemetry();
@@ -357,22 +358,6 @@ async function renderGovernancePanel(mount, guildId, pre) {
     })
   );
 }
-
-// Founder-free default charter: a genesis cohort + per-action microvote bars (integer
-// percents). No standing officer class — authority is recallable mandates granted by vote.
-const DEFAULT_RULES = (genesis) => ({
-  genesis,
-  vote: {
-    admit: { threshold: 50, quorum: 50 },
-    remove: { threshold: 50, quorum: 50 },
-    grant_mandate: { threshold: 60, quorum: 50 },
-    recall: { threshold: 34, quorum: 25 },
-    amend: { threshold: 75, quorum: 60 },
-    default: { threshold: 50, quorum: 50 },
-  },
-  roles: { member: { can: ["propose", "vote"] } },
-  membership: { requireAcceptance: false },
-});
 
 async function api(path, opts = {}) {
   const res = await fetch("/api" + path, {
