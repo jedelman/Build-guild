@@ -573,6 +573,50 @@ form.enlist label input, form.enlist label textarea { text-transform: none; lett
   .modal-panel { padding: var(--s5) var(--s4); }
 }
 
+/* ---- Claimstead: reputation badge cloud, attestations, escrow ------------*/
+.badge-cloud { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: baseline; margin: var(--s2) 0 var(--s3); }
+.rep-badge {
+  display: inline-flex; align-items: baseline; gap: 5px;
+  padding: 0.16rem 0.6rem; border-radius: var(--r-pill);
+  border: 1px solid var(--accent-deep); color: var(--ink-dim); line-height: 1.25;
+}
+.rep-badge .mono { color: var(--good); }
+.rep-badge.contested { border-color: var(--gold-deep); }
+.rep-badge.contested .mono { color: var(--gold-soft); }
+.rep-badge.bad { border-color: var(--danger); }
+.rep-badge.bad .mono { color: var(--danger); }
+
+.attest-list { display: grid; gap: var(--s3); margin: var(--s4) 0; }
+.attest-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); }
+.attest-row > span:first-child { font-size: var(--fs-base); color: var(--ink-dim); }
+.ternary { display: inline-flex; flex: none; border: 1px solid var(--line-strong); border-radius: var(--r-sm); overflow: hidden; }
+.ternary button { background: var(--surface-2); color: var(--faint); border: none; padding: 0.3rem 0.62rem; cursor: pointer; font: 600 var(--fs-sm) Inter, sans-serif; }
+.ternary button + button { border-left: 1px solid var(--line-strong); }
+.ternary button.on { background: var(--accent-deep); color: var(--ink); }
+.ternary button.on[data-v="no"] { background: var(--danger); color: var(--gold-ink); }
+.escrow-mount .mono { font-size: var(--fs-sm); color: var(--ink-dim); }
+
+/* payout-method nudge banner (between top bar and shell) */
+.payout-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s4); flex-wrap: wrap;
+  padding: var(--s2) var(--s5); font-size: var(--fs-sm); color: var(--ink-dim);
+  background: linear-gradient(90deg, rgba(216, 177, 90, 0.12), transparent);
+  border-bottom: 1px solid var(--gold-deep);
+}
+.payout-banner .btn { padding: var(--ctl-pad-y-sm) var(--ctl-pad-x-sm); }
+
+/* gated test-persona switcher (staging/preview only) */
+.test-switcher {
+  position: fixed; left: var(--s4); bottom: var(--s4); z-index: 45;
+  display: flex; align-items: center; gap: var(--s2);
+  padding: var(--s2) var(--s3); font-size: var(--fs-sm);
+  background: var(--surface-2); border: 1px dashed var(--gold-deep); border-radius: var(--r-pill);
+  box-shadow: var(--shadow-lift); color: var(--ink-dim);
+}
+.test-switcher .ts-tag { letter-spacing: var(--ls-caps); }
+.test-switcher .ts-select { padding: var(--ctl-pad-y-xs) var(--ctl-pad-x-xs); font-size: var(--fs-sm); }
+@media (max-width: 760px) { .test-switcher { bottom: calc(64px + env(safe-area-inset-bottom)); } }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }

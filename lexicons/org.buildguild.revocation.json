@@ -1,0 +1,23 @@
+{
+  "lexicon": 1,
+  "id": "org.buildguild.revocation",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Withdraws a designation — the counterpart to org.buildguild.designation and the generalization of governance's 'remove'. Needed because authority-based revocation is cross-repo: an officer can revoke a membership/role another officer granted, and you can't delete a record in someone else's repo. Honored iff the author either is the original grantor OR holds authority to grant the target's capability at its scope (i.e. could have issued it) — and (for chained grants) sits at or above it. Self-withdrawal of one's own grant may instead just delete/supersede the designation; this record exists for the cross-party case and for an explicit, append-only trail. Targets a specific designation by strongRef, or every matching grant by (grantee, capability, scope). Author is the revoker (repo owner). Written to the revoker's repo.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["createdAt"],
+        "properties": {
+          "target": { "type": "ref", "ref": "com.atproto.repo.strongRef", "description": "The specific org.buildguild.designation being revoked (precise form)." },
+          "grantee": { "type": "string", "format": "did", "description": "Match form: revoke grants to this DID (with capability + scope) when a precise `target` isn't referenced." },
+          "capability": { "type": "string", "maxLength": 120, "description": "Match form: the capability being revoked, e.g. 'role:member', 'role:officer', 'quest.transact'." },
+          "scope": { "type": "string", "maxLength": 512, "description": "Match form: the scope the revocation applies to (guild id / AT-URI / '*')." },
+          "reason": { "type": "string", "maxLength": 300, "description": "Optional human note — part of the public trail (e.g. the 'reason' a graduated sanction records)." },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

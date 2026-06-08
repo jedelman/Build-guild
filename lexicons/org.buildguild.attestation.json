@@ -1,0 +1,38 @@
+{
+  "lexicon": 1,
+  "id": "org.buildguild.attestation",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "The universal Build Guild primitive: a signed, ternary (yes/no/unknown) opinion about a subject under a named predicate. Endorsements, delivery/payment ratings, votes, and membership are ALL attestations, differing only by predicate + eligibility. Written to the ATTESTER's own atproto repo; it counts only if the attester had standing per the predicate's eligibility rule. Build Guild's D1 only indexes these.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["subject", "predicate", "value", "createdAt"],
+        "properties": {
+          "subject": { "type": "string", "maxLength": 512, "description": "Who/what this is about: a DID (a builder or client) or an AT-URI (a guild, proposal, or other record)." },
+          "predicate": { "type": "string", "maxLength": 120, "description": "The ontology contract id, e.g. 'deliver.on-time', 'splits.fair', 'pays.promptly', 'skill:rust', 'vote', 'member'." },
+          "value": { "type": "string", "enum": ["yes", "no", "unknown"], "description": "Ternary. yes/no carry signal; unknown is an explicit, dignified abstention." },
+          "context": { "type": "ref", "ref": "com.atproto.repo.strongRef", "description": "Optional strongRef to the anchor that grants standing: the settlement for a delivery rating, the quest for a split rating, the proposal for a vote." },
+          "basis": { "type": "ref", "ref": "com.atproto.repo.strongRef", "description": "For VOTES: the membership HEAD this vote was cast under (the cid of the last roster-changing act seen; the charter at genesis). A vote counts only while it pins the current head — when the roster changes the head advances and old-basis votes are stale by inspection (live-roster governance). See notes/designation-primitive.md §8." },
+          "note": { "type": "string", "maxLength": 300, "description": "Optional free-text context." },
+          "evidence": {
+            "type": "array",
+            "maxLength": 16,
+            "description": "Optional supporting proof an independent auditor can check — e.g. a crypto txid (publicly verifiable), a payment-rail reference, a deliverable URL, or a content hash. The richer the evidence, the more an auditor can trust the claim; un-evidenced payment claims are flagged.",
+            "items": {
+              "type": "object",
+              "required": ["type", "value"],
+              "properties": {
+                "type": { "type": "string", "maxLength": 40, "description": "txid | payment_ref | url | sha256 | …" },
+                "value": { "type": "string", "maxLength": 512 },
+                "note": { "type": "string", "maxLength": 200 }
+              }
+            }
+          },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

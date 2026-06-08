@@ -1,0 +1,22 @@
+{
+  "lexicon": 1,
+  "id": "org.buildguild.quest",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A patron's posted quest — a public ADVERT for work: the task, the reward, and the canonical skills it needs. An anchor that offers, deliveries, settlements, and ratings point at. The advert is not the deal: the BINDING party/reward/terms are whatever an org.buildguild.offer + org.buildguild.acceptance lock. Written to the patron's repo. Monetary amounts settle OFF-protocol, peer-to-peer; see org.buildguild.settlement.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["title", "createdAt"],
+        "properties": {
+          "title": { "type": "string", "maxLength": 200 },
+          "brief": { "type": "string", "maxLength": 2000 },
+          "reward": { "type": "string", "maxLength": 200, "description": "Human-readable reward (e.g. 'revenue share', '$500', 'kudos'). Monetary value settles off-protocol, peer-to-peer." },
+          "skills": { "type": "array", "items": { "type": "string", "maxLength": 120 }, "maxLength": 32 },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

@@ -31,6 +31,18 @@ import { escoSearch } from "./esco.js";
 import { ingestTelemetry, scrub } from "./telemetry.js";
 import { clientMetadata, parseCookies, serializeCookie } from "./oauth.js";
 import { serviceDidForOrigin, didWebDocument, verifyServiceAuthJwt } from "./serviceauth.js";
+import { testEnabled, seedPersonas, listPersonas, actAsSession } from "./testfixtures.js";
+import {
+  registerKey,
+  hasKey,
+  putClaim,
+  putAttestation,
+  guildGraph,
+  reputation,
+  getQuestSettlement,
+  auditGraph,
+} from "./govstore.js";
+import { auditTrail } from "./audit.js";
 
 const SESSION_COOKIE = "bg_session";
 // Lexicon-method the browser binds its Service Auth token to when establishing a
@@ -89,7 +101,7 @@ export default {
 };
 
 async function route(request, env, url) {
-  const [, resource, id, action] = url.pathname.split("/").filter(Boolean);
+  const [, resource, id, action, sub] = url.pathname.split("/").filter(Boolean);
   const method = request.method;
   const gid = Number(id);
 
@@ -207,6 +219,12 @@ async function route(request, env, url) {
         const candidates = (await listBuilders(env)).filter((b) => !memberIds.has(b.id));
         return json(recommendRecruits(guild.members, candidates));
       }
+      // The live commons graph: collective authority (members, mandates, delegated admits,
+      // proposal outcomes) + the verified record DAG, recomputed from signed claims. This is
+      // what the debug view reads instead of the static sample.
+      if (method === "GET" && action === "graph") {
+        return json(await guildGraph(env, gid));
+      }
       if (method === "POST" && (action === "join" || action === "leave")) {
         // You can only join/leave as your own builder.
         const me = await sessionBuilder(request, env);
@@ -260,6 +278,79 @@ async function route(request, env, url) {
         const body = (await readJson(request)) || {};
         return json(await setQuestStatus(env, gid, body.status));
       }
+      // ---- peer-to-peer payment record (no custody) ----
+      // The patron pays the party directly off-platform and posts a co-signed
+      // SETTLEMENT (with evidence). We just verify + index it; the payee confirms
+      // receipt with a `pays.promptly` attestation. GET returns the record, if any.
+      if (action === "payment" && method === "GET") {
+        return json((await getQuestSettlement(env, gid)) || { paid: false });
+      }
+      if (action === "payment" && method === "POST") {
+        const session = await currentSession(request, env);
+        if (!session) return fail("log in", 401);
+        const quest = await getQuest(env, gid);
+        if (!quest) return fail("quest not found", 404);
+        if (quest.patron_did !== session.did) return fail("only the patron can record payment", 403);
+        const rec = ((await readJson(request)) || {}).record;
+        if (!rec || rec.kind !== "quest" || rec.author !== session.did)
+          return fail("a patron-signed settlement is required");
+        const { ref } = await putClaim(env, session.did, rec); // verify signature + index
+        return json({ paid: true, ref });
+      }
+    }
+  }
+
+  // ---------- audit: the public signed-claim graph + reference fraud lens ----
+  // Independent auditors pull the verified records and re-check them themselves;
+  // `flags` is one reference reading (collusion rings, reciprocity, unevidenced
+  // payments), not a verdict — bring your own algorithm.
+  if (resource === "audit" && method === "GET") {
+    const graph = await auditGraph(env, url.searchParams.get("subject"));
+    return json({ ...graph, flags: auditTrail(graph.attestations, graph.events).flags });
+  }
+
+  // ---------- TEST-ONLY persona harness (gated; 404 in prod) ----------
+  if (resource === "test") {
+    if (!testEnabled(env)) return null; // → 404 in production
+    if (id === "status" && method === "GET") return json({ enabled: true, personas: await listPersonas(env) });
+    if (id === "seed" && method === "POST") return json({ seeded: await seedPersonas(env) });
+    if (id === "act-as" && method === "POST") {
+      const did = ((await readJson(request)) || {}).did;
+      const s = await actAsSession(env, did);
+      return new Response(JSON.stringify({ ok: true, did }), {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+          "cache-control": "no-store",
+          "set-cookie": serializeCookie(SESSION_COOKIE, s.id, { maxAge: 60 * 60 * 24 * 7 }),
+        },
+      });
+    }
+  }
+
+  // ---------- Claimstead governance + reputation (#21) ----------
+  if (resource === "gov") {
+    if (id === "me" && method === "GET") {
+      const session = await currentSession(request, env);
+      return json({ keyRegistered: session ? await hasKey(env, session.did) : false });
+    }
+    if (id === "reputation" && method === "GET") {
+      const subject = url.searchParams.get("subject");
+      if (!subject) return fail("subject query param required");
+      return json(await reputation(env, subject, url.searchParams.get("type") || "builder"));
+    }
+    const session = await currentSession(request, env);
+    if (id === "keys" && method === "POST") {
+      if (!session) return fail("log in first", 401);
+      return json(await registerKey(env, session.did, ((await readJson(request)) || {}).jwk));
+    }
+    if (id === "claims" && method === "POST") {
+      if (!session) return fail("log in first", 401);
+      return json(await putClaim(env, session.did, ((await readJson(request)) || {}).record));
+    }
+    if (id === "attestations" && method === "POST") {
+      if (!session) return fail("log in first", 401);
+      return json(await putAttestation(env, session.did, ((await readJson(request)) || {}).record));
     }
   }
 

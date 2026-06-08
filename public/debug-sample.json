@@ -1,0 +1,923 @@
+{
+  "generatedAt": "2026-06-08T15:39:50.850Z",
+  "agreement": {
+    "quest": "8f30ebc16df58b34cd30f081ab039b52057cc7ba8c83d95263daec3ee7141697",
+    "status": "fully-paid",
+    "terms": {
+      "party": [
+        "did:plc:builderX",
+        "did:plc:recruitM"
+      ],
+      "reward": "$1800",
+      "amount": 180000,
+      "currency": "usd",
+      "terms": "on_delivery"
+    },
+    "offer": "52969fde3b5c0d0f4fbd26e00bbfe93a925f03dc51e52adb869a2c2913c9e478",
+    "accepted": [
+      "did:plc:builderX",
+      "did:plc:memberA",
+      "did:plc:recruitM"
+    ],
+    "pending": [],
+    "amendments": [
+      {
+        "ref": "e2114f5653a04476bedd7d61574dc96547695e127a47ac24b37fd39640403324",
+        "by": "did:plc:builderX",
+        "role": "party",
+        "changes": {
+          "amount": 180000,
+          "reward": "$1800"
+        },
+        "accepted": true
+      }
+    ],
+    "deliveries": [
+      {
+        "ref": "2190dc974ba213cb193fe91fd515faee62e91cb673fc725741f15fc25f905211",
+        "by": "did:plc:builderX",
+        "commit": "9f2c1ab7e4d0"
+      }
+    ],
+    "settlements": [
+      {
+        "ref": "c5371f8df10fef06e62c8f80da2172ae3f98698badea9d61a0236f430a0c72bc",
+        "amount": 90000,
+        "for": "2190dc974ba213cb193fe91fd515faee62e91cb673fc725741f15fc25f905211"
+      },
+      {
+        "ref": "e7b9c46806efbcaef7cac88d78f96e4ae8a3f677f8a4bdf9f03314a953d851a2",
+        "amount": 90000,
+        "for": "2190dc974ba213cb193fe91fd515faee62e91cb673fc725741f15fc25f905211"
+      }
+    ],
+    "paid": 180000,
+    "total": 180000
+  },
+  "charter": {
+    "version": 1,
+    "prose": "The Cartographers chart together, decide collectively, and recall freely."
+  },
+  "collective": {
+    "head": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+    "charterVersion": 1,
+    "amendments": [],
+    "members": [
+      "did:plc:memberA",
+      "did:plc:memberB",
+      "did:plc:memberC",
+      "did:plc:recruitM"
+    ],
+    "mandates": [
+      {
+        "grantee": "did:plc:witnessW",
+        "capability": "delivery.witness",
+        "scope": "did:guild:cartographers",
+        "mode": "trust"
+      }
+    ],
+    "proposals": [
+      {
+        "ref": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+        "action": "admit",
+        "outcome": "passed",
+        "basis": "live",
+        "tally": {
+          "yes": 2,
+          "no": 0,
+          "cast": 2,
+          "stale": 0,
+          "eligible": 3
+        }
+      },
+      {
+        "ref": "d6219d94314fa9f94915ce3860067f31a76eb26a732d5e2748c0e3db60ba0cd2",
+        "action": "grant_mandate",
+        "outcome": "passed",
+        "basis": "live",
+        "tally": {
+          "yes": 3,
+          "no": 0,
+          "cast": 3,
+          "stale": 0,
+          "eligible": 4
+        }
+      },
+      {
+        "ref": "eeb74b03887a3ea53b6aab6fa39ac18a2de2522a1c03b644fccb522d2167fc87",
+        "action": "grant_mandate",
+        "outcome": "passed",
+        "basis": "live",
+        "tally": {
+          "yes": 3,
+          "no": 0,
+          "cast": 3,
+          "stale": 0,
+          "eligible": 4
+        }
+      },
+      {
+        "ref": "587db8e5a4d20bf3d69c14a546313256474cc80a2284d8e7a3fca101e7546837",
+        "action": "recall",
+        "outcome": "passed",
+        "basis": "live",
+        "tally": {
+          "yes": 1,
+          "no": 0,
+          "cast": 1,
+          "stale": 0,
+          "eligible": 4
+        }
+      }
+    ],
+    "delegatedAdmits": [],
+    "staleVotes": []
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "af8dda5263dc383ef24978056174d9170136ef9ca897979d7042e65b2b18f6f3",
+        "type": "charter",
+        "author": "did:plc:memberA",
+        "label": "charter",
+        "verified": true,
+        "createdAt": "2026-03-01T00:00:00Z"
+      },
+      {
+        "id": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+        "type": "proposal",
+        "author": "did:plc:memberA",
+        "label": "vote: admit cruitM",
+        "verified": true,
+        "createdAt": "2026-03-02T00:00:00Z"
+      },
+      {
+        "id": "27be9f59d6f2277f2f8cb6ac93d4b0284e510829f709d8da3917781b1e1cb2dd",
+        "type": "attestation",
+        "author": "did:plc:memberA",
+        "label": "vote yes",
+        "verified": true,
+        "createdAt": "2026-03-03T00:00:00Z"
+      },
+      {
+        "id": "af9be67d340930c4fb41b158831f39e69f06f8d985c3b414bcc043b6f1da7a61",
+        "type": "attestation",
+        "author": "did:plc:memberB",
+        "label": "vote yes",
+        "verified": true,
+        "createdAt": "2026-03-04T00:00:00Z"
+      },
+      {
+        "id": "d6219d94314fa9f94915ce3860067f31a76eb26a732d5e2748c0e3db60ba0cd2",
+        "type": "proposal",
+        "author": "did:plc:memberB",
+        "label": "vote: grant_mandate tnessW",
+        "verified": true,
+        "createdAt": "2026-03-05T00:00:00Z"
+      },
+      {
+        "id": "887a354173c3248c888b58baf85053b4ffac20c5b72d1488453829611852cc00",
+        "type": "attestation",
+        "author": "did:plc:memberA",
+        "label": "vote yes",
+        "verified": true,
+        "createdAt": "2026-03-06T00:00:00Z"
+      },
+      {
+        "id": "a0d5d595b149d8a713a8f3466177ce55cb7811d7b275522ccdd712eb4a83fd58",
+        "type": "attestation",
+        "author": "did:plc:memberB",
+        "label": "vote yes",
+        "verified": true,
+        "createdAt": "2026-03-07T00:00:00Z"
+      },
+      {
+        "id": "a2749eea28285cfd9dce5b005773cb30cb70a5b6718e33c01597f192b5c07d06",
+        "type": "attestation",
+        "author": "did:plc:memberC",
+        "label": "vote yes",
+        "verified": true,
+        "createdAt": "2026-03-08T00:00:00Z"
+      },
+      {
+        "id": "eeb74b03887a3ea53b6aab6fa39ac18a2de2522a1c03b644fccb522d2167fc87",
+        "type": "proposal",
+        "author": "did:plc:memberA",
+        "label": "vote: grant_mandate cruitM",
+        "verified": true,
+        "createdAt": "2026-03-09T00:00:00Z"
+      },
+      {
+        "id": "83e2623b4cc219c725e03fad23711c34771aab9e5c698378ee874eae712582ce",
+        "type": "attestation",
+        "author": "did:plc:memberA",
+        "label": "vote yes",
+        "verified": true,
+        "createdAt": "2026-03-10T00:00:00Z"
+      },
+      {
+        "id": "e57ea8cc1c2244b7e582debc118a67225fd3e52bfe7660ad72d1a64b0467e5f8",
+        "type": "attestation",
+        "author": "did:plc:memberB",
+        "label": "vote yes",
+        "verified": true,
+        "createdAt": "2026-03-11T00:00:00Z"
+      },
+      {
+        "id": "7ab0e8639685c42a24bf2d148d1b76278e483247720612598e549aabe6bd27ff",
+        "type": "attestation",
+        "author": "did:plc:memberC",
+        "label": "vote yes",
+        "verified": true,
+        "createdAt": "2026-03-12T00:00:00Z"
+      },
+      {
+        "id": "587db8e5a4d20bf3d69c14a546313256474cc80a2284d8e7a3fca101e7546837",
+        "type": "proposal",
+        "author": "did:plc:memberC",
+        "label": "vote: recall cruitM",
+        "verified": true,
+        "createdAt": "2026-03-13T00:00:00Z"
+      },
+      {
+        "id": "1778c32b8119d6339ac9e41708000c77ac0f8513c93796e0594bc2d70462f3e3",
+        "type": "attestation",
+        "author": "did:plc:memberC",
+        "label": "vote yes",
+        "verified": true,
+        "createdAt": "2026-03-14T00:00:00Z"
+      },
+      {
+        "id": "8f30ebc16df58b34cd30f081ab039b52057cc7ba8c83d95263daec3ee7141697",
+        "type": "quest",
+        "author": "did:plc:memberA",
+        "label": "quest: Chart the northern reach",
+        "verified": true,
+        "createdAt": "2026-03-15T00:00:00Z"
+      },
+      {
+        "id": "52969fde3b5c0d0f4fbd26e00bbfe93a925f03dc51e52adb869a2c2913c9e478",
+        "type": "offer",
+        "author": "did:plc:builderX",
+        "label": "offer (party)",
+        "verified": true,
+        "createdAt": "2026-03-16T00:00:00Z"
+      },
+      {
+        "id": "f90d39fe30fca9f67304452b30cd62fcaba7eca6f2645c4dc6685a3c60479349",
+        "type": "acceptance",
+        "author": "did:plc:memberA",
+        "label": "acceptance",
+        "verified": true,
+        "createdAt": "2026-03-17T00:00:00Z"
+      },
+      {
+        "id": "2e5c26d0e0947845e1821858c8e1f308a13415e54c82f1aa0958ee34ddffa46b",
+        "type": "acceptance",
+        "author": "did:plc:recruitM",
+        "label": "acceptance",
+        "verified": true,
+        "createdAt": "2026-03-18T00:00:00Z"
+      },
+      {
+        "id": "e2114f5653a04476bedd7d61574dc96547695e127a47ac24b37fd39640403324",
+        "type": "amendment",
+        "author": "did:plc:builderX",
+        "label": "amendment (party)",
+        "verified": true,
+        "createdAt": "2026-03-19T00:00:00Z"
+      },
+      {
+        "id": "ea6e11c3398eebe0813d060fe6d3db712aca285521ae430f8ea32fcb40bdb0e3",
+        "type": "acceptance",
+        "author": "did:plc:memberA",
+        "label": "acceptance",
+        "verified": true,
+        "createdAt": "2026-03-20T00:00:00Z"
+      },
+      {
+        "id": "87eb6f0928024dcaae729a9f35ae892dac2a37b48ebec376539dcf5bb7e0bf31",
+        "type": "acceptance",
+        "author": "did:plc:recruitM",
+        "label": "acceptance",
+        "verified": true,
+        "createdAt": "2026-03-21T00:00:00Z"
+      },
+      {
+        "id": "2190dc974ba213cb193fe91fd515faee62e91cb673fc725741f15fc25f905211",
+        "type": "delivery",
+        "author": "did:plc:builderX",
+        "label": "delivery @9f2c1ab",
+        "verified": true,
+        "createdAt": "2026-03-22T00:00:00Z"
+      },
+      {
+        "id": "e8df5218d642e5020edc6e960caab059b0b7deb85cb914ddfc5a7b25f58ee98e",
+        "type": "witness",
+        "author": "did:plc:witnessW",
+        "label": "witness",
+        "verified": true,
+        "createdAt": "2026-03-24T00:00:00Z"
+      },
+      {
+        "id": "c5371f8df10fef06e62c8f80da2172ae3f98698badea9d61a0236f430a0c72bc",
+        "type": "settlement",
+        "author": "did:plc:memberA",
+        "label": "settle 90000",
+        "verified": true,
+        "createdAt": "2026-03-25T00:00:00Z"
+      },
+      {
+        "id": "e7b9c46806efbcaef7cac88d78f96e4ae8a3f677f8a4bdf9f03314a953d851a2",
+        "type": "settlement",
+        "author": "did:plc:memberA",
+        "label": "settle 90000",
+        "verified": true,
+        "createdAt": "2026-03-26T00:00:00Z"
+      }
+    ],
+    "edges": [
+      {
+        "from": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+        "to": "af8dda5263dc383ef24978056174d9170136ef9ca897979d7042e65b2b18f6f3",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "27be9f59d6f2277f2f8cb6ac93d4b0284e510829f709d8da3917781b1e1cb2dd",
+        "to": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "27be9f59d6f2277f2f8cb6ac93d4b0284e510829f709d8da3917781b1e1cb2dd",
+        "to": "af8dda5263dc383ef24978056174d9170136ef9ca897979d7042e65b2b18f6f3",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "af9be67d340930c4fb41b158831f39e69f06f8d985c3b414bcc043b6f1da7a61",
+        "to": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "af9be67d340930c4fb41b158831f39e69f06f8d985c3b414bcc043b6f1da7a61",
+        "to": "af8dda5263dc383ef24978056174d9170136ef9ca897979d7042e65b2b18f6f3",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "d6219d94314fa9f94915ce3860067f31a76eb26a732d5e2748c0e3db60ba0cd2",
+        "to": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "887a354173c3248c888b58baf85053b4ffac20c5b72d1488453829611852cc00",
+        "to": "d6219d94314fa9f94915ce3860067f31a76eb26a732d5e2748c0e3db60ba0cd2",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "887a354173c3248c888b58baf85053b4ffac20c5b72d1488453829611852cc00",
+        "to": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "a0d5d595b149d8a713a8f3466177ce55cb7811d7b275522ccdd712eb4a83fd58",
+        "to": "d6219d94314fa9f94915ce3860067f31a76eb26a732d5e2748c0e3db60ba0cd2",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "a0d5d595b149d8a713a8f3466177ce55cb7811d7b275522ccdd712eb4a83fd58",
+        "to": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "a2749eea28285cfd9dce5b005773cb30cb70a5b6718e33c01597f192b5c07d06",
+        "to": "d6219d94314fa9f94915ce3860067f31a76eb26a732d5e2748c0e3db60ba0cd2",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "a2749eea28285cfd9dce5b005773cb30cb70a5b6718e33c01597f192b5c07d06",
+        "to": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "eeb74b03887a3ea53b6aab6fa39ac18a2de2522a1c03b644fccb522d2167fc87",
+        "to": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "83e2623b4cc219c725e03fad23711c34771aab9e5c698378ee874eae712582ce",
+        "to": "eeb74b03887a3ea53b6aab6fa39ac18a2de2522a1c03b644fccb522d2167fc87",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "83e2623b4cc219c725e03fad23711c34771aab9e5c698378ee874eae712582ce",
+        "to": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "e57ea8cc1c2244b7e582debc118a67225fd3e52bfe7660ad72d1a64b0467e5f8",
+        "to": "eeb74b03887a3ea53b6aab6fa39ac18a2de2522a1c03b644fccb522d2167fc87",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "e57ea8cc1c2244b7e582debc118a67225fd3e52bfe7660ad72d1a64b0467e5f8",
+        "to": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "7ab0e8639685c42a24bf2d148d1b76278e483247720612598e549aabe6bd27ff",
+        "to": "eeb74b03887a3ea53b6aab6fa39ac18a2de2522a1c03b644fccb522d2167fc87",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "7ab0e8639685c42a24bf2d148d1b76278e483247720612598e549aabe6bd27ff",
+        "to": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "587db8e5a4d20bf3d69c14a546313256474cc80a2284d8e7a3fca101e7546837",
+        "to": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "587db8e5a4d20bf3d69c14a546313256474cc80a2284d8e7a3fca101e7546837",
+        "to": "eeb74b03887a3ea53b6aab6fa39ac18a2de2522a1c03b644fccb522d2167fc87",
+        "rel": "target",
+        "dangling": false
+      },
+      {
+        "from": "1778c32b8119d6339ac9e41708000c77ac0f8513c93796e0594bc2d70462f3e3",
+        "to": "587db8e5a4d20bf3d69c14a546313256474cc80a2284d8e7a3fca101e7546837",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "1778c32b8119d6339ac9e41708000c77ac0f8513c93796e0594bc2d70462f3e3",
+        "to": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "52969fde3b5c0d0f4fbd26e00bbfe93a925f03dc51e52adb869a2c2913c9e478",
+        "to": "8f30ebc16df58b34cd30f081ab039b52057cc7ba8c83d95263daec3ee7141697",
+        "rel": "quest",
+        "dangling": false
+      },
+      {
+        "from": "f90d39fe30fca9f67304452b30cd62fcaba7eca6f2645c4dc6685a3c60479349",
+        "to": "52969fde3b5c0d0f4fbd26e00bbfe93a925f03dc51e52adb869a2c2913c9e478",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "2e5c26d0e0947845e1821858c8e1f308a13415e54c82f1aa0958ee34ddffa46b",
+        "to": "52969fde3b5c0d0f4fbd26e00bbfe93a925f03dc51e52adb869a2c2913c9e478",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "e2114f5653a04476bedd7d61574dc96547695e127a47ac24b37fd39640403324",
+        "to": "52969fde3b5c0d0f4fbd26e00bbfe93a925f03dc51e52adb869a2c2913c9e478",
+        "rel": "supersedes",
+        "dangling": false
+      },
+      {
+        "from": "ea6e11c3398eebe0813d060fe6d3db712aca285521ae430f8ea32fcb40bdb0e3",
+        "to": "e2114f5653a04476bedd7d61574dc96547695e127a47ac24b37fd39640403324",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "87eb6f0928024dcaae729a9f35ae892dac2a37b48ebec376539dcf5bb7e0bf31",
+        "to": "e2114f5653a04476bedd7d61574dc96547695e127a47ac24b37fd39640403324",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "2190dc974ba213cb193fe91fd515faee62e91cb673fc725741f15fc25f905211",
+        "to": "8f30ebc16df58b34cd30f081ab039b52057cc7ba8c83d95263daec3ee7141697",
+        "rel": "quest",
+        "dangling": false
+      },
+      {
+        "from": "2190dc974ba213cb193fe91fd515faee62e91cb673fc725741f15fc25f905211",
+        "to": "f90d39fe30fca9f67304452b30cd62fcaba7eca6f2645c4dc6685a3c60479349",
+        "rel": "agreement",
+        "dangling": false
+      },
+      {
+        "from": "e8df5218d642e5020edc6e960caab059b0b7deb85cb914ddfc5a7b25f58ee98e",
+        "to": "2190dc974ba213cb193fe91fd515faee62e91cb673fc725741f15fc25f905211",
+        "rel": "delivery",
+        "dangling": false
+      },
+      {
+        "from": "c5371f8df10fef06e62c8f80da2172ae3f98698badea9d61a0236f430a0c72bc",
+        "to": "8f30ebc16df58b34cd30f081ab039b52057cc7ba8c83d95263daec3ee7141697",
+        "rel": "quest",
+        "dangling": false
+      },
+      {
+        "from": "c5371f8df10fef06e62c8f80da2172ae3f98698badea9d61a0236f430a0c72bc",
+        "to": "2190dc974ba213cb193fe91fd515faee62e91cb673fc725741f15fc25f905211",
+        "rel": "for",
+        "dangling": false
+      },
+      {
+        "from": "e7b9c46806efbcaef7cac88d78f96e4ae8a3f677f8a4bdf9f03314a953d851a2",
+        "to": "8f30ebc16df58b34cd30f081ab039b52057cc7ba8c83d95263daec3ee7141697",
+        "rel": "quest",
+        "dangling": false
+      },
+      {
+        "from": "e7b9c46806efbcaef7cac88d78f96e4ae8a3f677f8a4bdf9f03314a953d851a2",
+        "to": "2190dc974ba213cb193fe91fd515faee62e91cb673fc725741f15fc25f905211",
+        "rel": "for",
+        "dangling": false
+      }
+    ]
+  },
+  "records": [
+    {
+      "type": "org.buildguild.charter",
+      "guild": "did:guild:cartographers",
+      "version": 1,
+      "prose": "The Cartographers chart together, decide collectively, and recall freely.",
+      "rules": {
+        "genesis": [
+          "did:plc:memberA",
+          "did:plc:memberB",
+          "did:plc:memberC"
+        ],
+        "vote": {
+          "admit": {
+            "threshold": 50,
+            "quorum": 50
+          },
+          "grant_mandate": {
+            "threshold": 60,
+            "quorum": 50
+          },
+          "recall": {
+            "threshold": 34,
+            "quorum": 25
+          },
+          "default": {
+            "threshold": 50,
+            "quorum": 50
+          }
+        }
+      },
+      "createdAt": "2026-03-01T00:00:00Z",
+      "author": "did:plc:memberA",
+      "sig": "B9TLdRNtXRlcg0CLO/HRq5xZN8y4yBgUS8++Zyx0vUOj7axRw29GOqprVopVJ28zwpgKYPpW3LQ4Bc+f8un+ww==",
+      "_ref": "af8dda5263dc383ef24978056174d9170136ef9ca897979d7042e65b2b18f6f3",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.proposal",
+      "guild": "did:guild:cartographers",
+      "action": "admit",
+      "enacts": {
+        "grantee": "did:plc:recruitM"
+      },
+      "basis": "af8dda5263dc383ef24978056174d9170136ef9ca897979d7042e65b2b18f6f3",
+      "question": "Admit M to the guild?",
+      "createdAt": "2026-03-02T00:00:00Z",
+      "author": "did:plc:memberA",
+      "sig": "aJrTNrxV6V1fyeUcSpW3KMbGLh/IbGLJwpXqhxVETznMLCKJ07joGazG0Goh3Al6fYA/3xGSWLLY0DH/1O/0UQ==",
+      "_ref": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.attestation",
+      "guild": "did:guild:cartographers",
+      "contract": "vote",
+      "subject": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+      "value": "yes",
+      "basis": "af8dda5263dc383ef24978056174d9170136ef9ca897979d7042e65b2b18f6f3",
+      "createdAt": "2026-03-03T00:00:00Z",
+      "author": "did:plc:memberA",
+      "sig": "JgDospZHDO07vcfaNk4HlLBYm97ukQtgZaoQE+5qnEMpn86d2lm3/liolS+Ez6RqsfLk2y0lXrKQf+Jz2J+q0g==",
+      "_ref": "27be9f59d6f2277f2f8cb6ac93d4b0284e510829f709d8da3917781b1e1cb2dd",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.attestation",
+      "guild": "did:guild:cartographers",
+      "contract": "vote",
+      "subject": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+      "value": "yes",
+      "basis": "af8dda5263dc383ef24978056174d9170136ef9ca897979d7042e65b2b18f6f3",
+      "createdAt": "2026-03-04T00:00:00Z",
+      "author": "did:plc:memberB",
+      "sig": "AbAO3YtwwNduITdW6eRhjKbJpN7hzabLdE5xcNt6A6oTFDazOVNNZNQwXajMpErm2Qsv0gGL8WeIYBBcjtaaaA==",
+      "_ref": "af9be67d340930c4fb41b158831f39e69f06f8d985c3b414bcc043b6f1da7a61",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.proposal",
+      "guild": "did:guild:cartographers",
+      "action": "grant_mandate",
+      "enacts": {
+        "grantee": "did:plc:witnessW",
+        "capability": "delivery.witness",
+        "scope": "did:guild:cartographers",
+        "mode": "trust"
+      },
+      "basis": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+      "question": "Trust W as a delivery witness?",
+      "createdAt": "2026-03-05T00:00:00Z",
+      "author": "did:plc:memberB",
+      "sig": "BVwTPdo9GgzWjNJG1afmDN+X6cN3xoZP1iD57ZzMejPezubtpbMDxjWUCW8skOC5htQcVN9tigbHaPEv/f6HnA==",
+      "_ref": "d6219d94314fa9f94915ce3860067f31a76eb26a732d5e2748c0e3db60ba0cd2",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.attestation",
+      "guild": "did:guild:cartographers",
+      "contract": "vote",
+      "subject": "d6219d94314fa9f94915ce3860067f31a76eb26a732d5e2748c0e3db60ba0cd2",
+      "value": "yes",
+      "basis": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+      "createdAt": "2026-03-06T00:00:00Z",
+      "author": "did:plc:memberA",
+      "sig": "paKv0L8OXqalZYNuDp49P7BMcqHChHO8GmROgb4UftnRq/jQEHun1rHCZc/oIgU3reNQ/BMlIjc8ThtT7XtIwg==",
+      "_ref": "887a354173c3248c888b58baf85053b4ffac20c5b72d1488453829611852cc00",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.attestation",
+      "guild": "did:guild:cartographers",
+      "contract": "vote",
+      "subject": "d6219d94314fa9f94915ce3860067f31a76eb26a732d5e2748c0e3db60ba0cd2",
+      "value": "yes",
+      "basis": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+      "createdAt": "2026-03-07T00:00:00Z",
+      "author": "did:plc:memberB",
+      "sig": "uQZpUn4Af7woBnDTZ6m1nx4+SAF1cDZo92j/lc98dNiyNcLuV+oazxVePNGrhoj+IWFvitrQt0JsAhT68V01KQ==",
+      "_ref": "a0d5d595b149d8a713a8f3466177ce55cb7811d7b275522ccdd712eb4a83fd58",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.attestation",
+      "guild": "did:guild:cartographers",
+      "contract": "vote",
+      "subject": "d6219d94314fa9f94915ce3860067f31a76eb26a732d5e2748c0e3db60ba0cd2",
+      "value": "yes",
+      "basis": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+      "createdAt": "2026-03-08T00:00:00Z",
+      "author": "did:plc:memberC",
+      "sig": "nvLO3sh/Ld5COse3wsgEEEfgM+CMfPPXOTdIBIn/fogjcNHXBExpbwj3XVUGQii/AteF4x7jYby4O662qjukCQ==",
+      "_ref": "a2749eea28285cfd9dce5b005773cb30cb70a5b6718e33c01597f192b5c07d06",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.proposal",
+      "guild": "did:guild:cartographers",
+      "action": "grant_mandate",
+      "enacts": {
+        "grantee": "did:plc:recruitM",
+        "capability": "admit",
+        "scope": "did:guild:cartographers"
+      },
+      "basis": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+      "question": "Mandate M to admit?",
+      "createdAt": "2026-03-09T00:00:00Z",
+      "author": "did:plc:memberA",
+      "sig": "IW+1oPeIIge79erG3u+vRzAYZ94dcro0MmQVQmQlWYg2K3/bW2Pq46jLkdSHSPRbym2aPH1kLDbMV2nv2gy9pA==",
+      "_ref": "eeb74b03887a3ea53b6aab6fa39ac18a2de2522a1c03b644fccb522d2167fc87",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.attestation",
+      "guild": "did:guild:cartographers",
+      "contract": "vote",
+      "subject": "eeb74b03887a3ea53b6aab6fa39ac18a2de2522a1c03b644fccb522d2167fc87",
+      "value": "yes",
+      "basis": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+      "createdAt": "2026-03-10T00:00:00Z",
+      "author": "did:plc:memberA",
+      "sig": "IXnT5OyWe1qPaY8hFQKt47SnNI362/j+w/fpNinzWcdXNQG7gxV5bnvQd9xpWcfOnSixu0V+NIE/l0IWFSbsgQ==",
+      "_ref": "83e2623b4cc219c725e03fad23711c34771aab9e5c698378ee874eae712582ce",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.attestation",
+      "guild": "did:guild:cartographers",
+      "contract": "vote",
+      "subject": "eeb74b03887a3ea53b6aab6fa39ac18a2de2522a1c03b644fccb522d2167fc87",
+      "value": "yes",
+      "basis": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+      "createdAt": "2026-03-11T00:00:00Z",
+      "author": "did:plc:memberB",
+      "sig": "SSiAENsnA98fyGAeIg9/h9Drnkg13oOILa86SkmZMMREj2WqrK+T/sDOFyyaVGhgIGU8mQRYtySZqIUKsMV27w==",
+      "_ref": "e57ea8cc1c2244b7e582debc118a67225fd3e52bfe7660ad72d1a64b0467e5f8",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.attestation",
+      "guild": "did:guild:cartographers",
+      "contract": "vote",
+      "subject": "eeb74b03887a3ea53b6aab6fa39ac18a2de2522a1c03b644fccb522d2167fc87",
+      "value": "yes",
+      "basis": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+      "createdAt": "2026-03-12T00:00:00Z",
+      "author": "did:plc:memberC",
+      "sig": "BjRIHyYAjyeO+o+tq5xz/TCpgNHcy0X4APfzdiiYBZBFY3Bm/0Pb4c4s6go2L/DaliWAgnYZ8eAWPL2A6SDvmw==",
+      "_ref": "7ab0e8639685c42a24bf2d148d1b76278e483247720612598e549aabe6bd27ff",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.proposal",
+      "guild": "did:guild:cartographers",
+      "action": "recall",
+      "enacts": {
+        "grantee": "did:plc:recruitM",
+        "capability": "admit",
+        "scope": "did:guild:cartographers",
+        "target": "eeb74b03887a3ea53b6aab6fa39ac18a2de2522a1c03b644fccb522d2167fc87"
+      },
+      "basis": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+      "question": "Recall M's admit mandate?",
+      "createdAt": "2026-03-13T00:00:00Z",
+      "author": "did:plc:memberC",
+      "sig": "MlVoRmIQ8svTUKegD3YDLhdcXwVs5uif9s51jJCOeG+sButhtHGciFRjo7vEQxwhemJTdeSAxzwCeVxLTASb3A==",
+      "_ref": "587db8e5a4d20bf3d69c14a546313256474cc80a2284d8e7a3fca101e7546837",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.attestation",
+      "guild": "did:guild:cartographers",
+      "contract": "vote",
+      "subject": "587db8e5a4d20bf3d69c14a546313256474cc80a2284d8e7a3fca101e7546837",
+      "value": "yes",
+      "basis": "bcb6a8589d2b22f2519214dcccff5c436f6c7803633239fc57c76ccb3bcd0290",
+      "createdAt": "2026-03-14T00:00:00Z",
+      "author": "did:plc:memberC",
+      "sig": "BZAe6JSSkcs2zlCUQOmi+jVPvEjJiLsCoOY4Nl3tmifa8qDxtijXfsK8bhPt4ek70hDcysau1vRBxnGPwvwJew==",
+      "_ref": "1778c32b8119d6339ac9e41708000c77ac0f8513c93796e0594bc2d70462f3e3",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.quest",
+      "title": "Chart the northern reach",
+      "reward": "$1500",
+      "createdAt": "2026-03-15T00:00:00Z",
+      "author": "did:plc:memberA",
+      "sig": "7nYNuhSDfOqLdxeYCaV1pc/v1Fs6mptxaKM2iC6+o/Cvs7vpC8zh0lw3PUQULNOggU7sU/cMSyKHwVLG5I29Cg==",
+      "_ref": "8f30ebc16df58b34cd30f081ab039b52057cc7ba8c83d95263daec3ee7141697",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.offer",
+      "quest": "8f30ebc16df58b34cd30f081ab039b52057cc7ba8c83d95263daec3ee7141697",
+      "role": "party",
+      "party": [
+        "did:plc:builderX",
+        "did:plc:recruitM"
+      ],
+      "reward": "$1500",
+      "amount": 150000,
+      "currency": "usd",
+      "terms": "on_delivery",
+      "createdAt": "2026-03-16T00:00:00Z",
+      "author": "did:plc:builderX",
+      "sig": "5Gt11AB5CT8ZBkwPoB9p+2muzDLWPh3m5aHO/LZm+zMwh36QpGexqRPA5AOjd2UvC3dA2qXXoz9xuITg4wA4EQ==",
+      "_ref": "52969fde3b5c0d0f4fbd26e00bbfe93a925f03dc51e52adb869a2c2913c9e478",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.acceptance",
+      "subject": "52969fde3b5c0d0f4fbd26e00bbfe93a925f03dc51e52adb869a2c2913c9e478",
+      "createdAt": "2026-03-17T00:00:00Z",
+      "author": "did:plc:memberA",
+      "sig": "9v6NsDX6BRX7YUthtSIwqBWUBFvL1cwMqKKVX3BA+TPjIuYDhcW3WAtDNLNq0oFIJadbYiftiWgiD9f11K2ZTA==",
+      "_ref": "f90d39fe30fca9f67304452b30cd62fcaba7eca6f2645c4dc6685a3c60479349",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.acceptance",
+      "subject": "52969fde3b5c0d0f4fbd26e00bbfe93a925f03dc51e52adb869a2c2913c9e478",
+      "createdAt": "2026-03-18T00:00:00Z",
+      "author": "did:plc:recruitM",
+      "sig": "49tYFHnObQXVPofBQDLOTnGtpAX7/FWOYQwRtkXN/D0J1FaCX5UbtiknRwdH6W9Q/tyjbcS7jhiANjYs1rtzpQ==",
+      "_ref": "2e5c26d0e0947845e1821858c8e1f308a13415e54c82f1aa0958ee34ddffa46b",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.amendment",
+      "supersedes": "52969fde3b5c0d0f4fbd26e00bbfe93a925f03dc51e52adb869a2c2913c9e478",
+      "role": "party",
+      "changes": {
+        "amount": 180000,
+        "reward": "$1800"
+      },
+      "reason": "added the eastern survey",
+      "createdAt": "2026-03-19T00:00:00Z",
+      "author": "did:plc:builderX",
+      "sig": "5jAysBsgHfcYD0CW88AESAbO5qxIMVJrfmLwasBloV+GrJtTYVOKNeqdW7ZL9/QwcNp7gRzKOQ5q9NLOHxf9IQ==",
+      "_ref": "e2114f5653a04476bedd7d61574dc96547695e127a47ac24b37fd39640403324",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.acceptance",
+      "subject": "e2114f5653a04476bedd7d61574dc96547695e127a47ac24b37fd39640403324",
+      "createdAt": "2026-03-20T00:00:00Z",
+      "author": "did:plc:memberA",
+      "sig": "haKu85l0/2feZM806+NLHCeV/yI7TTD7DVaC3PWJuGsL1TUPuW8V5+ytaFJpdNxWolp0VeuvZWfX/U1wvDMWvw==",
+      "_ref": "ea6e11c3398eebe0813d060fe6d3db712aca285521ae430f8ea32fcb40bdb0e3",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.acceptance",
+      "subject": "e2114f5653a04476bedd7d61574dc96547695e127a47ac24b37fd39640403324",
+      "createdAt": "2026-03-21T00:00:00Z",
+      "author": "did:plc:recruitM",
+      "sig": "+1u1UjTuipEzDeAwlJhsoaDyELPQB/yjifkLW2XR9gAnV8Cka/ktHVG66yM4y+HmmOjGbhG+y69Ed5KutFQqMg==",
+      "_ref": "87eb6f0928024dcaae729a9f35ae892dac2a37b48ebec376539dcf5bb7e0bf31",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.delivery",
+      "quest": "8f30ebc16df58b34cd30f081ab039b52057cc7ba8c83d95263daec3ee7141697",
+      "agreement": "f90d39fe30fca9f67304452b30cd62fcaba7eca6f2645c4dc6685a3c60479349",
+      "source": {
+        "repo": "https://tangled.sh/cartographers/atlas",
+        "commit": "9f2c1ab7e4d0"
+      },
+      "createdAt": "2026-03-22T00:00:00Z",
+      "author": "did:plc:builderX",
+      "sig": "vReV0vP1ZN0uASuzNxqFGqZN5WhKPadvDxiHcHwgbA8bAeLV4GtjZ4pwIKb5xlwNvIaMlGHpw4pPCVQMHf862Q==",
+      "_ref": "2190dc974ba213cb193fe91fd515faee62e91cb673fc725741f15fc25f905211",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.witness",
+      "delivery": "2190dc974ba213cb193fe91fd515faee62e91cb673fc725741f15fc25f905211",
+      "commit": "9f2c1ab7e4d0",
+      "treeHash": "5d41402abc4b",
+      "mirror": "https://mirror.guild/atlas.git",
+      "fetchedAt": "2026-03-23T00:00:00Z",
+      "createdAt": "2026-03-24T00:00:00Z",
+      "author": "did:plc:witnessW",
+      "sig": "6HSjdkpnWTi7htdzl6Zzy90okO+7Yu1HhVkrWlspArnW6Mezg3zx33Y+XfrmSL/XyuYoflt7DXHXSA1tkL3Wog==",
+      "_ref": "e8df5218d642e5020edc6e960caab059b0b7deb85cb914ddfc5a7b25f58ee98e",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.settlement",
+      "quest": "8f30ebc16df58b34cd30f081ab039b52057cc7ba8c83d95263daec3ee7141697",
+      "for": "2190dc974ba213cb193fe91fd515faee62e91cb673fc725741f15fc25f905211",
+      "payee": "did:plc:builderX",
+      "party": [
+        "did:plc:builderX",
+        "did:plc:recruitM"
+      ],
+      "amount": 90000,
+      "of": 180000,
+      "rail": "btc",
+      "createdAt": "2026-03-25T00:00:00Z",
+      "author": "did:plc:memberA",
+      "sig": "MOxzGj4fSpJorj3NpMn2Qh0UAwIZdAJA4jN5HjLnNUvvxmJCTy+pBaJni0E69qtW7xfpAw9f0dvgs5d70RtiRw==",
+      "_ref": "c5371f8df10fef06e62c8f80da2172ae3f98698badea9d61a0236f430a0c72bc",
+      "_verified": true
+    },
+    {
+      "type": "org.buildguild.settlement",
+      "quest": "8f30ebc16df58b34cd30f081ab039b52057cc7ba8c83d95263daec3ee7141697",
+      "for": "2190dc974ba213cb193fe91fd515faee62e91cb673fc725741f15fc25f905211",
+      "payee": "did:plc:builderX",
+      "party": [
+        "did:plc:builderX",
+        "did:plc:recruitM"
+      ],
+      "amount": 90000,
+      "of": 180000,
+      "rail": "btc",
+      "createdAt": "2026-03-26T00:00:00Z",
+      "author": "did:plc:memberA",
+      "sig": "mlko/x/I1WkatUO80mONQTN3v/mVPSK5fjI0KXCVZ/MFdvN5Po873n2gagE5tVMYQM+cPvTSKar/kemtSmRKpA==",
+      "_ref": "e7b9c46806efbcaef7cac88d78f96e4ae8a3f677f8a4bdf9f03314a953d851a2",
+      "_verified": true
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "lexicon": 1,
+  "id": "org.buildguild.offer",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A proposal to do a quest on specific terms, from EITHER side — a party claiming the work (any verified builder), or a patron/delegate inviting. The quest is a public advert; THIS pins the binding party, reward, and payment terms (which may differ from the advert). It becomes binding (AGREED) only under FULL per-person consent: an org.buildguild.acceptance from the patron side AND from every party[] member (the offer's author consents by authoring) — see org.buildguild.acceptance. Author is the offerer (repo owner); `role` says which side they are. Patron-side authors must be the quest author or hold a 'quest.transact' org.buildguild.designation for it. Written to the offerer's repo.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["quest", "role", "createdAt"],
+        "properties": {
+          "quest": { "type": "ref", "ref": "com.atproto.repo.strongRef", "description": "The quest being offered on." },
+          "role": { "type": "string", "enum": ["patron", "party"], "description": "Which side the author is — a patron inviting, or a party claiming." },
+          "party": { "type": "array", "items": { "type": "string", "format": "did" }, "maxLength": 16, "description": "Builder DIDs who would do the work (the delivering party). Pinned now so splits/attestation eligibility is fixed from agreement, not settlement." },
+          "reward": { "type": "string", "maxLength": 200, "description": "Human-readable reward (e.g. 'revenue share', '$500', 'kudos')." },
+          "amount": { "type": "integer", "description": "Optional numeric reward total in minor units (e.g. cents) — integer, never a float — so progressive settlements can be summed toward 'fully paid'. Omit for non-monetary rewards." },
+          "currency": { "type": "string", "maxLength": 8, "description": "ISO currency for `amount`, e.g. 'usd'." },
+          "terms": { "type": "string", "enum": ["upfront", "on_delivery"], "description": "Payment sequencing: 'upfront' = pay then deliver (patron at risk); 'on_delivery' = deliver then pay (party at risk)." },
+          "milestones": {
+            "type": "array",
+            "maxLength": 32,
+            "description": "Optional declared payment schedule. Omit for a single deliverable; milestones may also emerge ad hoc as delivery/settlement pairs.",
+            "items": {
+              "type": "object",
+              "required": ["label"],
+              "properties": {
+                "label": { "type": "string", "maxLength": 200 },
+                "amount": { "type": "integer", "description": "Slice in minor units." }
+              }
+            }
+          },
+          "deadline": { "type": "string", "format": "datetime", "description": "Optional target completion." },
+          "note": { "type": "string", "maxLength": 1000 },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

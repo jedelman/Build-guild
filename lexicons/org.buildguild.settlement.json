@@ -1,0 +1,42 @@
+{
+  "lexicon": 1,
+  "id": "org.buildguild.settlement",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A patron's signed proof that a quest was delivered and PAID PEER-TO-PEER — the objective delivery anchor + eligibility context for delivery/split attestations. The platform never custodies funds; parties pay each other directly via any rail and this record attests the OUTCOME only (no card data / PII). Payments may be PROGRESSIVE: each settlement records a slice (`amount`) of the agreed total (`of`), and a client sums settlements against the agreement to reach 'fully paid'; `for` ties a slice to the delivery it settles. The payee co-signs by confirming receipt (a pays.promptly attestation). Carry `evidence` (e.g. a crypto txid) so independent auditors can check it; un-evidenced payments are flagged. Written to the patron's repo.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["quest", "payee", "createdAt"],
+        "properties": {
+          "quest": { "type": "ref", "ref": "com.atproto.repo.strongRef", "description": "The quest being settled." },
+          "agreement": { "type": "ref", "ref": "com.atproto.repo.strongRef", "description": "Optional strongRef to the org.buildguild.acceptance, so payment is judged against what was AGREED." },
+          "for": { "type": "ref", "ref": "com.atproto.repo.strongRef", "description": "Optional strongRef to the org.buildguild.delivery this slice pays for (closes the deliver-pay loop)." },
+          "payee": { "type": "string", "maxLength": 512, "description": "The guild (AT-URI / id) or builder DID that was paid." },
+          "party": { "type": "array", "items": { "type": "string", "format": "did" }, "description": "Builder DIDs on the delivering party (grants splits.fair eligibility)." },
+          "amount": { "type": "integer", "description": "This payment's slice in minor units (e.g. cents) — integer, never a float. For a single full payment, the whole reward; for progressive payment, one installment." },
+          "of": { "type": "integer", "description": "Optional agreed reward TOTAL in minor units, for summing progressive slices toward 'fully paid'. Omit to inherit the agreement's amount." },
+          "currency": { "type": "string", "maxLength": 8, "description": "ISO currency, e.g. 'usd'." },
+          "rail": { "type": "string", "maxLength": 60, "description": "How it was paid, e.g. 'venmo', 'zelle', 'btc', 'wire', 'cash'." },
+          "paymentRef": { "type": "string", "maxLength": 200, "description": "Opaque off-protocol payment reference (e.g. a Venmo note or bank memo). NEVER card numbers or PII." },
+          "evidence": {
+            "type": "array",
+            "maxLength": 16,
+            "description": "Independently-checkable proof of payment — ideally a crypto txid (verifiable on-chain by anyone). Settlements with no evidence are flagged by the auditor.",
+            "items": {
+              "type": "object",
+              "required": ["type", "value"],
+              "properties": {
+                "type": { "type": "string", "maxLength": 40 },
+                "value": { "type": "string", "maxLength": 512 },
+                "note": { "type": "string", "maxLength": 200 }
+              }
+            }
+          },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

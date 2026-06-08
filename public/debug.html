@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Build Guild — commons graph (debug)</title>
+<style>
+  :root {
+    --bg:#0b0a0f; --bg2:#100e16; --surface:#15131d; --line:#251f30; --line2:#342d42;
+    --ink:#f4f1ea; --dim:#bbb4c6; --faint:#8f88a0; --gold:#d8b15a; --teal:#67bcb3;
+    --good:#6cbf95; --danger:#d77c72; --mono:"JetBrains Mono",ui-monospace,monospace;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; overflow:hidden; }
+  body { background:var(--bg); color:var(--ink); font:14px/1.5 Inter,system-ui,sans-serif;
+    display:flex; flex-direction:column; }
+  header { padding:9px 14px; border-bottom:1px solid var(--line); background:var(--bg2);
+    display:flex; gap:14px; align-items:baseline; flex-wrap:wrap; flex:0 0 auto; }
+  header h1 { font-size:14px; margin:0; letter-spacing:.04em; white-space:nowrap; }
+  header .sum { color:var(--dim); font-family:var(--mono); font-size:11.5px; }
+  header .status { color:var(--gold); font-weight:600; }
+  main { flex:1; display:flex; min-height:0; position:relative; }
+  #stage { flex:1; position:relative; overflow:hidden; touch-action:none; cursor:grab;
+    background:radial-gradient(circle at 1px 1px,#ffffff08 1px,transparent 0) 0 0/26px 26px, var(--bg); }
+  #stage.grabbing { cursor:grabbing; }
+  #svg { width:100%; height:100%; display:block; }
+  .controls { position:absolute; left:12px; bottom:12px; display:flex; gap:6px; z-index:5; }
+  .controls button { width:38px; height:38px; border-radius:9px; background:var(--surface);
+    color:var(--ink); border:1px solid var(--line2); font-size:17px; cursor:pointer; line-height:1; }
+  aside { width:340px; flex:0 0 auto; border-left:1px solid var(--line); background:var(--bg2);
+    overflow:auto; padding:14px; }
+  aside h2 { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--faint); margin:0 0 8px; }
+  aside .x { display:none; }
+  pre { font-family:var(--mono); font-size:11.5px; color:var(--dim); white-space:pre-wrap;
+    word-break:break-word; background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:10px; margin:0; }
+  .legend { display:flex; gap:10px; flex-wrap:wrap; font-size:11px; color:var(--faint); }
+  .legend span { display:inline-flex; gap:5px; align-items:center; }
+  .dot { width:9px; height:9px; border-radius:50%; }
+  textarea { width:100%; height:90px; background:var(--surface); color:var(--ink); margin-top:6px;
+    border:1px solid var(--line2); border-radius:8px; font-family:var(--mono); font-size:11px; padding:8px; }
+  .btn { background:var(--surface); color:var(--ink); border:1px solid var(--line2); border-radius:6px; padding:6px 11px; cursor:pointer; font-size:12px; }
+  g.node text { font-family:var(--mono); font-size:11px; fill:var(--ink); }
+  g.node.sel rect.bg { stroke:#fff; stroke-width:2; }
+  text.elabel { font-family:var(--mono); font-size:8.5px; fill:var(--faint); }
+  text.author { font-size:8.5px; fill:var(--faint); }
+  @media (max-width:760px) {
+    header h1 { font-size:13px; } .legend { display:none; }
+    aside { position:absolute; left:0; right:0; bottom:0; width:auto; height:48vh; z-index:10;
+      border-left:none; border-top:1px solid var(--line2); transform:translateY(100%);
+      transition:transform .22s ease; box-shadow:0 -10px 30px #0008; }
+    aside.open { transform:translateY(0); }
+    aside .x { display:block; position:absolute; right:12px; top:10px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚔ Commons graph</h1>
+  <div class="sum" id="summary">loading…</div>
+  <div class="legend" id="legend"></div>
+  <button class="btn" id="pasteBtn" style="margin-left:auto">paste</button>
+</header>
+<main>
+  <div id="stage"><svg id="svg"><g id="vp"></g></svg>
+    <div class="controls">
+      <button id="zin" title="zoom in">＋</button>
+      <button id="zout" title="zoom out">−</button>
+      <button id="fit" title="fit">⤢</button>
+    </div>
+  </div>
+  <aside id="aside">
+    <button class="btn x" id="closeA">close ✕</button>
+    <h2>Inspector</h2>
+    <pre id="detail">Tap a node to inspect its record.</pre>
+    <h2 style="margin-top:14px">Paste data</h2>
+    <textarea id="ta" placeholder='{ "records": [...] }'></textarea>
+    <button class="btn" id="load" style="margin-top:6px">load pasted</button>
+  </aside>
+</main>
+<script type="module">
+const NS="http://www.w3.org/2000/svg", el=(id)=>document.getElementById(id);
+const COLS={ charter:0,proposal:0,designation:0,revocation:0,
+  attestation:1,acceptance:1,quest:1,offer:1,amendment:1,
+  delivery:2,witness:2,settlement:2,message:2 };
+const COLOR={ charter:"#9a7bd0",proposal:"#67bcb3",designation:"#67bcb3",revocation:"#d77c72",
+  attestation:"#9a7bd0",acceptance:"#8f88a0",quest:"#d8b15a",offer:"#d8b15a",amendment:"#ecd49a",
+  delivery:"#6cbf95",witness:"#67bcb3",settlement:"#d8b15a",message:"#8f88a0" };
+const REFS=["subject","supersedes","prev","quest","agreement","for","delivery","target","context"];
+const sT=(t)=>(t||"?").replace(/^org\.buildguild\./,"").replace(/^sh\.tangled\./,"");
+function label(r){const t=sT(r.type);
+  if(t==="offer")return `offer (${r.role})`; if(t==="amendment")return `amend (${r.role})`;
+  if(t==="designation")return `grant ${r.capability}`; if(t==="revocation")return `revoke ${r.capability||""}`;
+  if(t==="acceptance")return "accept"; if(t==="delivery")return `delivery @${(r.source?.commit||"").slice(0,7)}`;
+  if(t==="witness")return `witness @${(r.commit||"").slice(0,7)}`; if(t==="settlement")return `settle ${r.amount??""}`;
+  if(t==="proposal")return `vote: ${r.action||"?"}`; if(t==="attestation")return (r.contract==="vote")?`vote ${r.value}`:`${r.contract||r.predicate}=${r.value}`;
+  if(t==="quest")return `quest: ${(r.title||"").slice(0,20)}`; return t; }
+
+let vt={x:40,y:40,k:1}, bounds={w:1000,h:800};
+const vp=()=>el("vp");
+const applyVT=()=>vp().setAttribute("transform",`translate(${vt.x},${vt.y}) scale(${vt.k})`);
+
+function render(records){
+  const g=vp(); g.innerHTML="";
+  const pos=new Map(), cols={};
+  for(const r of records){const c=COLS[sT(r.type)]??3; (cols[c]??=[]).push(r);}
+  const COLW=270,NW=200,NH=42,VG=20,X0=10,Y0=10; let maxY=0,maxX=0;
+  for(const [c,list] of Object.entries(cols)){
+    list.sort((a,b)=>(a.createdAt<b.createdAt?-1:a.createdAt>b.createdAt?1:0));
+    list.forEach((r,i)=>{const x=X0+c*COLW,y=Y0+i*(NH+VG);pos.set(r._ref,{x,y});maxY=Math.max(maxY,y+NH);maxX=Math.max(maxX,x+NW);});
+  }
+  bounds={w:maxX,h:maxY};
+  const defs=document.createElementNS(NS,"defs");
+  defs.innerHTML=`<marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0L7,3L0,6Z" fill="#5a5468"/></marker>`;
+  g.appendChild(defs);
+  for(const r of records) for(const f of REFS){const v=r[f]; if(typeof v!=="string"||!pos.has(v))continue;
+    const a=pos.get(r._ref),b=pos.get(v),x1=a.x,y1=a.y+NH/2,x2=b.x+NW,y2=b.y+NH/2,mx=(x1+x2)/2;
+    const p=document.createElementNS(NS,"path");
+    p.setAttribute("d",`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`);
+    p.setAttribute("fill","none");p.setAttribute("stroke","#3a3447");p.setAttribute("stroke-width","1.2");p.setAttribute("marker-end","url(#ar)");
+    g.appendChild(p);
+    const t=document.createElementNS(NS,"text");t.setAttribute("class","elabel");t.setAttribute("x",mx);t.setAttribute("y",(y1+y2)/2-3);t.setAttribute("text-anchor","middle");t.textContent=f;g.appendChild(t);
+  }
+  for(const r of records){const {x,y}=pos.get(r._ref),ty=sT(r.type);
+    const node=document.createElementNS(NS,"g");node.setAttribute("class","node");node.setAttribute("transform",`translate(${x},${y})`);
+    const bg=document.createElementNS(NS,"rect");bg.setAttribute("class","bg");bg.setAttribute("width",NW);bg.setAttribute("height",NH);bg.setAttribute("rx","9");
+    bg.setAttribute("fill","#15131d");bg.setAttribute("stroke",r._verified===false?"#d77c72":(COLOR[ty]||"#342d42"));bg.setAttribute("stroke-width","1.5");node.appendChild(bg);
+    const dot=document.createElementNS(NS,"rect");dot.setAttribute("x","11");dot.setAttribute("y","15");dot.setAttribute("width","12");dot.setAttribute("height","12");dot.setAttribute("rx","3");dot.setAttribute("fill",COLOR[ty]||"#342d42");node.appendChild(dot);
+    const t=document.createElementNS(NS,"text");t.setAttribute("x","31");t.setAttribute("y","21");t.textContent=label(r);node.appendChild(t);
+    const au=document.createElementNS(NS,"text");au.setAttribute("class","author");au.setAttribute("x","31");au.setAttribute("y","33");au.textContent=(r.author??r.attester??"").slice(-13);node.appendChild(au);
+    node.addEventListener("click",()=>{ if(moved)return;
+      document.querySelectorAll("g.node.sel").forEach(n=>n.classList.remove("sel")); node.classList.add("sel");
+      el("detail").textContent=JSON.stringify(r,null,2); el("aside").classList.add("open"); });
+    g.appendChild(node);
+  }
+  el("legend").innerHTML=Object.entries(COLOR).map(([k,c])=>`<span><i class="dot" style="background:${c}"></i>${k}</span>`).join("");
+  fit();
+}
+
+function fit(){const st=el("stage"),pad=30;
+  const k=Math.min((st.clientWidth-pad*2)/bounds.w,(st.clientHeight-pad*2)/bounds.h,1.1);
+  vt.k=k>0?k:1; vt.x=(st.clientWidth-bounds.w*vt.k)/2; vt.y=pad; applyVT();}
+function zoomAt(cx,cy,factor){const st=el("stage").getBoundingClientRect();
+  const px=cx-st.left,py=cy-st.top, k2=Math.max(.15,Math.min(3,vt.k*factor));
+  vt.x=px-(px-vt.x)*(k2/vt.k); vt.y=py-(py-vt.y)*(k2/vt.k); vt.k=k2; applyVT();}
+
+// pan + zoom (mouse + touch)
+let moved=false, ptrs=new Map(), last=null, pinch=null;
+const stage=el("stage");
+stage.addEventListener("pointerdown",(e)=>{stage.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});moved=false;
+  if(ptrs.size===1)last={x:e.clientX,y:e.clientY}; if(ptrs.size===2){const[a,b]=[...ptrs.values()];pinch=Math.hypot(a.x-b.x,a.y-b.y);} stage.classList.add("grabbing");});
+stage.addEventListener("pointermove",(e)=>{ if(!ptrs.has(e.pointerId))return; ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(ptrs.size===2&&pinch){const[a,b]=[...ptrs.values()];const d=Math.hypot(a.x-b.x,a.y-b.y);zoomAt((a.x+b.x)/2,(a.y+b.y)/2,d/pinch);pinch=d;moved=true;return;}
+  if(ptrs.size===1&&last){const dx=e.clientX-last.x,dy=e.clientY-last.y; if(Math.abs(dx)+Math.abs(dy)>4)moved=true; vt.x+=dx;vt.y+=dy;last={x:e.clientX,y:e.clientY};applyVT();}});
+const up=(e)=>{ptrs.delete(e.pointerId); if(ptrs.size<2)pinch=null; if(ptrs.size===0){last=null;stage.classList.remove("grabbing");}};
+stage.addEventListener("pointerup",up); stage.addEventListener("pointercancel",up);
+stage.addEventListener("wheel",(e)=>{e.preventDefault();zoomAt(e.clientX,e.clientY,e.deltaY<0?1.12:0.89);},{passive:false});
+el("zin").onclick=()=>zoomAt(innerWidth/2,innerHeight/2,1.2);
+el("zout").onclick=()=>zoomAt(innerWidth/2,innerHeight/2,0.83);
+el("fit").onclick=fit;
+el("closeA").onclick=()=>el("aside").classList.remove("open");
+el("pasteBtn").onclick=()=>{el("aside").classList.add("open");el("ta").focus();};
+el("load").onclick=()=>{try{show(JSON.parse(el("ta").value));}catch(e){el("detail").textContent="Parse error: "+e.message;}};
+addEventListener("resize",fit);
+
+function show(data){
+  const records=data.records||(Array.isArray(data)?data:null);
+  const c=data.collective, a=data.agreement;
+  let s=`${records?.length||0} records`;
+  if(c)s=`members ${c.members.length} · mandates ${c.mandates.length}`+(c.delegatedAdmits?.length?` · delegated ${c.delegatedAdmits.length}`:"")+` · `+s;
+  if(a)s=`agreement <span class="status">${a.status}</span> · paid ${a.paid}/${a.total??"—"} · `+s;
+  el("summary").innerHTML=s;
+  if(records)render(records); else el("detail").textContent="No `records` array in data.";
+}
+// LIVE: with ?guild=<id> read the recomputed commons graph from the API; otherwise fall
+// back to the offline sim's static sample (and paste-to-load always works).
+const guildId=new URLSearchParams(location.search).get("guild");
+const source=guildId?`/api/guilds/${encodeURIComponent(guildId)}/graph`:"./debug-sample.json";
+fetch(source).then(r=>r.ok?r.json():Promise.reject()).then(show)
+  .catch(()=>{el("summary").textContent=guildId?`No graph for guild ${guildId} — has it any signed claims?`:"No debug-sample.json — run `node sim/agreement-demo.mjs`, or paste →";});
+</script>
+</body>
+</html>

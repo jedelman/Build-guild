@@ -7,6 +7,9 @@
   "main": "src/index.js",
   "compatibility_date": "${COMPAT_DATE}",
   "observability": { "enabled": true },
+  // Non-prod only: enables the gated test-persona harness (/api/test/*). Prod's
+  // wrangler.jsonc deliberately omits this, so those routes 404 in production.
+  "vars": { "TEST_FIXTURES": "1" },
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
