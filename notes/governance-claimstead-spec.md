@@ -118,6 +118,13 @@ with their own key and presents the delegation chain proving they were authorize
 time**. No shared key custody. A guild *DID* may still exist as a stable anchor/identifier
 for the charter, but it need not hold authoritative state or be actively operated.
 
+**Now specced as a primitive.** This capability chain is `org.buildguild.designation`
+(see `notes/designation-primitive.md`). It unifies `role_grant`, patron delegates, and the
+charter-named arbiters/witnesses/labelers — and **subsumes membership**: `admit` is a
+`role:member` designation, `accept` its `org.buildguild.acceptance`, `remove` an
+`org.buildguild.revocation`. Governance becomes one designation DAG rooted at the founder;
+`governance.js`'s policy/assignment/lifecycle split maps onto it 1:1 (migration, not rewrite).
+
 ## 7. Money finality (ties escrow #18)
 
 Without a global ledger you can **detect** equivocation but not **prevent** it — which is

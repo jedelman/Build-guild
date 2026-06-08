@@ -66,11 +66,16 @@ expired/revoked)?" before counting their arbiter ruling / witness / label.
 designee co-signs with `org.buildguild.acceptance` (subject → the designation) — the
 same co-sign primitive used everywhere else.
 
-**Revocation.** Delete or supersede the designation (the grantor owns it in their own
-repo; the deletion is witnessed/detectable like any other record). `expiry` gives
-time-boxing without action. (An explicit append-only revoke record is a possible future
-refinement; deletion is enough for v1 because a unilateral grant is the grantor's to
-withdraw, and the withdrawal is observable.)
+**Revocation.** Two cases (the membership case in §5 forced this to be explicit):
+- *Self-withdrawal* — the grantor deletes/supersedes their own designation. Fine for
+  `trust` grants (only the grantor's reliance, only they withdraw it) and for simple
+  self-issued `delegate` grants. `expiry` gives the same effect, time-boxed.
+- *Authority revocation* — someone **other than the grantor** revokes, across repos
+  (an officer removes a member another officer admitted). You can't delete a record in
+  another repo, so this needs an explicit `org.buildguild.revocation` (which also gives
+  an append-only trail). Honored iff the revoker is the original grantor *or* holds
+  authority to grant that capability at that scope (could have issued it). This
+  generalizes governance's `remove`.
 
 ## 4. What collapses into it
 
@@ -84,23 +89,61 @@ withdraw, and the withdrawal is observable.)
 - **arbiter** → `designation{ mode:trust, capability:"dispute.arbitrate", scope:guild }`.
 - **witness/mirror** → `designation{ mode:trust, capability:"delivery.witness", scope }`.
 - **labeler** → `designation{ mode:trust, capability:"moderation.label", scope }`.
-- **admit/accept** *could* be `designation{ mode:delegate, capability:"role:member" }` +
-  acceptance — but membership has its own lifecycle (remove, requireAcceptance) and a
-  working PoC, so leave it as-is for now and note it's the same shape. (Unify later if it
-  earns its keep.)
+- **membership** (`admit`/`accept`/`remove`) → `designation{ mode:delegate,
+  capability:"role:member" }` + `acceptance` + `revocation`. See §5 — this is the
+  clarifying case, not a leftover.
 
-Net: one primitive replaces three prose mechanisms and one bespoke record + one field,
-and finally delivers the UCAN-style capability chains the system was designed around.
+Net: one primitive (+ its revocation counterpart) replaces three prose mechanisms, one
+bespoke record, one field, and the membership lifecycle — and finally delivers the
+UCAN-style capability chains the system was designed around.
 
-## 5. Open questions
+## 5. Membership is a designation (the clarifying case)
+
+Membership was mis-filed. `LEXICON.md` calls it an **attestation**; the Claimstead PoC
+implements it as `admit`/`accept`/`remove` claims. Neither sits right, because an
+**attestation is a subjective opinion that counts if you're eligible** ("I think Bob
+delivered") whereas **admitting a member is an authority act** — someone with standing
+exercising power. That's a designation, not an opinion. This is why membership always
+needed special-case eligibility logic: it was the wrong primitive.
+
+Reclassifying it pays off three ways:
+
+1. **One authority graph.** `charter.founder` is the root (the genesis grant the charter
+   itself confers). The founder designates officers (`role:officer`); officers designate
+   members (`role:member`); a member could sub-designate within a per-quest sub-party —
+   all the *same* record, chained by `prev`, each optionally accepted, each revocable by
+   sufficient authority. Governance stops being a bespoke `admit`/`role_grant`/`remove`
+   engine and becomes **one designation DAG rooted at the founder** — exactly the nested
+   capability chains Claimstead §6/§8 called for.
+2. **Eligibility unifies.** `member_of_guild`, `patron_of_quest`, `party_of_quest` all
+   reduce to the same check: *"does this DID hold the relevant (accepted, un-revoked,
+   un-expired) designation, or is it named in the relevant anchor?"* One resolver instead
+   of an enum of special cases.
+3. **`remove` generalizes** to authority revocation (§3), and `requireAcceptance` becomes
+   "this capability needs the designee's `acceptance` to take effect" — already true for
+   officer/arbiter seats.
+
+Mode is `delegate`: `role:member` confers whatever the charter's `rules.roles.member.can`
+allows (vote, propose, …); a member acts with their own key, and their vote *counts*
+because they hold the grant. A guild that wants pure belonging gives `member` an empty
+`can`.
+
+**Migration, not rewrite.** `governance.js` already separates policy (charter roles) from
+assignment (`role_grant`) and lifecycle (`admit`/`accept`/`remove`); those map 1:1 onto
+designation/acceptance/revocation. The working PoC keeps passing while readers move to the
+unified resolver. Two primitives now carry governance + work: **attestation** (opinions)
+and **designation** (authority/trust), with **acceptance** (consent) and **revocation**
+(un-grant) as their shared verbs.
+
+## 6. Open questions
 
 - **Capability ontology** — publish capabilities as `org.buildguild.contract`-style
   definitions (so "who may grant X" is itself on-record and forkable), or keep a hardcoded
   core set in the verifier for v1? (Lean: hardcoded core now, ontology later.)
-- **Membership** — fold `admit`/`accept` into designation now, or after it's proven on the
-  lighter cases (delegate/arbiter/witness)? (Lean: after.)
-- **Explicit revoke vs delete** — is silent delete acceptable for capability withdrawal,
-  given the project's append-only ethos elsewhere? (A grant is unilateral and the deletion
-  is witnessed, so probably yes — but worth a deliberate call.)
+- **Genesis / root authority** — is `charter.founder` the sole root, or can a charter name
+  co-founders / multiple roots? (Affects how the DAG bottoms out.)
+- **Revocation retroactivity** — does revoking a grant invalidate acts the grantee already
+  took under it (votes cast, members they admitted), or only future ones? (Lean: future
+  only — past acts stand, like real-world resignations; but sanctions may need otherwise.)
 - **Chain depth / attenuation checks** — how deep do we verify, and do we cache resolved
   authority in the AppView? (Perf vs. purity; the reference verifier stays pure.)

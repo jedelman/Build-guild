@@ -29,22 +29,27 @@ co-signed, amendable agreement, and delivery is anchored to a git commit.
   independently testable, durable on-protocol even if the repo is later deleted.
 - `org.buildguild.witness` — a trusted third party's signed proof it fetched (and
   optionally mirrors) a delivery's commit — the federated replacement for an escrow
-  agent; charters name the witnesses they trust.
+  agent; guilds designate the witnesses they trust.
 - `org.buildguild.message` — a signed, public, threaded comment on a quest/offer/etc.
   (the negotiation + dispute trail; on-record or it isn't official).
 
 **Attestation — the universal opinion:**
 - `org.buildguild.attestation` — a signed `yes`/`no`/`unknown` about a `subject` under a
-  `predicate`, with optional `context`. Endorsements, ratings, **votes**, and
-  **membership** are all attestations; they differ only by predicate + eligibility.
+  `predicate`, with optional `context`. Endorsements, ratings, and **votes** are all
+  attestations; they differ only by predicate + eligibility. (**Membership** is *not* an
+  attestation — admitting a member is an authority act, so it's a designation; see below.)
 
 **Designation — the universal authority/trust grant:**
 - `org.buildguild.designation` — "X authorizes/trusts Y for a capability, in a scope."
   Mode `delegate` (act *with* the grantor's authority — attenuated, revocable, chainable;
   officers, patron delegates, sub-parties) or `trust` (the grantor *relies on* the
-  grantee — arbiters, witnesses, labelers). Generalizes governance's `role_grant` and
-  replaces ad-hoc delegate fields / charter-named-X prose. See
-  `notes/designation-primitive.md`.
+  grantee — arbiters, witnesses, labelers). Generalizes governance's `role_grant`,
+  subsumes **membership** (`admit` = a `role:member` designation, `accept` = its
+  acceptance), and replaces ad-hoc delegate fields / charter-named-X prose.
+- `org.buildguild.revocation` — withdraws a designation; the counterpart to a grant and
+  the generalization of governance's `remove`. Needed for *authority* revocation (an
+  officer revokes a grant another officer issued — cross-repo, so it can't be a delete).
+  Both: see `notes/designation-primitive.md`.
 
 **Ancestors (still valid, superseded going forward):** `org.buildguild.skill`,
 `org.buildguild.endorsement`, `org.buildguild.repo`. New code uses `attestation`
