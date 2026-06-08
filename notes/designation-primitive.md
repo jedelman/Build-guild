@@ -224,21 +224,36 @@ the right shape is a causal **DAG** (git/CRDT-style): acts pin, by cid, the stat
 were built on, and an auditor replays in causal order with concurrent acts *detectably*
 concurrent rather than silently tie-broken.
 
-For voting (decided: **live roster**), this lands as a `basis` pin: a vote carries the
-**membership HEAD** it was cast under (the cid of the last roster-changing act it saw; the
-charter at genesis). A vote counts only while it pins the *current* head — so the instant
-the roster changes the head advances and every pending old-basis vote is **stale by
-inspection** (walk the `basis` link; no clock needed) and must be recast. Built + tested:
-`src/collective.js` (head tracking + `staleVotes`), `test/collective-basis.test.js`,
-plus order-independence over 50 shuffles (`test/collective-adversarial.test.js`). `basis`
-is a real graph edge, so the debug view *shows* the chain.
+Two things ride on this, both now built:
 
-Built + tested overall: `src/collective.js`; `test/collective*.test.js` (genesis cohort,
-admit-by-vote with a growing electorate, scoped mandate + cheap recall, per-action bars,
-non-member votes ignored, basis-staleness + recast).
+1. **Vote validity (live roster).** A vote carries `basis` = the **membership HEAD** it
+   was cast under (the cid of the last roster-changing act it saw; the charter at genesis).
+   A vote counts only while it pins the *current* head — so the instant the roster changes
+   the head advances and every pending old-basis vote is **stale by inspection** (walk the
+   `basis` link; no clock) and must be recast.
 
-Still open here: **proposal *ordering* is still by `createdAt` (interim)** — replacing it
-with pure causal-DAG order (so even the sequence is clock-free, and concurrent membership
-changes resolve by a declared rule, not timestamp) is the next step, along with a
-liveness/anti-grief guard (constant roster churn could starve a vote), delegated admits,
-charter-amendment via the vote path, and wiring `collective.js` into the agreement demo.
+2. **Sequencing (causal order).** `createdAt` no longer participates in ordering at all.
+   Every proposal names its causal predecessors — `basis` (the head it builds on) plus
+   `enacts.target`/`enacts.supersedes` (recall→grant, re-grant→recall) — and
+   `deriveCollective` **topologically sorts** that DAG (`causalOrder`), breaking ties
+   between genuinely concurrent acts by **ref hash**. Replay is a pure function of the
+   record *set*: independent of gossip order and of every wall clock. Content addressing
+   guarantees acyclicity (you can only reference a cid that already exists).
+
+Worked example — *grant → recall → re-grant ends granted* — no longer relies on
+`T(1)<T(2)<T(3)`: the recall `target`s the grant and the re-grant `supersedes` the recall,
+so the references force the order. *Same-tick grant + recall* is modelled as genuinely
+**concurrent** (no edge between them) and resolved by ref tiebreak. Both are in
+`test/collective-adversarial.test.js` (50-shuffle byte-identical replay); live-roster
+staleness + recast in `test/collective-basis.test.js`. `basis`/`target`/`supersedes` are
+real graph edges, so the debug view *shows* the chain to walk.
+
+Built + tested overall: `src/collective.js` (`causalOrder` + head tracking + `staleVotes`);
+`test/collective*.test.js`, 99/99. The whole authority path is now clock-free.
+
+Still open here: a **liveness / anti-grief guard** — live roster means constant roster
+churn could starve a vote (keep admitting members to reset everyone's `basis`); needs a
+declared bound (e.g. a settle/cooldown window, or charter-chosen freeze-at-open per
+proposal). Plus delegated admits, charter-amendment via the vote path, and wiring
+`collective.js` into the agreement demo. (`closesAt` survives only as an advisory "is
+voting open" gate — it gates decidability, never order.)

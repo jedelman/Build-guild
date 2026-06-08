@@ -29,12 +29,14 @@ const charter = (genesis) => ({
   },
 });
 
-const proposal = (author, action, enacts, n) => vr(author, {
-  type: "org.buildguild.proposal", guild: GUILD, action, enacts,
+// Causality is structural, not temporal: a proposal names the head it `basis`-builds on
+// (default "genesis"); a vote pins the head it was cast under. createdAt is advisory only.
+const proposal = (author, action, enacts, n, basis = "genesis") => vr(author, {
+  type: "org.buildguild.proposal", guild: GUILD, action, enacts, basis,
   createdAt: `2026-04-${String(n).padStart(2, "0")}T00:00:00Z`,
 });
-const vote = (author, propRef, value, n) => vr(author, {
-  type: "org.buildguild.attestation", guild: GUILD, contract: "vote", subject: propRef, value,
+const vote = (author, propRef, value, n, basis = "genesis") => vr(author, {
+  type: "org.buildguild.attestation", guild: GUILD, contract: "vote", subject: propRef, value, basis,
   createdAt: `2026-04-${String(n).padStart(2, "0")}T12:00:00Z`,
 });
 
@@ -56,9 +58,10 @@ test("admit by microvote, then the new member can vote (temporal electorate)", a
   let c = deriveCollective(ch, recs);
   assert.ok(c.members.includes(C), "C admitted");
 
-  // Proposal 2 (later): admit D. Now C is part of the electorate and helps reach quorum.
-  const p2 = await proposal(A, "admit", { grantee: D }, 2);
-  recs.push(p2, await vote(A, p2._ref, "yes", 2), await vote(C, p2._ref, "yes", 2));
+  // Proposal 2: admit D, built causally ON the admit-C head (p1). Now C is part of the
+  // electorate and helps reach quorum; A & C vote under the post-admit head.
+  const p2 = await proposal(A, "admit", { grantee: D }, 2, p1._ref);
+  recs.push(p2, await vote(A, p2._ref, "yes", 2, p1._ref), await vote(C, p2._ref, "yes", 2, p1._ref));
   c = deriveCollective(ch, recs);
   assert.ok(c.members.includes(D), "D admitted with the once-new member C voting");
   assert.equal(c.proposals[p2._ref].tally.eligible, 3, "electorate had grown to 3 by P2");
@@ -74,8 +77,9 @@ test("officer = scoped delegate-mandate by vote; recall is cheap", async () => {
   let c = deriveCollective(ch, recs);
   assert.equal(c.holdsCapability(O, "admit", GUILD), true, "O holds the admit mandate");
 
-  // Recall it — only ONE member need vote yes (threshold 34, quorum 25 → 1/3 = 33% cast, 33% quorum).
-  const r = await proposal(A, "recall", { grantee: O, capability: "admit", scope: GUILD }, 2);
+  // Recall it — references the grant it cancels (causal edge), so it is ordered AFTER the
+  // grant without any clock. Only ONE member need vote yes (threshold 34, quorum 25).
+  const r = await proposal(A, "recall", { grantee: O, capability: "admit", scope: GUILD, target: g._ref }, 2);
   recs.push(r, await vote(A, r._ref, "yes", 2));
   c = deriveCollective(ch, recs);
   assert.equal(c.holdsCapability(O, "admit", GUILD), false, "mandate recalled at the low bar");

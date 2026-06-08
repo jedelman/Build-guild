@@ -38,11 +38,12 @@ export function buildGraph(records) {
     createdAt: r.createdAt ?? null,
   }));
   const edges = [];
+  const addEdge = (from, to, rel) => { if (typeof to === "string" && to) edges.push({ from, to, rel, dangling: !known.has(to) }); };
   for (const r of records) {
-    for (const f of REF_FIELDS) {
-      const v = r[f];
-      if (typeof v === "string" && v) edges.push({ from: r._ref, to: v, rel: f, dangling: !known.has(v) });
-    }
+    for (const f of REF_FIELDS) addEdge(r._ref, r[f], f);
+    // causal edges that order authority acts live inside `enacts` (recall→grant,
+    // re-grant→recall); surface them so the audit can walk the chain forward.
+    if (r.enacts) { addEdge(r._ref, r.enacts.target, "target"); addEdge(r._ref, r.enacts.supersedes, "supersedes"); }
   }
   return { nodes, edges };
 }

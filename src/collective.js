@@ -7,27 +7,68 @@
 // than granting it). Founding is just ratifying the genesis charter: the genesis
 // cohort are the initial members and hold no special power thereafter.
 //
-// State is derived by TEMPORAL REPLAY: proposals are decided in close-time order,
-// each tallied against the electorate (members) AS OF THAT MOMENT, and a passed
-// proposal mutates the membership / mandates that later proposals are judged
-// against. This is the price of vote-rooted (not founder-rooted) authority.
+// State is derived by CAUSAL REPLAY: there is no wall clock in the trust path. Each
+// governance act names the prior acts it builds on — a proposal's `basis` (the membership
+// HEAD it assumes) and any act it explicitly supersedes/targets (recall→grant,
+// re-grant→recall). Those references form a DAG; content addressing guarantees it is
+// acyclic (you can only reference a cid that already exists). We topologically sort that
+// DAG, breaking ties between genuinely CONCURRENT acts by ref hash (deterministic, and
+// emphatically not by a self-asserted timestamp). Each proposal is tallied against the
+// electorate AS OF its causal position, and a passed proposal mutates the membership /
+// mandates that later acts are judged against. This is the price of vote-rooted (not
+// founder-rooted) authority — paid in causal order, not in trust of anyone's clock.
 //
 // Reuses the existing primitives: org.buildguild.proposal carries an `action` +
 // `enacts`; a vote is an org.buildguild.attestation (contract "vote", subject =
 // proposal). See notes/designation-primitive.md.
 
-// CAUSAL BASIS (live roster): a vote pins `basis` = the membership HEAD it was cast
-// under (the cid of the last roster-changing act it saw; the charter is the genesis
-// head). A vote counts only if its basis equals the head that is current when its
-// proposal is evaluated — so the moment the roster changes, every pending vote pinning
-// the old head is STALE and must be recast. Staleness is thus detectable by walking the
-// basis link, not guessed from a clock. (Proposals are still sequenced by createdAt as
-// an interim ordering; replacing that with pure causal order is the next step. Votes
-// without a `basis` are treated as legacy/fresh.)
+// LIVE ROSTER: a vote pins `basis` = the membership HEAD it was cast under (the cid of
+// the last roster-changing act it saw; the charter is the genesis head). A vote counts
+// only if its basis equals the head current at its proposal's causal position — so the
+// instant the roster changes, every pending vote pinning the old head is STALE and must
+// be recast. Staleness is detectable by walking the basis link, not guessed from a clock.
+// Votes without a `basis` are treated as legacy/fresh.
 
 const active = (r, now) => r && r._verified !== false && (!r.expiry || Date.parse(r.expiry) > now);
 const inScope = (m, scope) => m.scope === scope || m.scope === "*" || scope === "*";
 const DEFAULT_RULE = { threshold: 50, quorum: 50 }; // integer percents
+
+// The causal predecessors of a proposal: the prior acts it builds on. `basis` is the
+// membership head it assumes; `target`/`supersedes` are the acts it cancels or replaces
+// (recall→grant, re-grant→recall). Only refs that resolve to known proposals are edges.
+function predecessorsOf(P, propRefs) {
+  const e = P.enacts || {};
+  return [P.basis, e.target, e.supersedes].filter((r) => r && r !== P._ref && propRefs.has(r));
+}
+
+// Deterministic topological sort (Kahn) over the reference DAG. Among proposals that are
+// causally concurrent (all dependencies met) we always take the smallest ref next, so the
+// order is a pure function of the record SET — independent of gossip/insertion order and
+// of every wall clock. Content addressing makes the graph acyclic; any residue from a
+// dangling ref is appended by ref so the function is total.
+function causalOrder(proposals) {
+  const propRefs = new Set(proposals.map((p) => p._ref));
+  const byRef = new Map(proposals.map((p) => [p._ref, p]));
+  const indeg = new Map(proposals.map((p) => [p._ref, 0]));
+  const succ = new Map(proposals.map((p) => [p._ref, []]));
+  for (const P of proposals)
+    for (const d of predecessorsOf(P, propRefs)) { indeg.set(P._ref, indeg.get(P._ref) + 1); succ.get(d).push(P._ref); }
+  const ready = proposals.filter((p) => indeg.get(p._ref) === 0).map((p) => p._ref).sort();
+  const ordered = [];
+  const seen = new Set();
+  while (ready.length) {
+    const ref = ready.shift(); // smallest ref among the causally-ready frontier
+    if (seen.has(ref)) continue;
+    seen.add(ref);
+    ordered.push(byRef.get(ref));
+    let added = false;
+    for (const s of succ.get(ref) || []) if (indeg.set(s, indeg.get(s) - 1).get(s) === 0) { ready.push(s); added = true; }
+    if (added) ready.sort();
+  }
+  for (const p of [...proposals].sort((a, b) => (a._ref < b._ref ? -1 : 1)))
+    if (!seen.has(p._ref)) ordered.push(p); // dangling-ref residue, by ref
+  return ordered;
+}
 
 function applyEffect(P, members, mandates) {
   const e = P.enacts || {};
@@ -64,11 +105,9 @@ export function deriveCollective(charter, records, { now = Date.now() } = {}) {
   const ROSTER_ACTIONS = new Set(["admit", "remove"]);
   const GENESIS = charter._ref ?? "genesis"; // the genesis membership head
 
-  const decideAt = (p) => p.closesAt ?? p.createdAt;
-  const ordered = [...proposals].sort((a, b) => {
-    const ta = decideAt(a), tb = decideAt(b);
-    return ta === tb ? (a._ref < b._ref ? -1 : 1) : ta < tb ? -1 : 1;
-  });
+  // Causal order: topologically sort proposals over their reference edges, breaking ties
+  // between concurrent acts by ref hash. No timestamps participate in sequencing.
+  const ordered = causalOrder(proposals);
 
   const members = new Set(genesis);
   const mandates = [];
