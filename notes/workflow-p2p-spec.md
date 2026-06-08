@@ -278,13 +278,16 @@ we chose true per-person consent, so an offer naming `party:[A,B,C]` binds no on
 
 ## 6. Build plan (increments)
 
-1. **Agreement + amendments**: offer + acceptance + amendment records + `agreed`
-   status; UI for offer-from-either-side, accept, and propose/accept an amendment;
-   terms folded from the append-only chain with original-vs-current shown. (Replaces
-   the unilateral claim.)
-2. **Delivery + progressive pay**: `delivery` record git-anchored to a commit;
-   `settlement` extended with `amount`/`of`/`for`; the deliver→pay loop with
-   `part-paid`/`fully-paid` summed client-side; ordering by terms.
+_Core derivers built + tested (`src/agreement.js`, `src/designation.js`, `src/graph.js`;
+`test/agreement.test.js`, `test/designation.test.js`, 8 tests). Inspect a full signed
+lifecycle in the **debug graph view**: `node sim/agreement-demo.mjs` → open
+`public/debug.html`. Remaining per increment: storage/index wiring + UI._
+
+1. **Agreement + amendments** ✅ *(deriver + authority resolver)*: offer + acceptance +
+   amendment folding; full per-person consent → `offered`/`part-agreed`/`agreed`; the
+   unified designation/eligibility resolver with **collective root**. _UI pending._
+2. **Delivery + progressive pay** ✅ *(deriver)*: `delivery` git-anchored; `settlement`
+   `amount`/`of`/`for`; deliver→pay loop summed to `part-paid`/`fully-paid`. _UI pending._
 3. **Quest threads**: `org.buildguild.message` + a comment UI on the quest drawer.
 4. **Witnesses/mirrors**: `org.buildguild.witness` + a reference mirror that fetches and
    holds delivery shas; charter-named trusted witnesses.

@@ -108,13 +108,19 @@ needed special-case eligibility logic: it was the wrong primitive.
 
 Reclassifying it pays off three ways:
 
-1. **One authority graph.** `charter.founder` is the root (the genesis grant the charter
-   itself confers). The founder designates officers (`role:officer`); officers designate
-   members (`role:member`); a member could sub-designate within a per-quest sub-party —
-   all the *same* record, chained by `prev`, each optionally accepted, each revocable by
-   sufficient authority. Governance stops being a bespoke `admit`/`role_grant`/`remove`
-   engine and becomes **one designation DAG rooted at the founder** — exactly the nested
-   capability chains Claimstead §6/§8 called for.
+1. **One authority graph, with a collective root.** The root is **not a single
+   founder** — that would make one key the source of all power. The charter declares
+   `rules.root = { founders:[did,…], threshold:int }`, and a root-level grant is
+   effective only when ≥ `threshold` distinct founders co-sign it (the grant's author
+   consents by authoring; others co-sign with an `acceptance`). A lone founder is just
+   the degenerate `{ founders:[founder], threshold:1 }` case. From there the founders
+   collectively designate officers (`role:officer`); officers designate members
+   (`role:member`); a member could sub-designate within a per-quest sub-party — all the
+   *same* record, chained by `prev`, each accepted, each revocable by sufficient
+   authority. Governance stops being a bespoke `admit`/`role_grant`/`remove` engine and
+   becomes **one designation DAG rooted in collective consent** — the nested capability
+   chains Claimstead §6/§8 called for. (Implemented + tested: `src/designation.js`,
+   `test/designation.test.js`.)
 2. **Eligibility unifies.** `member_of_guild`, `patron_of_quest`, `party_of_quest` all
    reduce to the same check: *"does this DID hold the relevant (accepted, un-revoked,
    un-expired) designation, or is it named in the relevant anchor?"* One resolver instead
@@ -172,8 +178,10 @@ across all agreements.** The set is closed.
 - **Capability ontology** — publish capabilities as `org.buildguild.contract`-style
   definitions (so "who may grant X" is itself on-record and forkable), or keep a hardcoded
   core set in the verifier for v1? (Lean: hardcoded core now, ontology later.)
-- **Genesis / root authority** — is `charter.founder` the sole root, or can a charter name
-  co-founders / multiple roots? (Affects how the DAG bottoms out.)
+- ~~Genesis / root authority~~ **Decided + built:** the charter names a collective root
+  (`rules.root = { founders[], threshold }`); root grants need a founder threshold to take
+  effect, so the founder isn't the source of all power. Single-founder is the degenerate
+  case. (`src/designation.js#rootRule` / `buildAuthority`.)
 - **Revocation retroactivity** — does revoking a grant invalidate acts the grantee already
   took under it (votes cast, members they admitted), or only future ones? (Lean: future
   only — past acts stand, like real-world resignations; but sanctions may need otherwise.)

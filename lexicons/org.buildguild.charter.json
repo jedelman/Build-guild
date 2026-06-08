@@ -14,7 +14,7 @@
           "version": { "type": "integer", "minimum": 1 },
           "prev": { "type": "ref", "ref": "com.atproto.repo.strongRef", "description": "The prior charter version (amendment chain); validated against the prior charter's amendment rule." },
           "prose": { "type": "string", "maxLength": 5000 },
-          "rules": { "type": "unknown", "description": "{ roles: {<role>: {can: [capability]}}, membership: {requireAcceptance: bool, admit: role}, proposal: {rule, threshold(0-100 int), quorum(0-100 int)} }." },
+          "rules": { "type": "unknown", "description": "{ root: {founders: [did], threshold: int} — the COLLECTIVE root authority (a root-level org.buildguild.designation is effective only when >= threshold distinct founders co-sign; omit for the degenerate single-founder root); roles: {<role>: {can: [capability]}}; membership: {requireAcceptance: bool, admit: role}; proposal: {rule, threshold(0-100 int), quorum(0-100 int)} }." },
           "createdAt": { "type": "string", "format": "datetime" }
         }
       }

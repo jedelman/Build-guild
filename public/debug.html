@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Build Guild — commons graph (debug)</title>
+<style>
+  :root {
+    --bg:#0b0a0f; --bg2:#100e16; --surface:#15131d; --line:#251f30; --line2:#342d42;
+    --ink:#f4f1ea; --dim:#bbb4c6; --faint:#8f88a0; --gold:#d8b15a; --teal:#67bcb3;
+    --good:#6cbf95; --danger:#d77c72; --mono:"JetBrains Mono",ui-monospace,monospace;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+    font:14px/1.5 Inter,system-ui,sans-serif; height:100vh; display:flex; flex-direction:column; }
+  header { padding:10px 16px; border-bottom:1px solid var(--line); background:var(--bg2);
+    display:flex; gap:18px; align-items:baseline; flex-wrap:wrap; }
+  header h1 { font-size:15px; margin:0; letter-spacing:.04em; }
+  header .sum { color:var(--dim); font-family:var(--mono); font-size:12px; }
+  header .status { color:var(--gold); font-weight:600; }
+  header button { margin-left:auto; background:var(--surface); color:var(--ink);
+    border:1px solid var(--line2); border-radius:6px; padding:5px 10px; cursor:pointer; font-size:12px; }
+  main { flex:1; display:flex; min-height:0; }
+  #stage { flex:1; overflow:auto; background:
+    radial-gradient(circle at 1px 1px, #ffffff08 1px, transparent 0) 0 0/24px 24px, var(--bg); }
+  aside { width:340px; border-left:1px solid var(--line); background:var(--bg2); overflow:auto; padding:14px; }
+  aside h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--faint); margin:0 0 8px; }
+  aside pre { font-family:var(--mono); font-size:11.5px; color:var(--dim); white-space:pre-wrap;
+    word-break:break-word; background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:10px; }
+  .legend { display:flex; gap:12px; flex-wrap:wrap; font-size:11px; color:var(--faint); }
+  .legend span { display:inline-flex; gap:5px; align-items:center; }
+  .dot { width:9px; height:9px; border-radius:50%; display:inline-block; }
+  textarea { width:100%; height:120px; background:var(--surface); color:var(--ink);
+    border:1px solid var(--line2); border-radius:8px; font-family:var(--mono); font-size:11px; padding:8px; }
+  g.node { cursor:pointer; }
+  g.node rect { stroke-width:1.5; }
+  g.node text { font-family:var(--mono); font-size:11px; fill:var(--ink); }
+  g.node.sel rect { stroke:#fff; }
+  text.elabel { font-family:var(--mono); font-size:9px; fill:var(--faint); }
+  text.author { font-size:9px; fill:var(--faint); }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚔ Commons graph</h1>
+  <div class="sum" id="summary">loading…</div>
+  <div class="legend" id="legend"></div>
+  <button id="paste">paste JSON</button>
+</header>
+<main>
+  <div id="stage"><svg id="svg"></svg></div>
+  <aside>
+    <h2>Inspector</h2>
+    <pre id="detail">Click a node to inspect its record.</pre>
+    <h2 style="margin-top:16px">Paste data</h2>
+    <textarea id="ta" placeholder='Paste { "records": [...] } or { "graph": {...} }'></textarea>
+    <button id="load" style="margin-top:8px;background:var(--surface);color:var(--ink);border:1px solid var(--line2);border-radius:6px;padding:5px 10px;cursor:pointer">load pasted</button>
+  </aside>
+</main>
+<script type="module">
+const SVGNS = "http://www.w3.org/2000/svg";
+// type → column + color. Authority on the left, agreement middle, fulfilment right.
+const COLS = {
+  charter:0, designation:0, revocation:0,
+  quest:1, offer:1, amendment:1, acceptance:1,
+  delivery:2, witness:2, settlement:2, attestation:2, message:2,
+};
+const COLOR = {
+  charter:"#9a7bd0", designation:"#67bcb3", revocation:"#d77c72", acceptance:"#8f88a0",
+  quest:"#d8b15a", offer:"#d8b15a", amendment:"#ecd49a",
+  delivery:"#6cbf95", witness:"#67bcb3", settlement:"#d8b15a", attestation:"#9a7bd0", message:"#8f88a0",
+};
+const el = (id) => document.getElementById(id);
+
+function shortType(t){ return (t||"?").replace(/^org\.buildguild\./,"").replace(/^sh\.tangled\./,""); }
+function label(r){
+  const t=shortType(r.type);
+  if(t==="offer")return `offer (${r.role})`;
+  if(t==="amendment")return `amend (${r.role})`;
+  if(t==="designation")return `grant ${r.capability}→${(r.grantee||"").slice(-5)}`;
+  if(t==="revocation")return `revoke ${r.capability||""}`;
+  if(t==="acceptance")return `accept`;
+  if(t==="delivery")return `delivery @${(r.source?.commit||"").slice(0,7)}`;
+  if(t==="witness")return `witness @${(r.commit||"").slice(0,7)}`;
+  if(t==="settlement")return `settle ${r.amount??""}`;
+  if(t==="quest")return `quest: ${(r.title||"").slice(0,22)}`;
+  return t;
+}
+
+function render(records){
+  const svg = el("svg"); svg.innerHTML="";
+  const byId = new Map(records.map(r=>[r._ref,r]));
+  // layout: columns by type, rows by createdAt within column
+  const cols = {};
+  for(const r of records){ const c = COLS[shortType(r.type)] ?? 3; (cols[c]??=[]).push(r); }
+  const COLW=260, NODEW=200, NODEH=40, VGAP=22, X0=40, Y0=40;
+  const pos = new Map();
+  let maxY=0;
+  for(const [c,list] of Object.entries(cols)){
+    list.sort((a,b)=>(a.createdAt<b.createdAt?-1:a.createdAt>b.createdAt?1:0));
+    list.forEach((r,i)=>{ const x=X0+c*COLW, y=Y0+i*(NODEH+VGAP); pos.set(r._ref,{x,y}); maxY=Math.max(maxY,y); });
+  }
+  svg.setAttribute("width", X0+Object.keys(cols).length*COLW+NODEW);
+  svg.setAttribute("height", maxY+NODEH+Y0);
+
+  // arrowhead
+  const defs=document.createElementNS(SVGNS,"defs");
+  defs.innerHTML=`<marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5a5468"/></marker>`;
+  svg.appendChild(defs);
+
+  // edges first (under nodes)
+  for(const r of records){
+    for(const [f,v] of Object.entries(r)){
+      if(typeof v!=="string"||!pos.has(v)) continue;
+      if(!["subject","supersedes","prev","quest","agreement","for","delivery","target","context"].includes(f)) continue;
+      const a=pos.get(r._ref), b=pos.get(v);
+      const x1=a.x, y1=a.y+NODEH/2, x2=b.x+NODEW, y2=b.y+NODEH/2;
+      const mx=(x1+x2)/2;
+      const p=document.createElementNS(SVGNS,"path");
+      p.setAttribute("d",`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`);
+      p.setAttribute("fill","none"); p.setAttribute("stroke","#3a3447"); p.setAttribute("stroke-width","1.2");
+      p.setAttribute("marker-end","url(#ar)");
+      svg.appendChild(p);
+      const t=document.createElementNS(SVGNS,"text");
+      t.setAttribute("class","elabel"); t.setAttribute("x",mx); t.setAttribute("y",(y1+y2)/2-3);
+      t.setAttribute("text-anchor","middle"); t.textContent=f; svg.appendChild(t);
+    }
+  }
+  // nodes
+  for(const r of records){
+    const {x,y}=pos.get(r._ref); const ty=shortType(r.type);
+    const g=document.createElementNS(SVGNS,"g"); g.setAttribute("class","node"); g.setAttribute("transform",`translate(${x},${y})`);
+    const rect=document.createElementNS(SVGNS,"rect");
+    rect.setAttribute("width",NODEW); rect.setAttribute("height",NODEH); rect.setAttribute("rx","8");
+    rect.setAttribute("fill","#15131d"); rect.setAttribute("stroke",r._verified===false?"#d77c72":(COLOR[ty]||"#342d42"));
+    g.appendChild(rect);
+    const dot=document.createElementNS(SVGNS,"rect");
+    dot.setAttribute("x","10");dot.setAttribute("y","14");dot.setAttribute("width","12");dot.setAttribute("height","12");
+    dot.setAttribute("rx","3");dot.setAttribute("fill",COLOR[ty]||"#342d42"); g.appendChild(dot);
+    const t=document.createElementNS(SVGNS,"text"); t.setAttribute("x","30"); t.setAttribute("y","20"); t.textContent=label(r); g.appendChild(t);
+    const au=document.createElementNS(SVGNS,"text"); au.setAttribute("class","author"); au.setAttribute("x","30"); au.setAttribute("y","32");
+    au.textContent=(r.author??r.attester??r.founder??"").slice(-14); g.appendChild(au);
+    g.addEventListener("click",()=>{
+      document.querySelectorAll("g.node.sel").forEach(n=>n.classList.remove("sel"));
+      g.classList.add("sel");
+      el("detail").textContent=JSON.stringify(r,null,2);
+    });
+    svg.appendChild(g);
+  }
+  // legend
+  el("legend").innerHTML = Object.entries(COLOR).map(([k,c])=>`<span><i class="dot" style="background:${c}"></i>${k}</span>`).join("");
+}
+
+function show(data){
+  const records = data.records || (data.graph ? null : (Array.isArray(data)?data:null));
+  if(data.agreement){ const a=data.agreement;
+    el("summary").innerHTML = `agreement <span class="status">${a.status}</span> · paid ${a.paid}/${a.total??"—"} · ${data.records?.length||0} records`;
+  } else el("summary").textContent = `${records?.length||0} records`;
+  if(records) render(records);
+  else el("detail").textContent="No `records` array found in data.";
+}
+
+el("paste").onclick=()=>el("ta").focus();
+el("load").onclick=()=>{ try{ show(JSON.parse(el("ta").value)); }catch(e){ el("detail").textContent="Parse error: "+e.message; } };
+
+fetch("./debug-sample.json").then(r=>r.ok?r.json():Promise.reject()).then(show)
+  .catch(()=>{ el("summary").textContent="No debug-sample.json — run `node sim/agreement-demo.mjs`, or paste data →"; });
+</script>
+</body>
+</html>
