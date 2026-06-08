@@ -1,0 +1,21 @@
+{
+  "lexicon": 1,
+  "id": "org.buildguild.message",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A signed, public, threaded comment on a quest / offer / delivery / other record — the negotiation and dispute trail, in the open. Mirrors the Tangled issue-comment pattern; there is no standard atproto cross-record comment lexicon (chat.bsky is centralized DMs, off-record). Public by design: only what's on the record is official. Private 1:1 is out of scope (link to Bluesky DMs if ever needed). Author is the commenter (repo owner). Written to the author's repo.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["subject", "body", "createdAt"],
+        "properties": {
+          "subject": { "type": "ref", "ref": "com.atproto.repo.strongRef", "description": "The record this thread hangs on (a quest, offer, delivery, etc.)." },
+          "replyTo": { "type": "ref", "ref": "com.atproto.repo.strongRef", "description": "Optional parent message being replied to (threads)." },
+          "body": { "type": "string", "maxLength": 10000 },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

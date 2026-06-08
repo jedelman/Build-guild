@@ -10,11 +10,28 @@ are the contract, not our API.
 
 **Anchors — a thing, with payload:**
 - `org.buildguild.charter` — a guild's constitution (rules: roles, thresholds, quorum).
-- `org.buildguild.quest` — a posted quest (work + reward + skills).
+- `org.buildguild.quest` — a posted quest, a public advert (work + reward + skills).
 - `org.buildguild.settlement` — patron's signed proof a quest was delivered + paid
-  (the objective delivery anchor; money settles off-protocol, this attests the outcome).
+  (the objective delivery anchor; money settles off-protocol, this attests the outcome;
+  supports progressive/partial payment via `amount`/`of`/`for`).
 - `org.buildguild.proposal` — a governance question to vote on.
 - `org.buildguild.contract` — a predicate definition (the ontology / values document).
+
+**Quest workflow — the agreement loop:** the advert isn't the deal; the deal is a
+co-signed, amendable agreement, and delivery is anchored to a git commit.
+- `org.buildguild.offer` — a proposal to do a quest on specific terms, from **either**
+  side (party claims, or patron invites). Binding only once accepted.
+- `org.buildguild.acceptance` — the counterparty's co-signature on an offer or
+  amendment (→ AGREED). Pins the exact version, so terms can't change silently.
+- `org.buildguild.amendment` — an append-only change to agreed terms; takes effect only
+  when separately accepted. Current terms = offer folded with the accepted chain.
+- `org.buildguild.delivery` — the party's delivery, **anchored to a git commit sha**:
+  independently testable, durable on-protocol even if the repo is later deleted.
+- `org.buildguild.witness` — a trusted third party's signed proof it fetched (and
+  optionally mirrors) a delivery's commit — the federated replacement for an escrow
+  agent; charters name the witnesses they trust.
+- `org.buildguild.message` — a signed, public, threaded comment on a quest/offer/etc.
+  (the negotiation + dispute trail; on-record or it isn't official).
 
 **Attestation — the universal opinion:**
 - `org.buildguild.attestation` — a signed `yes`/`no`/`unknown` about a `subject` under a
@@ -63,4 +80,6 @@ you compute meaning. No canonical score.
 
 `lexicon: 1` is locked: existing fields won't change meaning or type. Evolution is
 additive (new optional fields) or a new lexicon id; breaking changes get a new version
-with a migration note here. Stability is the point — escrow/payments build on it next.
+with a migration note here. Stability is the point — the quest-workflow records above
+(offer/acceptance/amendment/delivery/witness/message) are additive on top of it, and
+`settlement` gained optional `agreement`/`for`/`of` fields for the deliver→pay loop.

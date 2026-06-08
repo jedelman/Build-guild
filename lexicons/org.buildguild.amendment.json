@@ -1,0 +1,45 @@
+{
+  "lexicon": 1,
+  "id": "org.buildguild.amendment",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "An append-only change to agreed terms — the plan is meant to change, but never silently. You never overwrite the agreement; you supersede it. Proposes a delta and takes effect only when the counterparty files an org.buildguild.acceptance against it (as mutual as the original deal). Current terms = the original offer folded with the ordered chain of accepted amendments; the diff between any two links is the paper trail. Unaccepted amendments stay visible as proposed-but-not-agreed. Author's `role` says which side proposed. Written to the proposer's repo.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["supersedes", "role", "changes", "createdAt"],
+        "properties": {
+          "supersedes": { "type": "ref", "ref": "com.atproto.repo.strongRef", "description": "The org.buildguild.offer or prior org.buildguild.amendment this changes (the chain link it builds on)." },
+          "role": { "type": "string", "enum": ["patron", "party"], "description": "Which side proposed the change." },
+          "changes": {
+            "type": "object",
+            "description": "The fields being changed; omitted fields are unchanged from the superseded state.",
+            "properties": {
+              "party": { "type": "array", "items": { "type": "string", "format": "did" }, "maxLength": 16 },
+              "reward": { "type": "string", "maxLength": 200 },
+              "amount": { "type": "integer", "description": "New reward total in minor units." },
+              "currency": { "type": "string", "maxLength": 8 },
+              "terms": { "type": "string", "enum": ["upfront", "on_delivery"] },
+              "milestones": {
+                "type": "array",
+                "maxLength": 32,
+                "items": {
+                  "type": "object",
+                  "required": ["label"],
+                  "properties": {
+                    "label": { "type": "string", "maxLength": 200 },
+                    "amount": { "type": "integer" }
+                  }
+                }
+              },
+              "deadline": { "type": "string", "format": "datetime" }
+            }
+          },
+          "reason": { "type": "string", "maxLength": 1000, "description": "Why the change — part of the public trail." },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

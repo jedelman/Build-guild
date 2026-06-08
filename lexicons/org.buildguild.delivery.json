@@ -1,0 +1,48 @@
+{
+  "lexicon": 1,
+  "id": "org.buildguild.delivery",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "The party's signed assertion that work (or a milestone) is delivered, anchored to a specific git commit — the primary, INDEPENDENTLY-TESTABLE proof: anyone can fetch the sha and run it, with no trust in the assertion. Git is treated as untrusted hosting (the owner can force-push or delete it), so the durable claim is the sha recorded HERE and witnessed on-protocol — re-stated in the patron's acceptance/confirmation and held by trusted third parties (org.buildguild.witness). evidence[] carries the non-git tail (deploy link, design file). Author is the party (repo owner). Written to the party's repo.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["quest", "source", "createdAt"],
+        "properties": {
+          "quest": { "type": "ref", "ref": "com.atproto.repo.strongRef", "description": "The quest being delivered against." },
+          "agreement": { "type": "ref", "ref": "com.atproto.repo.strongRef", "description": "Optional strongRef to the org.buildguild.acceptance, so delivery is judged against what was AGREED, not just the advert." },
+          "milestone": { "type": "string", "maxLength": 200, "description": "Optional milestone label this delivery satisfies (matches a milestone on the agreed offer)." },
+          "source": {
+            "type": "object",
+            "description": "The git anchor — what is being delivered, as content-addressed bytes.",
+            "required": ["commit"],
+            "properties": {
+              "repo": { "type": "string", "maxLength": 512, "description": "Clone URI where the commit can be fetched (untrusted/availability only; may later disappear)." },
+              "commit": { "type": "string", "maxLength": 64, "description": "Git commit sha (hex) — the immutable, independently-checkable anchor. Pin the COMMIT, never a branch." },
+              "treeHash": { "type": "string", "maxLength": 64, "description": "Optional git tree sha — the content fingerprint, stable across history rewrites." },
+              "ref": { "type": "string", "maxLength": 200, "description": "Optional human ref the commit was on (tag/branch), for convenience only." },
+              "path": { "type": "string", "maxLength": 512, "description": "Optional sub-path within the repo that is the deliverable." }
+            }
+          },
+          "note": { "type": "string", "maxLength": 1000 },
+          "evidence": {
+            "type": "array",
+            "maxLength": 16,
+            "description": "Optional non-git proof an auditor can check (deploy URL, content hash, etc.).",
+            "items": {
+              "type": "object",
+              "required": ["type", "value"],
+              "properties": {
+                "type": { "type": "string", "maxLength": 40, "description": "url | sha256 | … " },
+                "value": { "type": "string", "maxLength": 512 },
+                "note": { "type": "string", "maxLength": 200 }
+              }
+            }
+          },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

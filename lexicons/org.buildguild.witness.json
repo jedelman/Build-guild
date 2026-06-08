@@ -1,0 +1,23 @@
+{
+  "lexicon": 1,
+  "id": "org.buildguild.witness",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A trusted third party's signed attestation that it fetched a delivery's git commit and the content matched at time T — the federated, on-protocol replacement for an escrow agent. Optionally MIRRORS the bytes (`mirror`) so the artifact survives the original repo being force-pushed or deleted. Because this record is itself on-protocol, the witness can't quietly retract; independent witnesses compound durability. Guilds name trusted witnesses in their charter (same pattern as arbiters and labelers). The auditor's `evidence-vanished` flag fires only when a referenced commit is unreachable AND no trusted witness holds it. Author is the witness (repo owner). Written to the witness's repo.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["delivery", "commit", "fetchedAt", "createdAt"],
+        "properties": {
+          "delivery": { "type": "ref", "ref": "com.atproto.repo.strongRef", "description": "The org.buildguild.delivery being witnessed." },
+          "commit": { "type": "string", "maxLength": 64, "description": "Git commit sha (hex) the witness fetched and verified — must match the delivery's source.commit." },
+          "treeHash": { "type": "string", "maxLength": 64, "description": "Optional git tree sha the witness records as the content fingerprint." },
+          "mirror": { "type": "string", "maxLength": 512, "description": "Optional clone URI where the witness serves the bytes, so the artifact survives the original repo's deletion." },
+          "fetchedAt": { "type": "string", "format": "datetime", "description": "When the witness fetched and verified the commit." },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "lexicon": 1,
+  "id": "org.buildguild.acceptance",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "The counterparty's co-signature on an offer or amendment — the moment terms become binding (AGREED), or an amendment takes effect. Because `subject` is a strongRef (which pins the exact content id), terms can't be silently changed after acceptance: any change has to come back as a new, separately-accepted amendment. Author is the accepter (repo owner). Written to the accepter's repo.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["subject", "createdAt"],
+        "properties": {
+          "subject": { "type": "ref", "ref": "com.atproto.repo.strongRef", "description": "The org.buildguild.offer or org.buildguild.amendment being co-signed (pinned by content id)." },
+          "fetched": { "type": "string", "maxLength": 64, "description": "Optional git commit/tree sha the accepter has fetched and is acknowledging receipt of — forecloses 'I never received it' as a later defense (see org.buildguild.delivery)." },
+          "note": { "type": "string", "maxLength": 1000 },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}
