@@ -20,11 +20,15 @@ Decisions taken (this review): **public quest threads** as signed records;
 ## 2. Lifecycle
 
 ```
-open ─▶ offered ─▶ AGREED ─▶ in-progress ─▶ delivered ─▶ paid ─▶ confirmed/closed
-        (offer)   (accept)     (work)       (party+ev)  (patron+ev) (payee co-signs)
-          │           │                                   │
-          └── withdraw┘                          dispute ─┴─ (contested + evidence → arbiter?)
+                          ┌──── milestone loop (0..n) ────┐
+                          ▼                               │
+open ─▶ offered ─▶ AGREED ─▶ delivered ─▶ part-paid ──────┘─▶ fully-paid ─▶ confirmed/closed
+        (offer)   (accept)  (party@commit)(patron, partial)   (Σ ≥ reward)  (payee co-signs)
+          │           │                        │
+          └── withdraw┘               dispute ─┴─ (contested + evidence → arbiter?)
 ```
+A quest is one agreement with a **deliver→pay loop**: each delivery pins a git commit,
+each settlement pays a slice; the quest is done when paid slices sum to the reward.
 
 | State | Who acts | Record |
 |---|---|---|
@@ -32,8 +36,9 @@ open ─▶ offered ─▶ AGREED ─▶ in-progress ─▶ delivered ─▶ pai
 | `offered` | **either** a party (claim) **or** the patron (invite a guild) | `org.buildguild.offer` |
 | `AGREED` | the other side accepts | `org.buildguild.acceptance` (strongRef → offer) |
 | `in-progress` | — | (none; thread comments) |
-| `delivered` | party | `org.buildguild.delivery` (evidence[]) |
-| `paid` | patron | `org.buildguild.settlement` (rail, ref, evidence[]) |
+| `delivered` | party | `org.buildguild.delivery` (git commit + evidence[]) |
+| `part-paid` | patron | `org.buildguild.settlement` (amount, rail, ref, evidence[]) |
+| `fully-paid` | — | Σ settlement amounts ≥ reward |
 | `confirmed` | payee | `pays.promptly` attestation (the receipt co-sign) |
 | ratings | both | attestations (`deliver.*`, `splits.fair`, `pays.promptly`, `specs.clearly`) |
 | `withdrawn` | offerer | delete/tombstone the offer (before acceptance) |
@@ -52,17 +57,26 @@ re-expressed as a co-signed claim.
 - **`org.buildguild.acceptance`** — `{ offer: strongRef, by: did, createdAt }`. The
   counterparty co-signs → AGREED. (Accepting the *exact* offer version via `cid` means
   terms can't be silently changed after acceptance.)
-- **`org.buildguild.delivery`** — `{ quest: strongRef, by: did, note?, evidence: [
-  {type,value,note} ], createdAt }`. Party asserts delivery, with checkable evidence
-  (repo URL, commit hash, deploy link).
+- **`org.buildguild.delivery`** — `{ quest: strongRef, by: did, milestone?: string,
+  source: { repo: uri, commit: sha, ref?, path? }, note?, evidence?: [{type,value,note}],
+  createdAt }`. Party asserts delivery **anchored to a specific git commit** — the
+  primary, independently-testable proof (anyone can `git fetch` the sha and run it; no
+  trust in the assertion needed). `evidence[]` stays for the non-git tail (deploy link,
+  design file). One delivery per milestone in the loop.
 - **`org.buildguild.message`** — `{ subject: strongRef (quest/offer/…), body, replyTo?:
   strongRef, createdAt }`. A signed, public, threaded comment in the author's repo —
   the Tangled `…issue.comment` pattern (no standard cross-record comment lexicon
   exists; `chat.bsky` is centralized/off-record). Doubles as the negotiation + dispute
   trail. Private 1:1 is deferred (link out to Bluesky DMs if ever needed).
 
-`org.buildguild.settlement` is unchanged (already P2P, carries evidence). Quests
-already carry `terms`.
+- **`org.buildguild.settlement`** (extended) — add `{ amount: string, of?: string
+  (reward total), for?: strongRef → delivery }`. P2P removed the CC/ACH minimums and
+  per-transaction friction that forced one lump sum, so a settlement now pays a
+  **slice**: deposits, milestone payouts, drips. The agreement holds the total; a
+  client sums settlements to compute `part-paid` → `fully-paid`. `for` ties a payment
+  to the delivery (commit) it settles, so the deliver→pay loop is auditable end to end.
+
+Quests already carry `terms`.
 
 ## 4. P2P ripple effects (the actual review)
 
@@ -82,6 +96,19 @@ already carry `terms`.
 6. **Evidence everywhere** — offers/deliveries/settlements all carry `evidence[]`; the
    audit lens (`src/audit.js`) flags un-evidenced steps and collusion, which is how a
    no-escrow system stays honest.
+7. **Progressive settlement** (new) — P2P has no per-transaction floor, so big quests
+   no longer need to be one all-or-nothing payment. Milestone payouts shrink the trust
+   gap on *both* sides under either `terms`: a deposit de-risks the party, a pay-as-
+   delivered drip de-risks the patron. This is the no-escrow substitute for "held
+   funds" — risk is chopped into slices small enough that neither side gets badly burned
+   if the other walks, and each slice is its own reputational signal.
+8. **Git-anchored delivery** (new) — pinning delivery to a commit sha makes the proof
+   *independently verifiable*: the patron (or an arbiter, or anyone) checks out the sha
+   and runs it, rather than trusting a "done" assertion. This collapses most disputes
+   before they start (the artifact either builds/passes or it doesn't) and gives the
+   audit lens something concrete to check. Milestones map cleanly to commits, so the
+   deliver→pay loop becomes commit→slice. (Caveat: only as strong as the work being
+   git-shaped — design/ops deliverables still lean on `evidence[]`.)
 
 ## 5. Dispute model (proposed: lightweight now)
 
@@ -97,18 +124,26 @@ already carry `terms`.
 
 1. **Agreement**: offer + acceptance records + `agreed` status; UI for offer-from-
    either-side and accept; lock party/reward/terms. (Replaces the unilateral claim.)
-2. **Delivery**: `delivery` record + evidence; `delivered` status; ordering by terms.
+2. **Delivery + progressive pay**: `delivery` record git-anchored to a commit;
+   `settlement` extended with `amount`/`of`/`for`; the deliver→pay loop with
+   `part-paid`/`fully-paid` summed client-side; ordering by terms.
 3. **Quest threads**: `org.buildguild.message` + a comment UI on the quest drawer.
 4. **Disputes**: contested-state surfacing + optional charter arbiter.
 
-Payment (settlement) + confirmation + ratings already exist and slot in unchanged.
+Confirmation + ratings already exist and slot in unchanged.
 
 ## 7. Open questions
 
 - Should `offer` allow counter-offers (negotiation as a chain of offers), or is it
   one offer → accept/reject? (Threads can carry the haggling; offers stay clean.)
-- Are quests strictly atomic (≤5 days) with big work = a sequence of agreements, or do
-  we want explicit milestones on one quest? (Leaning atomic.)
+- Milestones now live *inside* one agreement (the deliver→pay loop), so big work no
+  longer forces a chain of separate agreements. Remaining: do we declare milestones
+  up front in the offer (`milestones: [{label, amount}]`, so the schedule is agreed)
+  or let them emerge ad hoc as delivery/settlement pairs? (Leaning: optional declared
+  schedule, ad-hoc allowed.)
+- Git anchor: require a public/fetchable repo for the commit to be real proof, or
+  accept private repos where only the patron can verify (weaker, but fine for closed
+  work)? And do we record the host (GitHub/Tangled/raw) or just a clone URI?
 - Does the agreement need both parties' *device-key* signatures, or is the atproto
   identity enough? (Consistent with the rest: device-key-signed Claimstead records.)
 - Charter-named arbiter: per-guild only, or a network-level arbiter registry later?
