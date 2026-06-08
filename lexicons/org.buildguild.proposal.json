@@ -4,14 +4,16 @@
   "defs": {
     "main": {
       "type": "record",
-      "description": "A governance question a guild votes on — the anchor that `vote` attestations point at. Written to the proposer's repo. threshold/quorum are INTEGER PERCENTS (0-100); omit to inherit the charter's defaults.",
+      "description": "A governance question a guild votes on — the anchor that `vote` attestations point at. Written to the proposer's repo. threshold/quorum are INTEGER PERCENTS (0-100); omit to inherit the charter's per-action defaults. A proposal may ENACT a collective authority decision: set `action` + `enacts` and, on passing, it mutates membership/mandates (the founder-free authority model — see notes/designation-primitive.md §8).",
       "key": "tid",
       "record": {
         "type": "object",
-        "required": ["guild", "question", "createdAt"],
+        "required": ["guild", "createdAt"],
         "properties": {
           "guild": { "type": "string", "maxLength": 512, "description": "The guild this proposal belongs to (AT-URI / id)." },
           "question": { "type": "string", "maxLength": 500 },
+          "action": { "type": "string", "enum": ["admit", "remove", "grant_mandate", "recall", "amend"], "description": "Optional: the authority act this proposal enacts on passing. Picks the charter `rules.vote[action]` bar." },
+          "enacts": { "type": "unknown", "description": "Payload for `action`, e.g. admit/remove {grantee}; grant_mandate {grantee, capability, scope, mode}; recall {target | grantee, capability, scope}; amend {charter}." },
           "rule": { "type": "string", "maxLength": 60, "description": "Decision-rule override (else the charter default)." },
           "threshold": { "type": "integer", "minimum": 0, "maximum": 100, "description": "Percent YES required (0-100)." },
           "quorum": { "type": "integer", "minimum": 0, "maximum": 100, "description": "Percent participation required (0-100)." },

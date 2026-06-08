@@ -108,19 +108,14 @@ needed special-case eligibility logic: it was the wrong primitive.
 
 Reclassifying it pays off three ways:
 
-1. **One authority graph, with a collective root.** The root is **not a single
-   founder** — that would make one key the source of all power. The charter declares
-   `rules.root = { founders:[did,…], threshold:int }`, and a root-level grant is
-   effective only when ≥ `threshold` distinct founders co-sign it (the grant's author
-   consents by authoring; others co-sign with an `acceptance`). A lone founder is just
-   the degenerate `{ founders:[founder], threshold:1 }` case. From there the founders
-   collectively designate officers (`role:officer`); officers designate members
-   (`role:member`); a member could sub-designate within a per-quest sub-party — all the
-   *same* record, chained by `prev`, each accepted, each revocable by sufficient
-   authority. Governance stops being a bespoke `admit`/`role_grant`/`remove` engine and
-   becomes **one designation DAG rooted in collective consent** — the nested capability
-   chains Claimstead §6/§8 called for. (Implemented + tested: `src/designation.js`,
-   `test/designation.test.js`.)
+1. **One authority graph, rooted in the collective** (see §8 — this superseded an
+   earlier founder-co-sign root). Membership and mandates are minted by passed
+   microvotes, not by a founder; from there a mandate-holder may sub-designate within
+   its scope — all the *same* record, chained by `prev`, each accepted, each revocable.
+   Governance stops being a bespoke `admit`/`role_grant`/`remove` engine and becomes
+   **one designation DAG rooted in collective consent** — the nested capability chains
+   Claimstead §6/§8 called for. (Implemented + tested: `src/collective.js`,
+   `src/designation.js`.)
 2. **Eligibility unifies.** `member_of_guild`, `patron_of_quest`, `party_of_quest` all
    reduce to the same check: *"does this DID hold the relevant (accepted, un-revoked,
    un-expired) designation, or is it named in the relevant anchor?"* One resolver instead
@@ -178,12 +173,50 @@ across all agreements.** The set is closed.
 - **Capability ontology** — publish capabilities as `org.buildguild.contract`-style
   definitions (so "who may grant X" is itself on-record and forkable), or keep a hardcoded
   core set in the verifier for v1? (Lean: hardcoded core now, ontology later.)
-- ~~Genesis / root authority~~ **Decided + built:** the charter names a collective root
-  (`rules.root = { founders[], threshold }`); root grants need a founder threshold to take
-  effect, so the founder isn't the source of all power. Single-founder is the degenerate
-  case. (`src/designation.js#rootRule` / `buildAuthority`.)
+- ~~Genesis / root authority~~ **Decided + built (§8):** no durable founder — the
+  membership is sovereign via per-action microvotes; "officers" are scoped recallable
+  mandates. (`src/collective.js`.) An interim founder-co-sign root (`buildAuthority`) was
+  built first and is now superseded.
 - **Revocation retroactivity** — does revoking a grant invalidate acts the grantee already
   took under it (votes cast, members they admitted), or only future ones? (Lean: future
   only — past acts stand, like real-world resignations; but sanctions may need otherwise.)
 - **Chain depth / attenuation checks** — how deep do we verify, and do we cache resolved
   authority in the AppView? (Perf vs. purity; the reference verifier stays pure.)
+
+## 8. Collective sovereignty — no durable founder (decided + built)
+
+A permanent founder is a latent single point of authority no matter how collective
+everything downstream is. So **founding carries no durable power or responsibility**: it
+is just ratifying the genesis charter, and the **genesis cohort** (`rules.genesis`) are
+the initial members — nothing more. This drops the activation threshold (no privileged
+founder structure to design) and puts the skin in the game on *membership*, since power
+*is* membership.
+
+Authority then comes only from **the membership acting collectively** — which means
+votes. And votes are attestations, so this **closes the loop between the two primitive
+families: collective opinion confers authority.** Concretely (anarcho-syndicalist):
+
+- **The collective is sovereign via microvotes.** A `proposal` carries an `action`
+  (`admit` / `remove` / `grant_mandate` / `recall` / `amend`) and an `enacts` payload;
+  when it passes under the charter's rule, it mutates membership or mandates. Votes are
+  `org.buildguild.attestation`s (contract `vote`).
+- **"Officers" dissolve into scoped, recallable delegate-mandates.** A member is mandated
+  *by vote* to carry a bounded capability (`grant_mandate`), and the collective can
+  **recall** it — typically at a *lower* bar than granting (delegates are instantly
+  recallable, hold no inherent power, execute a mandate).
+- **Per-action vote bars.** `rules.vote = { <action>: {threshold, quorum} }` — e.g. admit
+  at simple majority, recall cheap, charter amendment a supermajority. ("Micro" = light
+  bars for light acts.)
+- **Charters simplify:** no `founder` role and no special `can`; roles/mandates are pure
+  capability bundles; the root is just the genesis cohort + the per-action vote rules.
+
+The cost, paid deliberately: membership and authority are **temporal and mutually
+recursive** — a vote is tallied against the electorate *as of its decision*, and passing
+it changes the electorate later votes face. So state is derived by **temporal replay** of
+proposals in close-time order. Built + tested: `src/collective.js`,
+`test/collective.test.js` (genesis cohort, admit-by-vote with a growing electorate,
+scoped mandate + cheap recall, per-action bars, non-member votes ignored).
+
+Still open here: delegated admits (a mandate-holder issuing `role:member` designations
+directly vs. every admit being its own vote), charter-amendment execution via the vote
+path, and wiring `collective.js` into `agreement.js`/the demo (guild-patron delegation).

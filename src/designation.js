@@ -6,12 +6,17 @@
 // grantor's authority) and `trust` (the grantor relies on the grantee). See
 // notes/designation-primitive.md.
 //
-// COLLECTIVE ROOT: authority does NOT flow from a single founder. The charter's
-// `rules.root = { founders:[did,…], threshold:int }` says who the root authorities
-// are and how many must consent to a root-level grant. A lone founder is just the
-// degenerate { founders:[founder], threshold:1 } case. A root grant becomes
-// effective only when ≥ threshold distinct root founders have co-signed it (the
-// grant's author consents by authoring; others co-sign with an acceptance).
+// NOTE: this module's ROOT rule (`rules.root` founder co-sign) is SUPERSEDED by the
+// founder-free collective model in src/collective.js, where root authority comes from
+// passed microvotes of the membership and "officers" are scoped recallable mandates
+// (notes/designation-primitive.md §8). The designation chain BELOW the root (attenuated
+// grants, acceptance-gated roles, cascading revocation) still stands and is fed by
+// collective.js's mandates. Kept here as the interim/portable resolver.
+//
+// COLLECTIVE ROOT (interim): the charter's `rules.root = { founders:[did,…],
+// threshold:int }` says how many root authorities must consent to a root-level grant.
+// A lone founder is the degenerate { founders:[founder], threshold:1 } case. A root
+// grant becomes effective only when ≥ threshold distinct founders have co-signed it.
 
 import { canonicalize } from "./governance.js";
 
