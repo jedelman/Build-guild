@@ -21,7 +21,8 @@ function label(rec) {
   if (t === "revocation") return `revoke ${rec.capability || rec.target?.slice(0, 6) || ""}`;
   if (t === "delivery") return `delivery @${(rec.source?.commit || "").slice(0, 7)}`;
   if (t === "settlement") return `settle ${rec.amount ?? ""}`;
-  if (t === "attestation") return `attest ${rec.contract || rec.predicate}=${rec.value}`;
+  if (t === "proposal") return `vote: ${rec.action || "proposal"}${rec.enacts?.grantee ? " " + rec.enacts.grantee.slice(-6) : rec.enacts?.capability ? " " + rec.enacts.capability : ""}`;
+  if (t === "attestation") return rec.contract === "vote" || rec.predicate === "vote" ? `vote ${rec.value}` : `attest ${rec.contract || rec.predicate}=${rec.value}`;
   if (t === "quest") return `quest: ${rec.title || rec.body?.title || ""}`.slice(0, 40);
   return t;
 }

@@ -1,12 +1,13 @@
-// Builds a complete, signed quest-lifecycle commons — collective-root guild,
-// officer + member via the designation DAG, a co-signed party agreement, an
-// accepted amendment, a git-anchored delivery, a witness, and progressive
-// settlement — then writes public/debug-sample.json for the debug graph view.
+// Builds a complete, signed commons — a guild GOVERNING ITSELF (founder-free:
+// genesis cohort, admit-by-microvote, a granted-then-recalled mandate, a witness
+// mandate) AND running a full quest lifecycle (co-signed party agreement, accepted
+// amendment, git delivery, witness, progressive settlement) — then writes
+// public/debug-sample.json for the debug graph view.
 //
 //   node sim/agreement-demo.mjs
 import { writeFileSync, mkdirSync } from "node:fs";
 import { generateKeypair, signRecord, verifyRecords } from "../src/governance.js";
-import { buildAuthority } from "../src/designation.js";
+import { deriveCollective } from "../src/collective.js";
 import { deriveAgreement } from "../src/agreement.js";
 import { buildGraph } from "../src/graph.js";
 
@@ -24,60 +25,71 @@ const vr = async (did, rec) => {
 let n = 0;
 const at = () => `2026-03-${String(++n).padStart(2, "0")}T00:00:00Z`;
 
-const A = await actor("did:plc:founderA"), B = await actor("did:plc:founderB");
-const O = await actor("did:plc:officerO"), M = await actor("did:plc:memberM");
-const X = await actor("did:plc:builderX"), W = await actor("did:plc:witnessW");
+const A = await actor("did:plc:memberA"), B = await actor("did:plc:memberB"), C = await actor("did:plc:memberC");
+const M = await actor("did:plc:recruitM"), W = await actor("did:plc:witnessW"), X = await actor("did:plc:builderX");
 const GUILD = "did:guild:cartographers";
 
+// Founder-free charter: genesis cohort are the initial members; per-action vote bars.
 const charter = await vr(A, {
-  type: "org.buildguild.charter", guild: GUILD, version: 1, founder: A,
-  prose: "The Cartographers chart together, decide collectively, and split fairly.",
+  type: "org.buildguild.charter", guild: GUILD, version: 1,
+  prose: "The Cartographers chart together, decide collectively, and recall freely.",
   rules: {
-    root: { founders: [A, B], threshold: 2 },
-    roles: { founder: { can: ["grant_role", "admit", "remove"] }, officer: { can: ["admit"] }, member: { can: ["vote"] } },
+    genesis: [A, B, C],
+    vote: {
+      admit: { threshold: 50, quorum: 50 },
+      grant_mandate: { threshold: 60, quorum: 50 },
+      recall: { threshold: 34, quorum: 25 }, // recall is cheap
+      default: { threshold: 50, quorum: 50 },
+    },
   },
   createdAt: at(),
 });
 
-// --- authority DAG: A grants O officer (collective root → B co-signs), O accepts
-const grantO = await vr(A, { type: "org.buildguild.designation", grantee: O, mode: "delegate", capability: "role:officer", scope: GUILD, createdAt: at() });
-const bCoO = await vr(B, { type: "org.buildguild.acceptance", subject: grantO._ref, createdAt: at() });
-const oAcc = await vr(O, { type: "org.buildguild.acceptance", subject: grantO._ref, createdAt: at() });
-// O (officer) admits M; M accepts
-const grantM = await vr(O, { type: "org.buildguild.designation", grantee: M, mode: "delegate", capability: "role:member", scope: GUILD, createdAt: at() });
-const mAcc = await vr(M, { type: "org.buildguild.acceptance", subject: grantM._ref, createdAt: at() });
-// trust: the guild designates W as a delivery witness (collective root → B co-signs)
-const grantW = await vr(A, { type: "org.buildguild.designation", grantee: W, mode: "trust", capability: "delivery.witness", scope: GUILD, createdAt: at() });
-const bCoW = await vr(B, { type: "org.buildguild.acceptance", subject: grantW._ref, createdAt: at() });
+// --- the guild governs itself (microvotes) ---
+const vote = (who, prop, val) => vr(who, { type: "org.buildguild.attestation", guild: GUILD, contract: "vote", subject: prop._ref, value: val, createdAt: at() });
 
-// --- the agreement: patron A posts a quest; X claims for party [X, M]
+// admit recruit M
+const pAdmit = await vr(A, { type: "org.buildguild.proposal", guild: GUILD, action: "admit", enacts: { grantee: M }, question: "Admit M to the guild?", createdAt: at() });
+await vote(A, pAdmit, "yes"); await vote(B, pAdmit, "yes");
+// grant W a delivery-witness mandate (trust)
+const pWit = await vr(B, { type: "org.buildguild.proposal", guild: GUILD, action: "grant_mandate", enacts: { grantee: W, capability: "delivery.witness", scope: GUILD, mode: "trust" }, question: "Trust W as a delivery witness?", createdAt: at() });
+await vote(A, pWit, "yes"); await vote(B, pWit, "yes"); await vote(C, pWit, "yes");
+// grant M a scoped 'admit' mandate, then RECALL it (cheap)
+const pGrant = await vr(A, { type: "org.buildguild.proposal", guild: GUILD, action: "grant_mandate", enacts: { grantee: M, capability: "admit", scope: GUILD }, question: "Mandate M to admit?", createdAt: at() });
+await vote(A, pGrant, "yes"); await vote(B, pGrant, "yes"); await vote(C, pGrant, "yes");
+const pRecall = await vr(C, { type: "org.buildguild.proposal", guild: GUILD, action: "recall", enacts: { grantee: M, capability: "admit", scope: GUILD }, question: "Recall M's admit mandate?", createdAt: at() });
+await vote(C, pRecall, "yes"); // one vote clears the low recall bar
+
+// --- the agreement: member A posts a quest; X claims for party [X, M] ---
 const quest = await vr(A, { type: "org.buildguild.quest", title: "Chart the northern reach", reward: "$1500", createdAt: at() });
 const offer = await vr(X, { type: "org.buildguild.offer", quest: quest._ref, role: "party", party: [X, M], reward: "$1500", amount: 150000, currency: "usd", terms: "on_delivery", createdAt: at() });
 const pAcc = await vr(A, { type: "org.buildguild.acceptance", subject: offer._ref, createdAt: at() });
-const mOfferAcc = await vr(M, { type: "org.buildguild.acceptance", subject: offer._ref, createdAt: at() });
-// amendment: raise reward; all current principals (A, X, M) consent
+await vr(M, { type: "org.buildguild.acceptance", subject: offer._ref, createdAt: at() });
 const amend = await vr(X, { type: "org.buildguild.amendment", supersedes: offer._ref, role: "party", changes: { amount: 180000, reward: "$1800" }, reason: "added the eastern survey", createdAt: at() });
-const aAmend = await vr(A, { type: "org.buildguild.acceptance", subject: amend._ref, createdAt: at() });
-const mAmend = await vr(M, { type: "org.buildguild.acceptance", subject: amend._ref, createdAt: at() });
-// delivery anchored to a commit, witnessed, then paid in two slices
+await vr(A, { type: "org.buildguild.acceptance", subject: amend._ref, createdAt: at() });
+await vr(M, { type: "org.buildguild.acceptance", subject: amend._ref, createdAt: at() });
 const del = await vr(X, { type: "org.buildguild.delivery", quest: quest._ref, agreement: pAcc._ref, source: { repo: "https://tangled.sh/cartographers/atlas", commit: "9f2c1ab7e4d0" }, createdAt: at() });
-const wit = await vr(W, { type: "org.buildguild.witness", delivery: del._ref, commit: "9f2c1ab7e4d0", treeHash: "5d41402abc4b", mirror: "https://mirror.guild/atlas.git", fetchedAt: at(), createdAt: at() });
-const pay1 = await vr(A, { type: "org.buildguild.settlement", quest: quest._ref, for: del._ref, payee: X, party: [X, M], amount: 90000, of: 180000, rail: "btc", createdAt: at() });
-const pay2 = await vr(A, { type: "org.buildguild.settlement", quest: quest._ref, for: del._ref, payee: X, party: [X, M], amount: 90000, of: 180000, rail: "btc", createdAt: at() });
+await vr(W, { type: "org.buildguild.witness", delivery: del._ref, commit: "9f2c1ab7e4d0", treeHash: "5d41402abc4b", mirror: "https://mirror.guild/atlas.git", fetchedAt: at(), createdAt: at() });
+await vr(A, { type: "org.buildguild.settlement", quest: quest._ref, for: del._ref, payee: X, party: [X, M], amount: 90000, of: 180000, rail: "btc", createdAt: at() });
+await vr(A, { type: "org.buildguild.settlement", quest: quest._ref, for: del._ref, payee: X, party: [X, M], amount: 90000, of: 180000, rail: "btc", createdAt: at() });
 
-const auth = buildAuthority(charter, all);
-const agreement = deriveAgreement(quest, all, { charter });
+const collective = deriveCollective(charter, all);
+const agreement = deriveAgreement(quest, all);
 const graph = buildGraph(all);
 
 mkdirSync("public", { recursive: true });
 writeFileSync("public/debug-sample.json", JSON.stringify({
   generatedAt: new Date().toISOString(),
-  authority: { founders: auth.founders, threshold: auth.threshold, officers: [O].filter((d) => auth.holdsCapability(d, "role:officer", GUILD)), members: auth.members(GUILD), witnesses: auth.trustees("delivery.witness", GUILD) },
+  collective: {
+    members: collective.members,
+    mandates: collective.mandates.map((m) => ({ grantee: m.grantee, capability: m.capability, scope: m.scope, mode: m.mode })),
+    proposals: Object.values(collective.proposals).map((p) => ({ action: p.action, outcome: p.outcome, tally: p.tally })),
+  },
   agreement,
   records: all,
   graph,
 }, null, 2));
 
-console.log("authority:", { members: auth.members(GUILD), witnesses: auth.trustees("delivery.witness", GUILD) });
+console.log("members:", collective.members.map((d) => d.slice(-1)).join(","), "| mandates:", collective.mandates.map((m) => `${m.grantee.slice(-1)}:${m.capability}`).join(",") || "none (M recalled)");
 console.log("agreement:", agreement.status, "paid", agreement.paid, "/", agreement.total);
 console.log(`wrote public/debug-sample.json — ${all.length} records, ${graph.edges.length} edges`);
