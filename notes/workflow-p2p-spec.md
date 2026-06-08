@@ -7,6 +7,62 @@ delivery to git commits, makes public quest threads first-class, and works out w
 state belongs on-protocol vs. in git. Builds on `notes/governance-claimstead-spec.md`
 and `LEXICON.md`. Status: design, for review._
 
+## 0. Start here (for a reader new to Build Guild)
+
+**Build Guild is a team job board built on atproto.** Builders publish a character
+sheet, form guilds, and claim paid *quests* from patrons; reputation comes from peers
+vouching for each other, not self-ratings. The defining choice: **every meaningful fact
+is a signed record in its author's own atproto repo, and truth is *computed* from those
+records — never served by an authoritative database.** The web app and its index are
+just one *reader* over the records; anyone can run their own. This spec designs the
+quest workflow — agreement → delivery → payment — on top of that. The records it defines
+live in `lexicons/`.
+
+If you read nothing else: **the records are the contract; the server is a cache.**
+
+### Vocabulary (and why each exists)
+
+*The people and things*
+- **Builder** — an independent maker; identity *is* their Bluesky/atproto handle (a DID),
+  so it's portable and not ours to revoke.
+- **Patron** — someone who posts work and pays for it. (Two-sided: a builder can be
+  either, on different quests.)
+- **Guild** — a self-governing team of builders. Exists so reputation and work can be
+  *collective* and governance can be member-run, not platform-run.
+- **Party** — the specific builders delivering one quest (a guild's "raid group"). Named
+  so reward splits and ratings attach to the actual contributors.
+- **Quest** — a posted unit of work + reward. *An advert, not the deal* — the binding
+  terms live on the `offer` (see §3).
+- **Charter** — a guild's constitution: human prose + machine-enforced rules (roles,
+  vote thresholds, who may admit members). Exists so each guild sets its *own* rules and
+  they bind verifiably, without a central admin. (Also names the trusted arbiters,
+  witnesses, and labelers a guild relies on — §5, §7.)
+
+*How truth works (the part most worth internalizing)*
+- **Attestation** — the universal primitive: a signed, ternary (`yes`/`no`/`unknown`)
+  opinion about a `subject` under a named `predicate` (e.g. "delivered on time", "pays
+  promptly", "has skill: rust"). Endorsements, ratings, votes, and membership are *all*
+  attestations — one primitive instead of ten record types.
+- **Predicate / eligibility** — the predicate is the sentence being answered; eligibility
+  is the rule for *whose answer counts* (e.g. only a quest's patron may rate its
+  delivery). Eligibility is what makes a rating mean something; it all reduces to "are
+  you named in the relevant anchor?"
+- **Claimstead** — the governance model: a guild is a **recording office**, not a server.
+  Signed claims are the truth; an index is a "title plant" (a convenience copy) with no
+  authority — and *detectably wrong* if it lies, because anyone can produce the missing
+  signed claim. Two parties with the same claims compute byte-identical state.
+- **The commons** — the public, append-only set of these signed records. Because no
+  escrow holds the money, the commons *is* the enforcement: trust accrues only to what's
+  on the record (see §1a).
+- **Audit lens** — a reader (`src/audit.js`) that scans the commons for un-evidenced or
+  collusive patterns and flags them; the no-escrow system's smoke detector. (Can ship as
+  an atproto *labeler* — §7.)
+- **AppView** — standard atproto term: a service that indexes records into a queryable
+  view. Ours is one of many possible; the records outlive it.
+
+*This spec's new records* — `offer`, `acceptance`, `amendment`, `delivery`, `witness`,
+`message` (plus an extended `settlement`) — are defined in §3, full JSON in `lexicons/`.
+
 ## 1. Why this review
 
 Escrow was the handshake: a claim was backed by held funds. P2P removed that, so
