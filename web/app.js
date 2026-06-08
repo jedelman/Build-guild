@@ -814,15 +814,16 @@ let currentView = "quests"; // job-board-first: Quest Board is the landing view
 const rail = document.getElementById("rail");
 const bottomnav = document.getElementById("bottomnav");
 
-// Primary destinations. The 4th swaps Enlist → Character once you have a sheet.
+// Primary destinations. The 4th is stable across a session: once authenticated it is
+// always "You" (your character sheet, or the Enlist empty state if you've not enlisted yet)
+// — it no longer swaps Enlist→Character the moment you create a sheet.
 function navItems() {
-  const enlisted = state.auth.authenticated && state.me;
   return [
     { view: "quests", label: "Quests", icon: "quest" },
     { view: "guilds", label: "Guilds", icon: "crest" },
     { view: "roster", label: "Roster", icon: "roster" },
-    enlisted
-      ? { view: "character", label: "Character", icon: "sheet", title: "Your character sheet" }
+    state.auth.authenticated
+      ? { view: "character", label: "You", icon: "sheet", title: "Your character sheet" }
       : { view: "enlist", label: "Enlist", icon: "sheet" },
   ];
 }
@@ -1148,7 +1149,7 @@ function renderGuilds() {
     ${loggedOut ? heroHTML() : ""}
     <div class="section-head">
       <div><h2>Guild Hall</h2><p>Suitably diverse parties combining their skill-peaks.</p></div>
-      ${loggedOut ? "" : '<button class="btn" id="new-guild">+ Found a guild</button>'}
+      ${loggedOut ? "" : '<button class="btn gold" id="new-guild">Found a guild</button>'}
     </div>
     <div class="grid" id="guild-grid"></div>`;
   if (!loggedOut) document.getElementById("new-guild").addEventListener("click", foundGuildPrompt);
