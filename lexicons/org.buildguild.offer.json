@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "record",
-      "description": "A proposal to do a quest on specific terms, from EITHER side — a party claiming the work, or a patron inviting a guild. One half of the agreement: it becomes binding only when the counterparty co-signs with org.buildguild.acceptance. The quest is a public advert; THIS pins the binding party, reward, and payment terms (which may differ from the advert). Author is the offerer (repo owner); `role` says which side they are. Written to the offerer's repo.",
+      "description": "A proposal to do a quest on specific terms, from EITHER side — a party claiming the work (any verified builder), or a patron/delegate inviting. The quest is a public advert; THIS pins the binding party, reward, and payment terms (which may differ from the advert). It becomes binding (AGREED) only under FULL per-person consent: an org.buildguild.acceptance from the patron side AND from every party[] member (the offer's author consents by authoring) — see org.buildguild.acceptance. Author is the offerer (repo owner); `role` says which side they are. Patron-side authors must be the quest author or an authorized delegate (quest.delegates / charter capability). Written to the offerer's repo.",
       "key": "tid",
       "record": {
         "type": "object",

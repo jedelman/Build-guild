@@ -103,12 +103,12 @@ and reputational.
 ## 2. Lifecycle
 
 ```
-                          ┌──── milestone loop (0..n) ────┐
-                          ▼                               │
-open ─▶ offered ─▶ AGREED ─▶ delivered ─▶ part-paid ──────┘─▶ fully-paid ─▶ confirmed/closed
-        (offer)   (accept)  (party@commit)(patron, partial)   (Σ ≥ reward)  (payee co-signs)
-          │           │                        │
-          └── withdraw┘               dispute ─┴─ (contested + evidence → arbiter?)
+                                    ┌──── milestone loop (0..n) ────┐
+                                    ▼                               │
+open ─▶ offered ─▶ part-agreed ─▶ AGREED ─▶ delivered ─▶ part-paid ─┘─▶ fully-paid ─▶ confirmed
+        (offer)   (some co-sign) (all co-sign)(party@commit)(patron)   (Σ ≥ reward)  (payee)
+          │            │                          │
+          └── withdraw ┘                 dispute ─┴─ (contested + evidence → arbiter?)
 ```
 A quest is one agreement with a **deliver→pay loop**: each delivery pins a git commit,
 each settlement pays a slice; the quest is done when paid slices sum to the reward.
@@ -118,8 +118,9 @@ Between AGREED and the first delivery the party works and the thread stays open;
 | State | Who acts | Record |
 |---|---|---|
 | `open` | patron | `org.buildguild.quest` (reward, terms, skills — a public advert) |
-| `offered` | **either** a party (claim) **or** the patron (invite a guild) | `org.buildguild.offer` |
-| `AGREED` | the other side accepts | `org.buildguild.acceptance` (strongRef → offer/amendment) |
+| `offered` | **either** a party (claim) **or** the patron/delegate (invite) | `org.buildguild.offer` |
+| `part-agreed` | some named principals | `org.buildguild.acceptance` (subject → offer) |
+| `AGREED` | **all** principals have co-signed | (derived: patron-side + every `party[]` DID) |
 | `in-progress` | party | *derived* (no record; thread comments) |
 | `delivered` | party | `org.buildguild.delivery` (git commit + evidence[]) |
 | `part-paid` | patron | `org.buildguild.settlement` (amount, rail, ref, evidence[]) |
@@ -129,10 +130,11 @@ Between AGREED and the first delivery the party works and the thread stays open;
 | `withdrawn` | offerer | delete/tombstone the offer (before acceptance) |
 | `disputed` | either | contested attestation (`deliver:no` / `pays.promptly:no`) + evidence |
 
-**The keystone — the agreement = offer + acceptance** (two single-writer records,
-paired by strongRef, mirroring governance's admit+accept). The pair locks **{party
-DIDs, reward, terms}**; "AGREED" = both exist and agree. This is the escrow lock,
-re-expressed as a co-signed claim.
+**The keystone — the agreement = an offer + a co-signature from every named principal**
+(single-writer records, paired by strongRef, mirroring governance's admit+accept). The
+offer locks **{party DIDs, reward, terms}**; "AGREED" = the patron side *and* every
+`party[]` member have co-signed it (§3a). This is the escrow lock, re-expressed as a
+fully-consented claim.
 
 ## 3. New lexicons (now in `lexicons/`, `lexicon: 1`)
 
@@ -180,6 +182,42 @@ Why progressive settlement is now possible: P2P removed the CC/ACH minimums and
 per-transaction friction that forced one lump sum, so a settlement can pay a **slice**
 (deposit, milestone payout, drip) and the agreement holds the total. The `quest` itself
 stays a thin advert — it does *not* carry binding terms; those live on the offer.
+
+## 3a. Standing & eligibility (who may file what)
+
+Offers and amendments aren't attestations — they *create* the relationship, so "named
+in the anchor" is circular and the existing eligibility enum doesn't apply. They need
+their own standing rules in the verifier (the way `governance.js` validates admit/accept
+against the charter). Decisions:
+
+**Who may offer.**
+- *Party-side claim:* **any verified builder** (any verified DID). Solo = a party of one;
+  guild membership boosts matching/Guild Power but isn't required.
+- *Patron-side:* the **quest author or an authorized delegate** — a guild officer holding
+  the relevant charter capability when the patron acts through a guild, or a DID in the
+  quest's optional `delegates`. (Mechanism: reuse charter roles/capabilities for
+  guild-patrons; an explicit `delegates` field on the quest for individuals.)
+
+**What makes it AGREED — every named principal co-signs.** atproto is single-writer and
+we chose true per-person consent, so an offer naming `party:[A,B,C]` binds no one until
+**all of them, plus the patron side, have co-signed**:
+- AGREED(offer *O*) ⟺ for each principal in {patron-side} ∪ `O.party[]` there is an
+  `acceptance(subject=O)` authored by them — *except O's own author*, whose authorship is
+  their consent.
+- So `acceptance` does double duty: a patron's accept = "I agree to the deal"; a party
+  member's accept = "I consent to being on this party." The verifier tells them apart by
+  author (patron/delegate vs. a `party[]` DID).
+- New substate **`part-agreed`**: some principals have signed, not all. Only `AGREED`
+  unlocks delivery; an offer that lingers part-agreed can be withdrawn.
+
+**Amendments.** Same consent rule, on an already-accepted agreement:
+- An amendment takes effect only when **every *current* principal co-signs it** (the
+  proposer implicitly; a member being *added* must accept; on removal, the remaining
+  members + patron suffice).
+- Either side may propose any field — full mutual consent is the guard.
+- Timing: offers are valid only while the quest is `open`/`offered`; once `AGREED`, a
+  change goes through an amendment, never a fresh offer. An un-accepted offer is
+  withdrawn/replaced, not amended.
 
 ## 4. P2P ripple effects (the actual review)
 

@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "record",
-      "description": "The counterparty's co-signature on an offer or amendment — the moment terms become binding (AGREED), or an amendment takes effect. Because `subject` is a strongRef (which pins the exact content id), terms can't be silently changed after acceptance: any change has to come back as a new, separately-accepted amendment. Author is the accepter (repo owner). Written to the accepter's repo.",
+      "description": "A principal's co-signature on an offer or amendment. Build Guild uses FULL per-person consent: an offer naming a multi-member party binds no one until the patron side AND every party[] member have each filed an acceptance (the offer's own author consents by authoring). So this record does double duty — a patron's accept means 'I agree to the deal'; a party member's accept means 'I consent to being on this party'; the verifier tells them apart by author. AGREED (or an amendment taking effect) = all current principals co-signed. Because `subject` is a strongRef (pinning the exact content id), terms can't be silently changed after acceptance: any change comes back as a new, separately-accepted amendment. Author is the accepter (repo owner). Written to the accepter's repo.",
       "key": "tid",
       "record": {
         "type": "object",

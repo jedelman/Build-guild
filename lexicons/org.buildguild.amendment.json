@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "record",
-      "description": "An append-only change to agreed terms — the plan is meant to change, but never silently. You never overwrite the agreement; you supersede it. Proposes a delta and takes effect only when the counterparty files an org.buildguild.acceptance against it (as mutual as the original deal). Current terms = the original offer folded with the ordered chain of accepted amendments; the diff between any two links is the paper trail. Unaccepted amendments stay visible as proposed-but-not-agreed. Author's `role` says which side proposed. Written to the proposer's repo.",
+      "description": "An append-only change to agreed terms — the plan is meant to change, but never silently. You never overwrite the agreement; you supersede it. Applies only to an already-accepted agreement. Proposes a delta and takes effect only when EVERY current principal co-signs it with org.buildguild.acceptance (the proposer by authoring; a member being added must accept; on removal the remaining members + patron suffice) — as mutual as the original deal. Either side may propose any field; full consent is the guard. Current terms = the original offer folded with the ordered chain of accepted amendments; the diff between any two links is the paper trail. Unaccepted amendments stay visible as proposed-but-not-agreed. Author's `role` says which side proposed. Written to the proposer's repo.",
       "key": "tid",
       "record": {
         "type": "object",
