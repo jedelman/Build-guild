@@ -1,9 +1,11 @@
 # Quest workflow review + spec (post-P2P)
 
 _A workflow review prompted by the peer-to-peer payment pivot, which removed escrow
-— the thing that used to bind the two sides. This re-centers the lifecycle on a
-**co-signed agreement** and adds public quest threads. Builds on `notes/governance-
-claimstead-spec.md` and `LEXICON.md`. Status: design, for review._
+— the thing that used to bind the two sides. It re-centers the lifecycle on a
+**co-signed, amendable agreement**, adds progressive (milestone) settlement, anchors
+delivery to git commits, makes public quest threads first-class, and works out which
+state belongs on-protocol vs. in git. Builds on `notes/governance-claimstead-spec.md`
+and `LEXICON.md`. Status: design, for review._
 
 ## 1. Why this review
 
@@ -14,8 +16,11 @@ explicit and co-signed** — it becomes the trust anchor everything downstream
 each other, they need to **talk** — negotiate scope, coordinate, and leave a dispute
 trail — so we add quest threads.
 
-Decisions taken (this review): **public quest threads** as signed records;
-**mutual agreement** where either side may offer and the other accepts.
+Decisions taken across this review: **public quest threads** as signed records;
+**mutual agreement** (either side offers, the other accepts); **progressive/milestone
+settlement**; **git-anchored delivery**; **amendable terms on an append-only chain**
+(§1a); **atproto as the witnessed commons, git as untrusted content** (§7); and
+**trusted third-party witnesses/mirrors** for evidence durability (§7).
 
 ## 1a. Governing principle — the commons is the trust signal
 
@@ -51,13 +56,15 @@ open ─▶ offered ─▶ AGREED ─▶ delivered ─▶ part-paid ────
 ```
 A quest is one agreement with a **deliver→pay loop**: each delivery pins a git commit,
 each settlement pays a slice; the quest is done when paid slices sum to the reward.
+Between AGREED and the first delivery the party works and the thread stays open; that
+"in-progress" span is a *derived* status, not its own record.
 
 | State | Who acts | Record |
 |---|---|---|
-| `open` | patron | `org.buildguild.quest` (reward, terms, skills) |
+| `open` | patron | `org.buildguild.quest` (reward, terms, skills — a public advert) |
 | `offered` | **either** a party (claim) **or** the patron (invite a guild) | `org.buildguild.offer` |
-| `AGREED` | the other side accepts | `org.buildguild.acceptance` (strongRef → offer) |
-| `in-progress` | — | (none; thread comments) |
+| `AGREED` | the other side accepts | `org.buildguild.acceptance` (strongRef → offer/amendment) |
+| `in-progress` | party | *derived* (no record; thread comments) |
 | `delivered` | party | `org.buildguild.delivery` (git commit + evidence[]) |
 | `part-paid` | patron | `org.buildguild.settlement` (amount, rail, ref, evidence[]) |
 | `fully-paid` | — | Σ settlement amounts ≥ reward |
@@ -75,7 +82,9 @@ re-expressed as a co-signed claim.
 
 - **`org.buildguild.offer`** — `{ quest: strongRef, by: did, role: "patron"|"party",
   party: [did], reward: string, terms: "upfront"|"on_delivery", createdAt }`. Either
-  side proposes terms.
+  side proposes terms. (The `quest` is the patron's public advert — a wish; the *binding*
+  reward/terms/party are whatever the offer+acceptance lock, and may differ from the
+  advert.)
 - **`org.buildguild.acceptance`** — `{ subject: strongRef (offer | amendment), by: did,
   createdAt }`. The counterparty co-signs → AGREED (or an amendment takes effect).
   Referencing the *exact* version via `cid` means terms can't be silently changed after
@@ -98,6 +107,11 @@ re-expressed as a co-signed claim.
   the Tangled `…issue.comment` pattern (no standard cross-record comment lexicon
   exists; `chat.bsky` is centralized/off-record). Doubles as the negotiation + dispute
   trail. Private 1:1 is deferred (link out to Bluesky DMs if ever needed).
+- **`org.buildguild.witness`** — `{ delivery: strongRef, commit: sha, treeHash: sha,
+  fetchedAt, by: did, mirror?: uri }`. A trusted third party fetches the referenced sha
+  and attests on-protocol that the content existed and matched at time T, optionally
+  serving the bytes (`mirror`). See §7 — this is how evidence survives the repo's later
+  deletion.
 
 - **`org.buildguild.settlement`** (extended) — add `{ amount: string, of?: string
   (reward total), for?: strongRef → delivery }`. P2P removed the CC/ACH minimums and
@@ -125,9 +139,9 @@ Quests already carry `terms`.
    is clean; walking away silently is the mark.
 5. **Party pinning moves earlier** — the agreement (not the settlement) fixes who's on
    the hook and who gets paid, feeding split + attestation eligibility from the start.
-6. **Evidence everywhere** — offers/deliveries/settlements all carry `evidence[]`; the
-   audit lens (`src/audit.js`) flags un-evidenced steps and collusion, which is how a
-   no-escrow system stays honest.
+6. **Evidence everywhere** — deliveries and settlements carry `evidence[]` (a delivery
+   also pins a commit sha); the audit lens (`src/audit.js`) flags un-evidenced steps and
+   collusion, which is how a no-escrow system stays honest.
 7. **Progressive settlement** (new) — P2P has no per-transaction floor, so big quests
    no longer need to be one all-or-nothing payment. Milestone payouts shrink the trust
    gap on *both* sides under either `terms`: a deposit de-risks the party, a pay-as-
@@ -168,7 +182,10 @@ Quests already carry `terms`.
    `settlement` extended with `amount`/`of`/`for`; the deliver→pay loop with
    `part-paid`/`fully-paid` summed client-side; ordering by terms.
 3. **Quest threads**: `org.buildguild.message` + a comment UI on the quest drawer.
-4. **Disputes**: contested-state surfacing + optional charter arbiter.
+4. **Witnesses/mirrors**: `org.buildguild.witness` + a reference mirror that fetches and
+   holds delivery shas; charter-named trusted witnesses.
+5. **Disputes & moderation**: contested-state surfacing; charter arbiter; audit lens
+   packaged as a labeler (`collusion-suspected` / `evidence-vanished`).
 
 Confirmation + ratings already exist and slot in unchanged.
 
@@ -201,11 +218,28 @@ abc123, DID Y accepted it" is witnessed by both PDSes (plus relays) and survives
 repo's later deletion. The bytes hash to abc123 or they don't; any mirror can re-supply
 them — so we don't depend on relay archival alone.
 
+### Witnesses & mirrors — trusted third parties (decided)
+
+Relay/PDS archival is best-effort, and the two principals both have incentives to make
+evidence disappear, so the durability of the commons can't rest on them alone. The
+answer is **trusted third-party witnesses** — the federated, on-protocol replacement for
+the escrow agent. A witness (run by a guild, a neutral service, or a reputable member)
+at delivery time fetches the referenced sha and publishes an `org.buildguild.witness`
+record attesting "I fetched `commit`/`treeHash` at time T," and optionally **mirrors the
+bytes** (`mirror` uri). Because the witness record is itself on-protocol, the witness
+can't quietly retract, and multiple independent witnesses compound the guarantee.
+
+This reuses the charter-named-trusted-party pattern (same shape as arbiters and
+labelers, §5 + below): **guilds name the witnesses/mirrors they trust**, and a delivery
+gains weight from how many trusted witnesses hold it. The audit lens' `evidence-vanished`
+label fires only when a referenced sha is unreachable *and* no trusted witness holds it —
+so honest deliveries are durable and deletions are loud.
+
 ### Anti-abuse scenarios → defenses
 
 | Attack | Defense |
 |---|---|
-| Deliver, get paid, then delete/privatize the repo to hide the work | sha witnessed on-protocol + re-stated in acceptance; counterparty already pulled the bytes; vanished repo → audit flag, not lost claim |
+| Deliver, get paid, then delete/privatize the repo to hide the work | sha witnessed on-protocol + re-stated in acceptance; trusted third-party witnesses hold/mirror the bytes; vanished repo → `evidence-vanished` flag, not lost claim |
 | Force-push to swap what a branch points at | pin the **commit sha**, never a branch — content-addressed, can only be orphaned, not changed |
 | Sybil attestations / dogpiling | identity is on-protocol (DIDs cost something); reputation *weighted* by attester standing / web-of-trust, not raw count |
 | Collusion ring (fake quest + delivery + mutual 5★ to farm rep) | closed loops are visible *because* it's all witnessed; audit lens flags them — it can't even see off-protocol collusion |
@@ -246,13 +280,13 @@ clients/AppViews subscribe to the labelers they choose and filter accordingly. H
 - Does the agreement need both parties' *device-key* signatures, or is the atproto
   identity enough? (Consistent with the rest: device-key-signed Claimstead records.)
 - Charter-named arbiter: per-guild only, or a network-level arbiter registry later?
-- How much relay/archival permanence can we assume? Do we need a Build-Guild
-  **archiver/mirror** that snapshots referenced git shas at delivery, so evidence
-  survives even if both the repo *and* the PDSes lapse?
+- Witnesses/mirrors are *decided* (§7); remaining: who runs the first reference mirror,
+  how many witnesses make a delivery "durable" by default, and do private deliverables
+  get witnessed by an *encrypted* mirror or just hash-attested without the bytes?
 - Should acceptance require the acceptor to prove they *fetched* the sha (re-state the
   tree hash), foreclosing "I never received it" as a later defense?
 - Private/closed work: if the deliverable repo is legitimately private, the commons can
   witness the *hash* but not verify *content* — is hash-witnessing + patron attestation
-  enough, or do we need a designated neutral verifier?
+  enough, or do we need a designated neutral verifier (a witness that also reviews)?
 - Labeler bootstrapping: who runs the first audit-lens labeler, and how do guilds
   discover/endorse labelers — a default-trusted set, or fully opt-in?
