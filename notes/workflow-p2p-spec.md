@@ -17,6 +17,28 @@ trail — so we add quest threads.
 Decisions taken (this review): **public quest threads** as signed records;
 **mutual agreement** where either side may offer and the other accepts.
 
+## 1a. Governing principle — the commons is the trust signal
+
+Everything official is **on the record, append-only, and public**. The plan is meant
+to change — scope shifts, milestones get re-cut, rewards get renegotiated — but the
+chain has to show *what was originally agreed and what changed since*. So:
+
+- **On-record or it isn't official.** People will DM, hop on a call, agree things in a
+  hallway — that's fine and expected. But it carries no weight, builds no reputation,
+  and binds no one until it lands as a signed record. Trust accrues only to the commons.
+- **Amend, never overwrite.** atproto record updates clobber the prior value with no
+  history, so agreement-bearing records (offer, acceptance, the agreed terms) are
+  **never mutated in place**. A change is a new **amendment** record that strongRefs the
+  state it supersedes; "current terms" = the original folded with the accepted amendment
+  chain. The original is always the first link and stays visible.
+- **Off-record drift is detectable.** If the work, payments, or party diverge from the
+  on-record terms with no amendment to match, the audit lens flags it. The cost of going
+  off-record isn't a block — it's that the divergence shows.
+
+This is the no-escrow trust model stated plainly: there's no held money to enforce the
+deal, so the **public, append-only commons is the enforcement** — visible, comparable,
+and reputational.
+
 ## 2. Lifecycle
 
 ```
@@ -54,9 +76,17 @@ re-expressed as a co-signed claim.
 - **`org.buildguild.offer`** — `{ quest: strongRef, by: did, role: "patron"|"party",
   party: [did], reward: string, terms: "upfront"|"on_delivery", createdAt }`. Either
   side proposes terms.
-- **`org.buildguild.acceptance`** — `{ offer: strongRef, by: did, createdAt }`. The
-  counterparty co-signs → AGREED. (Accepting the *exact* offer version via `cid` means
-  terms can't be silently changed after acceptance.)
+- **`org.buildguild.acceptance`** — `{ subject: strongRef (offer | amendment), by: did,
+  createdAt }`. The counterparty co-signs → AGREED (or an amendment takes effect).
+  Referencing the *exact* version via `cid` means terms can't be silently changed after
+  acceptance — any change has to come back through a new, co-signed amendment.
+- **`org.buildguild.amendment`** — `{ supersedes: strongRef (offer | prior amendment),
+  by: did, role: "patron"|"party", changes: { reward?, terms?, party?, milestones?,
+  deadline? }, reason?, createdAt }`. The append-only unit of change: proposes a delta
+  to the agreed terms, takes effect only when the counterparty files an `acceptance`
+  against it (so amendment is as mutual as the original deal). Current terms = original
+  offer + ordered chain of accepted amendments; the diff between any two links is the
+  paper trail. Rejected/unaccepted amendments stay visible as proposed-but-not-agreed.
 - **`org.buildguild.delivery`** — `{ quest: strongRef, by: did, milestone?: string,
   source: { repo: uri, commit: sha, ref?, path? }, note?, evidence?: [{type,value,note}],
   createdAt }`. Party asserts delivery **anchored to a specific git commit** — the
@@ -91,6 +121,8 @@ Quests already carry `terms`.
    (audit) replaces the escrow penalty.
 4. **Cancellation** — withdraw before `AGREED` is free; after `AGREED`, non-delivery /
    non-payment leaves a reputational mark (the agreement is the promise of record).
+   A *mutually amended* wind-down (e.g. amend reward to what was delivered, then close)
+   is clean; walking away silently is the mark.
 5. **Party pinning moves earlier** — the agreement (not the settlement) fixes who's on
    the hook and who gets paid, feeding split + attestation eligibility from the start.
 6. **Evidence everywhere** — offers/deliveries/settlements all carry `evidence[]`; the
@@ -109,6 +141,12 @@ Quests already carry `terms`.
    audit lens something concrete to check. Milestones map cleanly to commits, so the
    deliver→pay loop becomes commit→slice. (Caveat: only as strong as the work being
    git-shaped — design/ops deliverables still lean on `evidence[]`.)
+9. **Amendable, on the record** (new) — the plan can change but never silently. Terms
+   live as an append-only offer→amendment chain, each amendment co-signed like the
+   original, original always visible. Off-record agreements are fine but unofficial:
+   they carry no trust until filed. The audit lens compares on-record terms against
+   actual deliveries/payments/party and flags divergence — so the commons, not escrow,
+   is what holds the deal together. (See §1a.)
 
 ## 5. Dispute model (proposed: lightweight now)
 
@@ -122,8 +160,10 @@ Quests already carry `terms`.
 
 ## 6. Build plan (increments)
 
-1. **Agreement**: offer + acceptance records + `agreed` status; UI for offer-from-
-   either-side and accept; lock party/reward/terms. (Replaces the unilateral claim.)
+1. **Agreement + amendments**: offer + acceptance + amendment records + `agreed`
+   status; UI for offer-from-either-side, accept, and propose/accept an amendment;
+   terms folded from the append-only chain with original-vs-current shown. (Replaces
+   the unilateral claim.)
 2. **Delivery + progressive pay**: `delivery` record git-anchored to a commit;
    `settlement` extended with `amount`/`of`/`for`; the deliver→pay loop with
    `part-paid`/`fully-paid` summed client-side; ordering by terms.
