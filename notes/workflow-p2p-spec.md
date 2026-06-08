@@ -172,7 +172,66 @@ Quests already carry `terms`.
 
 Confirmation + ratings already exist and slot in unchanged.
 
-## 7. Open questions
+## 7. Substrate: witnessed vs. merely hosted (+ anti-abuse, moderation)
+
+A natural question: how much of this could live in a git repo instead of atproto? Git
+is an append-only, content-addressed, signable log — much of what we use atproto for.
+But the answer turns on one property: **git is off-protocol, so its history is privately
+rewritable and deletable** (`--force`, repo deletion, going private) **with no witness.**
+That's the Bluesky deleted-post problem, worse: on atproto a deleted record was already
+seen by relays/AppViews, so its prior existence and the *act* of deletion are
+detectable; a force-pushed or deleted repo just vanishes, deniably. Git is
+tamper-*evident* (a sha pins content) but not tamper-*resistant* or censorship-resistant
+— the owner controls reachability.
+
+So the line isn't content-vs-identity, it's **witnessed-vs-hosted**:
+
+- **atproto = the commons (witnessed trust layer).** Anything that bears trust or that
+  someone gains by hiding lives here: identity, agreements (offer/accept/amend — §1a's
+  chain is *justified by this*, not a hack: git's free history isn't enough because it's
+  privately rewritable), **delivery commitments**, settlements, attestations, threads,
+  the index. Witnessed by relays → deletion is detectable, prior existence provable.
+- **git = content layer (untrusted CDN).** Bulky deliverables (code, files) live here for
+  convenience, **addressed by a commit/tree sha recorded on-protocol.** Git is treated as
+  untrusted and replaceable; its disappearance is a *flagged signal*, not a lost claim.
+
+The seam is **content-addressing + double-witnessing**: the on-protocol delivery record
+embeds the git sha, and the **acceptance/confirmation re-states it**, so "DID X delivered
+abc123, DID Y accepted it" is witnessed by both PDSes (plus relays) and survives the
+repo's later deletion. The bytes hash to abc123 or they don't; any mirror can re-supply
+them — so we don't depend on relay archival alone.
+
+### Anti-abuse scenarios → defenses
+
+| Attack | Defense |
+|---|---|
+| Deliver, get paid, then delete/privatize the repo to hide the work | sha witnessed on-protocol + re-stated in acceptance; counterparty already pulled the bytes; vanished repo → audit flag, not lost claim |
+| Force-push to swap what a branch points at | pin the **commit sha**, never a branch — content-addressed, can only be orphaned, not changed |
+| Sybil attestations / dogpiling | identity is on-protocol (DIDs cost something); reputation *weighted* by attester standing / web-of-trust, not raw count |
+| Collusion ring (fake quest + delivery + mutual 5★ to farm rep) | closed loops are visible *because* it's all witnessed; audit lens flags them — it can't even see off-protocol collusion |
+| Retaliatory false "didn't deliver" after stiffing the party | attestations contested-visible (both sides on record); delivery sha independently checkable; arbiter/labeler can rule |
+| Host or PDS deplatforms someone | atproto identity is portable (migrate PDS, keep DID + history); content must be mirror-able → argues *against* deep single-git-host coupling |
+| Permanent harmful/illegal content in an un-deletable commons | handled by **labeling/overlay, not deletion** (below) |
+
+### Decentralized moderation — labelers, not takedowns
+
+atproto's native model is **labelers**: independent services publish labels on
+records/accounts (`fraud`, `evidence-vanished`, `collusion-suspected`, `abusive`);
+clients/AppViews subscribe to the labelers they choose and filter accordingly. Here:
+
+- The **audit lens** (`src/audit.js`) ships as a labeler — publishing
+  `collusion-suspected` / `evidence-vanished` labels onto quests and DIDs.
+- **Guild charters name the labelers/arbiters they trust** (extends the charter-arbiter
+  from §5); a guild's reputation view is the labelers it endorses.
+- Reputation is **subjective and composable** — you weight whose attestations and whose
+  labels you trust. No global truth, no central moderator → moderation is decentralized,
+  and "trust signal is the commons" sharpens to "the commons *as read through the
+  labelers you choose.*"
+- Harmful content is **labeled and filtered, not deleted** — the only takedown model
+  consistent with a witnessed, append-only commons, and it keeps that power out of any
+  single hand.
+
+## 8. Open questions
 
 - Should `offer` allow counter-offers (negotiation as a chain of offers), or is it
   one offer → accept/reject? (Threads can carry the haggling; offers stay clean.)
@@ -187,3 +246,13 @@ Confirmation + ratings already exist and slot in unchanged.
 - Does the agreement need both parties' *device-key* signatures, or is the atproto
   identity enough? (Consistent with the rest: device-key-signed Claimstead records.)
 - Charter-named arbiter: per-guild only, or a network-level arbiter registry later?
+- How much relay/archival permanence can we assume? Do we need a Build-Guild
+  **archiver/mirror** that snapshots referenced git shas at delivery, so evidence
+  survives even if both the repo *and* the PDSes lapse?
+- Should acceptance require the acceptor to prove they *fetched* the sha (re-state the
+  tree hash), foreclosing "I never received it" as a later defense?
+- Private/closed work: if the deliverable repo is legitimately private, the commons can
+  witness the *hash* but not verify *content* — is hash-witnessing + patron attestation
+  enough, or do we need a designated neutral verifier?
+- Labeler bootstrapping: who runs the first audit-lens labeler, and how do guilds
+  discover/endorse labelers — a default-trusted set, or fully opt-in?
