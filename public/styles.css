@@ -241,6 +241,27 @@ main { flex: 1 1 auto; min-width: 0; max-width: var(--maxw); margin: 0 auto; pad
 .backlink .icon { width: 1.1em; height: 1.1em; transform: rotate(90deg); }
 .entity-page { max-width: 720px; }
 
+/* Entity-page tabs (guild: Overview · Party · Governance). */
+.tabs { display: flex; gap: var(--s1); border-bottom: 1px solid var(--line); margin: var(--s4) 0 var(--s5); }
+.tab {
+  display: inline-flex; align-items: center; gap: var(--s2);
+  padding: var(--s2) var(--s3); margin-bottom: -1px;
+  color: var(--ink-dim); text-decoration: none; font-weight: 600; font-size: var(--fs-base);
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+.tab:hover { color: var(--ink); }
+.tab.active { color: var(--gold-soft); border-bottom-color: var(--gold); }
+.tab-badge {
+  min-width: 1.4em; height: 1.4em; padding: 0 0.4em; border-radius: var(--r-pill);
+  background: var(--gold); color: var(--gold-ink);
+  font: 600 var(--fs-xs) / 1.4em var(--mono);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.tab-panel { min-height: 4rem; }
+.inline-link { color: var(--accent); text-decoration: none; font-weight: 600; }
+.inline-link:hover { color: var(--gold-soft); text-decoration: underline; }
+
 /* ---- cards ----------------------------------------------------------------*/
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: var(--s4); }
 
