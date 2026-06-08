@@ -266,6 +266,28 @@ causal ordering rather than smuggling a clock back in. Built + tested: `headSnap
 `src/collective.js`, `test/collective-antigrief.test.js` (frozen proposal byte-identical
 across 30 churn-shuffles + judged on the open-time roster; the live recast cost it avoids).
 
-Still open here: delegated admits, charter-amendment via the vote path, and wiring
-`collective.js` into the agreement demo. (`closesAt` survives only as an advisory "is
-voting open" gate — it gates decidability, never order.)
+### Delegated admit + live wiring
+
+The collective root no longer needs a vote per admission. `src/guild.js` (`deriveGuild`)
+composes the collective root with the designation chain below it: a member holding an
+`admit` **mandate** (granted by vote, recallable) may issue a `role:member` designation
+**directly**; the newcomer co-signs with `org.buildguild.acceptance`, and the grant stays
+revocable (`org.buildguild.revocation`) and auditable as its own act. Authority is the
+recallable mandate, not a founder — or, if the charter's member role `can:["admit"]`, open
+admission. It's a fixpoint (a delegated-admitted, re-mandated member can admit further) and
+set-based, so two verifiers agree. Built + tested: `test/guild-delegated-admit.test.js`
+(mandate-holder admits; unmandated member can't; acceptance required; revocation drops;
+open admission; order-independent chain).
+
+And the derivers are no longer orphaned: `guildGraphFromRecords` (pure) assembles the
+commons payload — collective summary (members, mandates, delegated admits, proposal
+outcomes) + the verified record DAG — and is served live at **`GET /api/guilds/:id/graph`**
+(`src/govstore.js#guildGraph`, verifying stored claims on read) and consumed by the debug
+view via `?guild=<id>`. The offline sim writes the same payload through the same function,
+so online and offline render identically. Tested: `test/guild-graph-payload.test.js`.
+
+Still open here: charter-amendment execution via the vote path (the `amend` action tallies
+but doesn't yet replay a new charter), delegated *remove* of a delegated member via the
+vote path (revocation works today), and the guild-patron delegation in the agreement
+workflow. (`closesAt` survives only as an advisory "is voting open" gate — it gates
+decidability, never order.)

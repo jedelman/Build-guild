@@ -166,13 +166,17 @@ function show(data){
   const records=data.records||(Array.isArray(data)?data:null);
   const c=data.collective, a=data.agreement;
   let s=`${records?.length||0} records`;
-  if(c)s=`members ${c.members.length} · mandates ${c.mandates.length} · `+s;
+  if(c)s=`members ${c.members.length} · mandates ${c.mandates.length}`+(c.delegatedAdmits?.length?` · delegated ${c.delegatedAdmits.length}`:"")+` · `+s;
   if(a)s=`agreement <span class="status">${a.status}</span> · paid ${a.paid}/${a.total??"—"} · `+s;
   el("summary").innerHTML=s;
   if(records)render(records); else el("detail").textContent="No `records` array in data.";
 }
-fetch("./debug-sample.json").then(r=>r.ok?r.json():Promise.reject()).then(show)
-  .catch(()=>{el("summary").textContent="No debug-sample.json — run `node sim/agreement-demo.mjs`, or paste →";});
+// LIVE: with ?guild=<id> read the recomputed commons graph from the API; otherwise fall
+// back to the offline sim's static sample (and paste-to-load always works).
+const guildId=new URLSearchParams(location.search).get("guild");
+const source=guildId?`/api/guilds/${encodeURIComponent(guildId)}/graph`:"./debug-sample.json";
+fetch(source).then(r=>r.ok?r.json():Promise.reject()).then(show)
+  .catch(()=>{el("summary").textContent=guildId?`No graph for guild ${guildId} — has it any signed claims?`:"No debug-sample.json — run `node sim/agreement-demo.mjs`, or paste →";});
 </script>
 </body>
 </html>

@@ -10,6 +10,7 @@ import { generateKeypair, signRecord, verifyRecords } from "../src/governance.js
 import { deriveCollective } from "../src/collective.js";
 import { deriveAgreement } from "../src/agreement.js";
 import { buildGraph } from "../src/graph.js";
+import { guildGraphFromRecords } from "../src/guild.js";
 
 const keyring = new Map(), secrets = new Map();
 async function actor(did) {
@@ -76,22 +77,18 @@ await vr(W, { type: "org.buildguild.witness", delivery: del._ref, commit: "9f2c1
 await vr(A, { type: "org.buildguild.settlement", quest: quest._ref, for: del._ref, payee: X, party: [X, M], amount: 90000, of: 180000, rail: "btc", createdAt: at() });
 await vr(A, { type: "org.buildguild.settlement", quest: quest._ref, for: del._ref, payee: X, party: [X, M], amount: 90000, of: 180000, rail: "btc", createdAt: at() });
 
+// The static sample is built by the SAME pure assembler the live /api/guilds/:id/graph
+// endpoint uses, so the debug view renders offline and online identically.
 const collective = deriveCollective(charter, all);
 const agreement = deriveAgreement(quest, all);
-const graph = buildGraph(all);
 
 mkdirSync("public", { recursive: true });
 writeFileSync("public/debug-sample.json", JSON.stringify({
   generatedAt: new Date().toISOString(),
-  collective: {
-    members: collective.members,
-    mandates: collective.mandates.map((m) => ({ grantee: m.grantee, capability: m.capability, scope: m.scope, mode: m.mode })),
-    proposals: Object.values(collective.proposals).map((p) => ({ action: p.action, outcome: p.outcome, tally: p.tally })),
-  },
   agreement,
-  records: all,
-  graph,
+  ...guildGraphFromRecords(all),
 }, null, 2));
+const graph = buildGraph(all);
 
 console.log("members:", collective.members.map((d) => d.slice(-1)).join(","), "| mandates:", collective.mandates.map((m) => `${m.grantee.slice(-1)}:${m.capability}`).join(",") || "none (M recalled)");
 console.log("agreement:", agreement.status, "paid", agreement.paid, "/", agreement.total);

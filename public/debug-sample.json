@@ -1,6 +1,65 @@
 {
-  "generatedAt": "2026-06-08T14:56:15.880Z",
+  "generatedAt": "2026-06-08T15:34:11.373Z",
+  "agreement": {
+    "quest": "1a9317450bdf0253ec4ca9adfc87e11df9a98ee7e719890838903b14fab7a44e",
+    "status": "fully-paid",
+    "terms": {
+      "party": [
+        "did:plc:builderX",
+        "did:plc:recruitM"
+      ],
+      "reward": "$1800",
+      "amount": 180000,
+      "currency": "usd",
+      "terms": "on_delivery"
+    },
+    "offer": "d2ebc0a75914b43db6bf6dc11a1cee604089a7de15dfe94bb973e7abec9d198d",
+    "accepted": [
+      "did:plc:builderX",
+      "did:plc:memberA",
+      "did:plc:recruitM"
+    ],
+    "pending": [],
+    "amendments": [
+      {
+        "ref": "7305b140907d2eb4d0d57ac5f8f33ad5d202d2564bd323ae1535369f8ae69a5b",
+        "by": "did:plc:builderX",
+        "role": "party",
+        "changes": {
+          "amount": 180000,
+          "reward": "$1800"
+        },
+        "accepted": true
+      }
+    ],
+    "deliveries": [
+      {
+        "ref": "c764e6a631d9e231e50d13461d65f3d8f2a8ac594fe3bf371558a16d0ed96233",
+        "by": "did:plc:builderX",
+        "commit": "9f2c1ab7e4d0"
+      }
+    ],
+    "settlements": [
+      {
+        "ref": "c7fc8b3ac06022477062117c693172da7d78acd54d08887c947d44061fce26ba",
+        "amount": 90000,
+        "for": "c764e6a631d9e231e50d13461d65f3d8f2a8ac594fe3bf371558a16d0ed96233"
+      },
+      {
+        "ref": "93805219e1ca8d69ae73834d7770d5d52604de9291258d7fbe26921d0c6e04e2",
+        "amount": 90000,
+        "for": "c764e6a631d9e231e50d13461d65f3d8f2a8ac594fe3bf371558a16d0ed96233"
+      }
+    ],
+    "paid": 180000,
+    "total": 180000
+  },
+  "charter": {
+    "version": 1,
+    "prose": "The Cartographers chart together, decide collectively, and recall freely."
+  },
   "collective": {
+    "head": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
     "members": [
       "did:plc:memberA",
       "did:plc:memberB",
@@ -17,8 +76,10 @@
     ],
     "proposals": [
       {
+        "ref": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
         "action": "admit",
         "outcome": "passed",
+        "basis": "live",
         "tally": {
           "yes": 2,
           "no": 0,
@@ -28,8 +89,10 @@
         }
       },
       {
+        "ref": "53315766107c73366f1268dc73e1aacabf160959dd3ed4c812b8e7590936e3e6",
         "action": "grant_mandate",
         "outcome": "passed",
+        "basis": "live",
         "tally": {
           "yes": 3,
           "no": 0,
@@ -39,8 +102,23 @@
         }
       },
       {
+        "ref": "8bb109f5353041085137c5c2b28db4ad7b52d09f21ae30848fad25ceb6755538",
+        "action": "grant_mandate",
+        "outcome": "passed",
+        "basis": "live",
+        "tally": {
+          "yes": 3,
+          "no": 0,
+          "cast": 3,
+          "stale": 0,
+          "eligible": 4
+        }
+      },
+      {
+        "ref": "e0b63d975fe334585476a394a188e6b860352ac9d878ad84edacc987a9f4187a",
         "action": "recall",
         "outcome": "passed",
+        "basis": "live",
         "tally": {
           "yes": 1,
           "no": 0,
@@ -48,73 +126,432 @@
           "stale": 0,
           "eligible": 4
         }
+      }
+    ],
+    "delegatedAdmits": [],
+    "staleVotes": []
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "dd4a789c14e5986688021f396ab4cc06aa443db6cf389598f439dffed8ee10dd",
+        "type": "charter",
+        "author": "did:plc:memberA",
+        "label": "charter",
+        "verified": true,
+        "createdAt": "2026-03-01T00:00:00Z"
       },
       {
-        "action": "grant_mandate",
-        "outcome": "passed",
-        "tally": {
-          "yes": 3,
-          "no": 0,
-          "cast": 3,
-          "stale": 0,
-          "eligible": 4
-        }
+        "id": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
+        "type": "proposal",
+        "author": "did:plc:memberA",
+        "label": "vote: admit cruitM",
+        "verified": true,
+        "createdAt": "2026-03-02T00:00:00Z"
+      },
+      {
+        "id": "aaeb9e2928a56694e8d204d71fc52b5d1e99ebc3693ebc1d731130d403916cc2",
+        "type": "attestation",
+        "author": "did:plc:memberA",
+        "label": "vote yes",
+        "verified": true,
+        "createdAt": "2026-03-03T00:00:00Z"
+      },
+      {
+        "id": "6949c87aa0b765275e4447e94f3becee4979fb6cc19823ae4c6534913dc78916",
+        "type": "attestation",
+        "author": "did:plc:memberB",
+        "label": "vote yes",
+        "verified": true,
+        "createdAt": "2026-03-04T00:00:00Z"
+      },
+      {
+        "id": "53315766107c73366f1268dc73e1aacabf160959dd3ed4c812b8e7590936e3e6",
+        "type": "proposal",
+        "author": "did:plc:memberB",
+        "label": "vote: grant_mandate tnessW",
+        "verified": true,
+        "createdAt": "2026-03-05T00:00:00Z"
+      },
+      {
+        "id": "0515563b247ed8e9610af104b3c3466b39d4a7aafd540458d5ca4a84b6e1807b",
+        "type": "attestation",
+        "author": "did:plc:memberA",
+        "label": "vote yes",
+        "verified": true,
+        "createdAt": "2026-03-06T00:00:00Z"
+      },
+      {
+        "id": "5b6bd61d03a1c20298ab54e4cb21eb6db65469e81eb99f525dcdfab6e0770192",
+        "type": "attestation",
+        "author": "did:plc:memberB",
+        "label": "vote yes",
+        "verified": true,
+        "createdAt": "2026-03-07T00:00:00Z"
+      },
+      {
+        "id": "b00db5a18705c960da3005e14b9e991cb47702154f9af4f119650f4d07b16951",
+        "type": "attestation",
+        "author": "did:plc:memberC",
+        "label": "vote yes",
+        "verified": true,
+        "createdAt": "2026-03-08T00:00:00Z"
+      },
+      {
+        "id": "8bb109f5353041085137c5c2b28db4ad7b52d09f21ae30848fad25ceb6755538",
+        "type": "proposal",
+        "author": "did:plc:memberA",
+        "label": "vote: grant_mandate cruitM",
+        "verified": true,
+        "createdAt": "2026-03-09T00:00:00Z"
+      },
+      {
+        "id": "34d1333bffdddf553d83861ca7f0770efa509f6cac39a672bb413c5f947d5f40",
+        "type": "attestation",
+        "author": "did:plc:memberA",
+        "label": "vote yes",
+        "verified": true,
+        "createdAt": "2026-03-10T00:00:00Z"
+      },
+      {
+        "id": "abca86e5cc9164957ddc2cbdecaf5dc1d2e7771604ac2332ecbfb52a9a3b129f",
+        "type": "attestation",
+        "author": "did:plc:memberB",
+        "label": "vote yes",
+        "verified": true,
+        "createdAt": "2026-03-11T00:00:00Z"
+      },
+      {
+        "id": "04b54f6ef0afb6c9958eec7f7c5ea3bf0dc1894fcd544304eb3a31847de1c165",
+        "type": "attestation",
+        "author": "did:plc:memberC",
+        "label": "vote yes",
+        "verified": true,
+        "createdAt": "2026-03-12T00:00:00Z"
+      },
+      {
+        "id": "e0b63d975fe334585476a394a188e6b860352ac9d878ad84edacc987a9f4187a",
+        "type": "proposal",
+        "author": "did:plc:memberC",
+        "label": "vote: recall cruitM",
+        "verified": true,
+        "createdAt": "2026-03-13T00:00:00Z"
+      },
+      {
+        "id": "4b4fc4da21b33968d25ddfb804f4c24196b8ae12de5865fab4fdb66bb243cb63",
+        "type": "attestation",
+        "author": "did:plc:memberC",
+        "label": "vote yes",
+        "verified": true,
+        "createdAt": "2026-03-14T00:00:00Z"
+      },
+      {
+        "id": "1a9317450bdf0253ec4ca9adfc87e11df9a98ee7e719890838903b14fab7a44e",
+        "type": "quest",
+        "author": "did:plc:memberA",
+        "label": "quest: Chart the northern reach",
+        "verified": true,
+        "createdAt": "2026-03-15T00:00:00Z"
+      },
+      {
+        "id": "d2ebc0a75914b43db6bf6dc11a1cee604089a7de15dfe94bb973e7abec9d198d",
+        "type": "offer",
+        "author": "did:plc:builderX",
+        "label": "offer (party)",
+        "verified": true,
+        "createdAt": "2026-03-16T00:00:00Z"
+      },
+      {
+        "id": "ef19d5afce2d707040a5d9c0c68e9c848b6f1b384ab05550f0c822025af78236",
+        "type": "acceptance",
+        "author": "did:plc:memberA",
+        "label": "acceptance",
+        "verified": true,
+        "createdAt": "2026-03-17T00:00:00Z"
+      },
+      {
+        "id": "3322f5afd2d810c1843704e73526456bbdd6bd31167fb16d32402b3e30d7cc66",
+        "type": "acceptance",
+        "author": "did:plc:recruitM",
+        "label": "acceptance",
+        "verified": true,
+        "createdAt": "2026-03-18T00:00:00Z"
+      },
+      {
+        "id": "7305b140907d2eb4d0d57ac5f8f33ad5d202d2564bd323ae1535369f8ae69a5b",
+        "type": "amendment",
+        "author": "did:plc:builderX",
+        "label": "amendment (party)",
+        "verified": true,
+        "createdAt": "2026-03-19T00:00:00Z"
+      },
+      {
+        "id": "3c572461b31732641189c9cfe58c56f95c5b58d7a4878b8b619f2c7b393a4ab2",
+        "type": "acceptance",
+        "author": "did:plc:memberA",
+        "label": "acceptance",
+        "verified": true,
+        "createdAt": "2026-03-20T00:00:00Z"
+      },
+      {
+        "id": "1a08ad74772032b325c3696dfd00bb929737b9c464f80a2de79ee17dabad2dcd",
+        "type": "acceptance",
+        "author": "did:plc:recruitM",
+        "label": "acceptance",
+        "verified": true,
+        "createdAt": "2026-03-21T00:00:00Z"
+      },
+      {
+        "id": "c764e6a631d9e231e50d13461d65f3d8f2a8ac594fe3bf371558a16d0ed96233",
+        "type": "delivery",
+        "author": "did:plc:builderX",
+        "label": "delivery @9f2c1ab",
+        "verified": true,
+        "createdAt": "2026-03-22T00:00:00Z"
+      },
+      {
+        "id": "288e62dce83ab67f530b08b8374aafbe050ff60062a826c053cba027b60fac6a",
+        "type": "witness",
+        "author": "did:plc:witnessW",
+        "label": "witness",
+        "verified": true,
+        "createdAt": "2026-03-24T00:00:00Z"
+      },
+      {
+        "id": "c7fc8b3ac06022477062117c693172da7d78acd54d08887c947d44061fce26ba",
+        "type": "settlement",
+        "author": "did:plc:memberA",
+        "label": "settle 90000",
+        "verified": true,
+        "createdAt": "2026-03-25T00:00:00Z"
+      },
+      {
+        "id": "93805219e1ca8d69ae73834d7770d5d52604de9291258d7fbe26921d0c6e04e2",
+        "type": "settlement",
+        "author": "did:plc:memberA",
+        "label": "settle 90000",
+        "verified": true,
+        "createdAt": "2026-03-26T00:00:00Z"
+      }
+    ],
+    "edges": [
+      {
+        "from": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
+        "to": "dd4a789c14e5986688021f396ab4cc06aa443db6cf389598f439dffed8ee10dd",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "aaeb9e2928a56694e8d204d71fc52b5d1e99ebc3693ebc1d731130d403916cc2",
+        "to": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "aaeb9e2928a56694e8d204d71fc52b5d1e99ebc3693ebc1d731130d403916cc2",
+        "to": "dd4a789c14e5986688021f396ab4cc06aa443db6cf389598f439dffed8ee10dd",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "6949c87aa0b765275e4447e94f3becee4979fb6cc19823ae4c6534913dc78916",
+        "to": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "6949c87aa0b765275e4447e94f3becee4979fb6cc19823ae4c6534913dc78916",
+        "to": "dd4a789c14e5986688021f396ab4cc06aa443db6cf389598f439dffed8ee10dd",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "53315766107c73366f1268dc73e1aacabf160959dd3ed4c812b8e7590936e3e6",
+        "to": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "0515563b247ed8e9610af104b3c3466b39d4a7aafd540458d5ca4a84b6e1807b",
+        "to": "53315766107c73366f1268dc73e1aacabf160959dd3ed4c812b8e7590936e3e6",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "0515563b247ed8e9610af104b3c3466b39d4a7aafd540458d5ca4a84b6e1807b",
+        "to": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "5b6bd61d03a1c20298ab54e4cb21eb6db65469e81eb99f525dcdfab6e0770192",
+        "to": "53315766107c73366f1268dc73e1aacabf160959dd3ed4c812b8e7590936e3e6",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "5b6bd61d03a1c20298ab54e4cb21eb6db65469e81eb99f525dcdfab6e0770192",
+        "to": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "b00db5a18705c960da3005e14b9e991cb47702154f9af4f119650f4d07b16951",
+        "to": "53315766107c73366f1268dc73e1aacabf160959dd3ed4c812b8e7590936e3e6",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "b00db5a18705c960da3005e14b9e991cb47702154f9af4f119650f4d07b16951",
+        "to": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "8bb109f5353041085137c5c2b28db4ad7b52d09f21ae30848fad25ceb6755538",
+        "to": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "34d1333bffdddf553d83861ca7f0770efa509f6cac39a672bb413c5f947d5f40",
+        "to": "8bb109f5353041085137c5c2b28db4ad7b52d09f21ae30848fad25ceb6755538",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "34d1333bffdddf553d83861ca7f0770efa509f6cac39a672bb413c5f947d5f40",
+        "to": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "abca86e5cc9164957ddc2cbdecaf5dc1d2e7771604ac2332ecbfb52a9a3b129f",
+        "to": "8bb109f5353041085137c5c2b28db4ad7b52d09f21ae30848fad25ceb6755538",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "abca86e5cc9164957ddc2cbdecaf5dc1d2e7771604ac2332ecbfb52a9a3b129f",
+        "to": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "04b54f6ef0afb6c9958eec7f7c5ea3bf0dc1894fcd544304eb3a31847de1c165",
+        "to": "8bb109f5353041085137c5c2b28db4ad7b52d09f21ae30848fad25ceb6755538",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "04b54f6ef0afb6c9958eec7f7c5ea3bf0dc1894fcd544304eb3a31847de1c165",
+        "to": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "e0b63d975fe334585476a394a188e6b860352ac9d878ad84edacc987a9f4187a",
+        "to": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "e0b63d975fe334585476a394a188e6b860352ac9d878ad84edacc987a9f4187a",
+        "to": "8bb109f5353041085137c5c2b28db4ad7b52d09f21ae30848fad25ceb6755538",
+        "rel": "target",
+        "dangling": false
+      },
+      {
+        "from": "4b4fc4da21b33968d25ddfb804f4c24196b8ae12de5865fab4fdb66bb243cb63",
+        "to": "e0b63d975fe334585476a394a188e6b860352ac9d878ad84edacc987a9f4187a",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "4b4fc4da21b33968d25ddfb804f4c24196b8ae12de5865fab4fdb66bb243cb63",
+        "to": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
+        "rel": "basis",
+        "dangling": false
+      },
+      {
+        "from": "d2ebc0a75914b43db6bf6dc11a1cee604089a7de15dfe94bb973e7abec9d198d",
+        "to": "1a9317450bdf0253ec4ca9adfc87e11df9a98ee7e719890838903b14fab7a44e",
+        "rel": "quest",
+        "dangling": false
+      },
+      {
+        "from": "ef19d5afce2d707040a5d9c0c68e9c848b6f1b384ab05550f0c822025af78236",
+        "to": "d2ebc0a75914b43db6bf6dc11a1cee604089a7de15dfe94bb973e7abec9d198d",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "3322f5afd2d810c1843704e73526456bbdd6bd31167fb16d32402b3e30d7cc66",
+        "to": "d2ebc0a75914b43db6bf6dc11a1cee604089a7de15dfe94bb973e7abec9d198d",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "7305b140907d2eb4d0d57ac5f8f33ad5d202d2564bd323ae1535369f8ae69a5b",
+        "to": "d2ebc0a75914b43db6bf6dc11a1cee604089a7de15dfe94bb973e7abec9d198d",
+        "rel": "supersedes",
+        "dangling": false
+      },
+      {
+        "from": "3c572461b31732641189c9cfe58c56f95c5b58d7a4878b8b619f2c7b393a4ab2",
+        "to": "7305b140907d2eb4d0d57ac5f8f33ad5d202d2564bd323ae1535369f8ae69a5b",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "1a08ad74772032b325c3696dfd00bb929737b9c464f80a2de79ee17dabad2dcd",
+        "to": "7305b140907d2eb4d0d57ac5f8f33ad5d202d2564bd323ae1535369f8ae69a5b",
+        "rel": "subject",
+        "dangling": false
+      },
+      {
+        "from": "c764e6a631d9e231e50d13461d65f3d8f2a8ac594fe3bf371558a16d0ed96233",
+        "to": "1a9317450bdf0253ec4ca9adfc87e11df9a98ee7e719890838903b14fab7a44e",
+        "rel": "quest",
+        "dangling": false
+      },
+      {
+        "from": "c764e6a631d9e231e50d13461d65f3d8f2a8ac594fe3bf371558a16d0ed96233",
+        "to": "ef19d5afce2d707040a5d9c0c68e9c848b6f1b384ab05550f0c822025af78236",
+        "rel": "agreement",
+        "dangling": false
+      },
+      {
+        "from": "288e62dce83ab67f530b08b8374aafbe050ff60062a826c053cba027b60fac6a",
+        "to": "c764e6a631d9e231e50d13461d65f3d8f2a8ac594fe3bf371558a16d0ed96233",
+        "rel": "delivery",
+        "dangling": false
+      },
+      {
+        "from": "c7fc8b3ac06022477062117c693172da7d78acd54d08887c947d44061fce26ba",
+        "to": "1a9317450bdf0253ec4ca9adfc87e11df9a98ee7e719890838903b14fab7a44e",
+        "rel": "quest",
+        "dangling": false
+      },
+      {
+        "from": "c7fc8b3ac06022477062117c693172da7d78acd54d08887c947d44061fce26ba",
+        "to": "c764e6a631d9e231e50d13461d65f3d8f2a8ac594fe3bf371558a16d0ed96233",
+        "rel": "for",
+        "dangling": false
+      },
+      {
+        "from": "93805219e1ca8d69ae73834d7770d5d52604de9291258d7fbe26921d0c6e04e2",
+        "to": "1a9317450bdf0253ec4ca9adfc87e11df9a98ee7e719890838903b14fab7a44e",
+        "rel": "quest",
+        "dangling": false
+      },
+      {
+        "from": "93805219e1ca8d69ae73834d7770d5d52604de9291258d7fbe26921d0c6e04e2",
+        "to": "c764e6a631d9e231e50d13461d65f3d8f2a8ac594fe3bf371558a16d0ed96233",
+        "rel": "for",
+        "dangling": false
       }
     ]
-  },
-  "agreement": {
-    "quest": "3e859faf891c380b85a71ccd3ddefc47aa5c1331127b7ab02d8896f610446267",
-    "status": "fully-paid",
-    "terms": {
-      "party": [
-        "did:plc:builderX",
-        "did:plc:recruitM"
-      ],
-      "reward": "$1800",
-      "amount": 180000,
-      "currency": "usd",
-      "terms": "on_delivery"
-    },
-    "offer": "2e12cf1fe0f5738f36a8e1f63c411b424779a1bcdba2621fd030e149e40e6bda",
-    "accepted": [
-      "did:plc:builderX",
-      "did:plc:memberA",
-      "did:plc:recruitM"
-    ],
-    "pending": [],
-    "amendments": [
-      {
-        "ref": "dc3b8e64501d7ef50829370f564dbf5fbcc4ec2deaccb05a2cb62ff3e95bb476",
-        "by": "did:plc:builderX",
-        "role": "party",
-        "changes": {
-          "amount": 180000,
-          "reward": "$1800"
-        },
-        "accepted": true
-      }
-    ],
-    "deliveries": [
-      {
-        "ref": "49315cbb04fe0e08405e43c2d459e1c924fa5e6271a017ad7e8a1a35fec69d8b",
-        "by": "did:plc:builderX",
-        "commit": "9f2c1ab7e4d0"
-      }
-    ],
-    "settlements": [
-      {
-        "ref": "bb880b9261b079c37df12ffcece951c00353836e284f12059e89e375185fad83",
-        "amount": 90000,
-        "for": "49315cbb04fe0e08405e43c2d459e1c924fa5e6271a017ad7e8a1a35fec69d8b"
-      },
-      {
-        "ref": "a2259753e828409c02b630a234e44f872a6fb78d84c0f61063453c2b873ef909",
-        "amount": 90000,
-        "for": "49315cbb04fe0e08405e43c2d459e1c924fa5e6271a017ad7e8a1a35fec69d8b"
-      }
-    ],
-    "paid": 180000,
-    "total": 180000
   },
   "records": [
     {
@@ -149,8 +586,8 @@
       },
       "createdAt": "2026-03-01T00:00:00Z",
       "author": "did:plc:memberA",
-      "sig": "MndoPZO3xUfvjV0g0tZnAhNlAv+zHPs1bSzuepvGZGFp9BOD+AehlFBY45B9SY+UY7EL6YBf1zYxZVRbulsPwg==",
-      "_ref": "68d363a5407c5acdd6fa5b7d9098a6b015315b1a4adb6f45a398fd7ff5f37129",
+      "sig": "tKqKhAlSqurp0ACcnRarHWJuZL1TJEdQqPromvBbgEnicsqMHDyusxH2yiNCIgB7j3oTbfw0nsTmgqSbPjwV2w==",
+      "_ref": "dd4a789c14e5986688021f396ab4cc06aa443db6cf389598f439dffed8ee10dd",
       "_verified": true
     },
     {
@@ -160,38 +597,38 @@
       "enacts": {
         "grantee": "did:plc:recruitM"
       },
-      "basis": "68d363a5407c5acdd6fa5b7d9098a6b015315b1a4adb6f45a398fd7ff5f37129",
+      "basis": "dd4a789c14e5986688021f396ab4cc06aa443db6cf389598f439dffed8ee10dd",
       "question": "Admit M to the guild?",
       "createdAt": "2026-03-02T00:00:00Z",
       "author": "did:plc:memberA",
-      "sig": "U4xZ9hXOrMiiTKX4SDifrX9o2gncV0cEMRG7PxGoqziAeKIfdkPsBZAeEMKZBxfZgW85M713h2hftKMgknhiSw==",
-      "_ref": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
+      "sig": "Rs81o4bDdMmHf3TNF09vWYVtby8sTtL1XI12HimHz7mSp1fKSQNF1gVqqezxW5yF5se8vKaO06u6rD2EAJKqjg==",
+      "_ref": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
       "_verified": true
     },
     {
       "type": "org.buildguild.attestation",
       "guild": "did:guild:cartographers",
       "contract": "vote",
-      "subject": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
+      "subject": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
       "value": "yes",
-      "basis": "68d363a5407c5acdd6fa5b7d9098a6b015315b1a4adb6f45a398fd7ff5f37129",
+      "basis": "dd4a789c14e5986688021f396ab4cc06aa443db6cf389598f439dffed8ee10dd",
       "createdAt": "2026-03-03T00:00:00Z",
       "author": "did:plc:memberA",
-      "sig": "MDjMAVjx6KJuqwPirrrswTQQy0VPrtZSD+didmxsEK10sv325nBpV1zxZG+ZciQOXpz81WK512BXIeJmL5qr7A==",
-      "_ref": "cf81389eebf8f2effb92c82b415ce5fa59900f6ad57859bf29172f8f8e3bdd9c",
+      "sig": "FiL6Me0HKqxG3XXSAOvC+wp4hzcxDsh/LTrWV1OyP0Wla/nHdODx//hKSuuEVdH1qSYMfbqFc7NiuGUDm7lhVA==",
+      "_ref": "aaeb9e2928a56694e8d204d71fc52b5d1e99ebc3693ebc1d731130d403916cc2",
       "_verified": true
     },
     {
       "type": "org.buildguild.attestation",
       "guild": "did:guild:cartographers",
       "contract": "vote",
-      "subject": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
+      "subject": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
       "value": "yes",
-      "basis": "68d363a5407c5acdd6fa5b7d9098a6b015315b1a4adb6f45a398fd7ff5f37129",
+      "basis": "dd4a789c14e5986688021f396ab4cc06aa443db6cf389598f439dffed8ee10dd",
       "createdAt": "2026-03-04T00:00:00Z",
       "author": "did:plc:memberB",
-      "sig": "UgBNRiQy7yR+2MtoCuuDoHPIfnItTfhX/tWK8RIHmBOtwSmM6WdiyFONrLmRwTpOotUZ2rpbWih/R+tARcmlFQ==",
-      "_ref": "b3b604aa215ff8c8f6474e391f6ee420ab637223688c993a478d0d5fb852f759",
+      "sig": "DtVxfL7PLPhspq8UiU2isNJBJxsZGq75h9tWAmcHhvSzry/G+vEEK8MB3kjgCD7ZxdjRhLtjkgTx0iUCytsskA==",
+      "_ref": "6949c87aa0b765275e4447e94f3becee4979fb6cc19823ae4c6534913dc78916",
       "_verified": true
     },
     {
@@ -204,51 +641,51 @@
         "scope": "did:guild:cartographers",
         "mode": "trust"
       },
-      "basis": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
+      "basis": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
       "question": "Trust W as a delivery witness?",
       "createdAt": "2026-03-05T00:00:00Z",
       "author": "did:plc:memberB",
-      "sig": "EHRQ7v5kYpDGfogB6gIEl/i269BvCYx4Vc6qgzxAV0PGSLD8ZlPdvfoHqT7F3TEufDf78oU9MWZ8NarXp7hK0w==",
-      "_ref": "9f2a5a8250b9c4cc1d124dccab92c70e877642f6b72230ba5e0e7cec7d6eee24",
+      "sig": "CAcx65VfMKWnfRKyPF1ZQq4xNP5Dgg/pcbXxUPlVUaAsGDdY+ubbus8whn5ZduFQZWiSF5xWJ8P4rd+DPFradg==",
+      "_ref": "53315766107c73366f1268dc73e1aacabf160959dd3ed4c812b8e7590936e3e6",
       "_verified": true
     },
     {
       "type": "org.buildguild.attestation",
       "guild": "did:guild:cartographers",
       "contract": "vote",
-      "subject": "9f2a5a8250b9c4cc1d124dccab92c70e877642f6b72230ba5e0e7cec7d6eee24",
+      "subject": "53315766107c73366f1268dc73e1aacabf160959dd3ed4c812b8e7590936e3e6",
       "value": "yes",
-      "basis": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
+      "basis": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
       "createdAt": "2026-03-06T00:00:00Z",
       "author": "did:plc:memberA",
-      "sig": "1eIfXtgPj4Z2IL587YgWoTqmFMgG1gbSkEiksemNswAcv5n1J+mUNNqYFbl3cpo9tZ7h5+fuomiImjhdebEtaw==",
-      "_ref": "f18c360e9b3ed81eb7d9806e1e91df3cb7a6144990d179c145a9df4c784547b5",
+      "sig": "4ru39gN52JddZBxs6k5mRbkkyB0gojg4QN+okEJDS47hnv2y6c4zDzICFMPvQZ08GQoGbKwV2pGFTE9DBJwOyg==",
+      "_ref": "0515563b247ed8e9610af104b3c3466b39d4a7aafd540458d5ca4a84b6e1807b",
       "_verified": true
     },
     {
       "type": "org.buildguild.attestation",
       "guild": "did:guild:cartographers",
       "contract": "vote",
-      "subject": "9f2a5a8250b9c4cc1d124dccab92c70e877642f6b72230ba5e0e7cec7d6eee24",
+      "subject": "53315766107c73366f1268dc73e1aacabf160959dd3ed4c812b8e7590936e3e6",
       "value": "yes",
-      "basis": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
+      "basis": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
       "createdAt": "2026-03-07T00:00:00Z",
       "author": "did:plc:memberB",
-      "sig": "y7i4n/tpx6FuEi4AFS5xiHhstPuiDHv9RqRzTqslbT9dH1LoBX89QFd6sCjmZeS14Z/cqWW6HScZegGGvroIZQ==",
-      "_ref": "88d7951b375273b8f4174fdc62ab139d097f83cd0e12b6808a6a20e24f2bf635",
+      "sig": "UWJo/rEmvDnw6FwinYVF5ZrKSFRsFIBqyRPto6KlQy6JpoH+YInjXV9A76zJicTs5Whh8C3fc9IVk4frH0gfsQ==",
+      "_ref": "5b6bd61d03a1c20298ab54e4cb21eb6db65469e81eb99f525dcdfab6e0770192",
       "_verified": true
     },
     {
       "type": "org.buildguild.attestation",
       "guild": "did:guild:cartographers",
       "contract": "vote",
-      "subject": "9f2a5a8250b9c4cc1d124dccab92c70e877642f6b72230ba5e0e7cec7d6eee24",
+      "subject": "53315766107c73366f1268dc73e1aacabf160959dd3ed4c812b8e7590936e3e6",
       "value": "yes",
-      "basis": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
+      "basis": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
       "createdAt": "2026-03-08T00:00:00Z",
       "author": "did:plc:memberC",
-      "sig": "xMWgIJgFmSgs+tULuC2MyNQ8N4IPvskKNParptrbFD/Z976EKCha8GBcZMREduS2DtfnbZbc6fvyjUayXNKxgw==",
-      "_ref": "6470e96fa7d62d882c08a025cdbcae3ad36b43d717e4290c0afe7a72f5e91068",
+      "sig": "bT8sx7JVrV9e9HgU+FaiWh+QZyMKm+wBjlHHhv/YTyRmQ2xDOcpdoc6TqP1UwFBHJ0maj9eR+U2+slJzHXj5zA==",
+      "_ref": "b00db5a18705c960da3005e14b9e991cb47702154f9af4f119650f4d07b16951",
       "_verified": true
     },
     {
@@ -260,51 +697,51 @@
         "capability": "admit",
         "scope": "did:guild:cartographers"
       },
-      "basis": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
+      "basis": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
       "question": "Mandate M to admit?",
       "createdAt": "2026-03-09T00:00:00Z",
       "author": "did:plc:memberA",
-      "sig": "VTtJ9ny3fz4j5K1/m3QbEXt6ViSDhefp6cufXZF234a8cM6T5CJc8EXXFvK65fkda9IkKjnVZvUkURs0FTMLpg==",
-      "_ref": "29dc61e4beeeb3bbf4eef6dfc47bc0c6e90d2a630b3192b21e6462fe24368a6f",
+      "sig": "BEMhHoAOHp/RRC/kMonEYnE0MeRezaZAg/RNx3Nfn8X0oY9nz+Zr8tnHb81WPrF+Hc90UREwMNsgghQv6LlMzQ==",
+      "_ref": "8bb109f5353041085137c5c2b28db4ad7b52d09f21ae30848fad25ceb6755538",
       "_verified": true
     },
     {
       "type": "org.buildguild.attestation",
       "guild": "did:guild:cartographers",
       "contract": "vote",
-      "subject": "29dc61e4beeeb3bbf4eef6dfc47bc0c6e90d2a630b3192b21e6462fe24368a6f",
+      "subject": "8bb109f5353041085137c5c2b28db4ad7b52d09f21ae30848fad25ceb6755538",
       "value": "yes",
-      "basis": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
+      "basis": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
       "createdAt": "2026-03-10T00:00:00Z",
       "author": "did:plc:memberA",
-      "sig": "7oMjxwSma3w6/cFfKWTMe2AGRKJkKWhy7LIiwR/GD9Cm4uoEKWHtcUlrqv9Rqta1Ql/kW1Vf2W3Vhvipl+0v+A==",
-      "_ref": "c6b641d7752383a95297bdacf0c9da892343aecca4d631a7d4a3bab62b7383ce",
+      "sig": "ise5nwUj+xVZUTS0H9+T0zcrEXugcAynrWzmkh1u8rOAfYPOSKVLtDCLzypfT75+6u1MxxnPCQLHXdrmg7UYHQ==",
+      "_ref": "34d1333bffdddf553d83861ca7f0770efa509f6cac39a672bb413c5f947d5f40",
       "_verified": true
     },
     {
       "type": "org.buildguild.attestation",
       "guild": "did:guild:cartographers",
       "contract": "vote",
-      "subject": "29dc61e4beeeb3bbf4eef6dfc47bc0c6e90d2a630b3192b21e6462fe24368a6f",
+      "subject": "8bb109f5353041085137c5c2b28db4ad7b52d09f21ae30848fad25ceb6755538",
       "value": "yes",
-      "basis": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
+      "basis": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
       "createdAt": "2026-03-11T00:00:00Z",
       "author": "did:plc:memberB",
-      "sig": "slxypT5bjIKMrIoOJs1kS5q4WTTWDJuJ1phGnnqpSg9YPdKSp2c2Qotgv43qncMHsHOOf7HOEtbX891fBWmTvA==",
-      "_ref": "50341b86624d3ca7ac9be43c2a2dc0859817c7c18a8c79aa054ff4653c76743c",
+      "sig": "rh7DCXQAru2zM93lBFeeKrD3v5AsmhIMG2ek4sDFx7mAMCkO72YK5U5iZeZzvv1r9hnJNB+dzB9gj8uHLJbOeA==",
+      "_ref": "abca86e5cc9164957ddc2cbdecaf5dc1d2e7771604ac2332ecbfb52a9a3b129f",
       "_verified": true
     },
     {
       "type": "org.buildguild.attestation",
       "guild": "did:guild:cartographers",
       "contract": "vote",
-      "subject": "29dc61e4beeeb3bbf4eef6dfc47bc0c6e90d2a630b3192b21e6462fe24368a6f",
+      "subject": "8bb109f5353041085137c5c2b28db4ad7b52d09f21ae30848fad25ceb6755538",
       "value": "yes",
-      "basis": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
+      "basis": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
       "createdAt": "2026-03-12T00:00:00Z",
       "author": "did:plc:memberC",
-      "sig": "6gzjWYm37HDS4uu3bOXowHQAak2KUf7FPJdPy7KulBwvo7FnuLLYWXQVFDj0IE7lHfuA26qlIVH1rIpdMsFGTA==",
-      "_ref": "955bddcd6307c8030a298e81fd7c2ec1cafa98bb4824376f475d84bb7462b005",
+      "sig": "72Ko8aWQitULlONQpPTCttKw/seWqa22zmZptgqaZNGG4fU0NEp+jX7Kqo7ieBrRhzuSYN81U2R4WZlBgWmqjw==",
+      "_ref": "04b54f6ef0afb6c9958eec7f7c5ea3bf0dc1894fcd544304eb3a31847de1c165",
       "_verified": true
     },
     {
@@ -315,27 +752,27 @@
         "grantee": "did:plc:recruitM",
         "capability": "admit",
         "scope": "did:guild:cartographers",
-        "target": "29dc61e4beeeb3bbf4eef6dfc47bc0c6e90d2a630b3192b21e6462fe24368a6f"
+        "target": "8bb109f5353041085137c5c2b28db4ad7b52d09f21ae30848fad25ceb6755538"
       },
-      "basis": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
+      "basis": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
       "question": "Recall M's admit mandate?",
       "createdAt": "2026-03-13T00:00:00Z",
       "author": "did:plc:memberC",
-      "sig": "/ZkKhisHDIe1pCMI4AFNe7dF/sH9Eg7moxCFKOX8UswU5zMCPbPFU0tur8Uf5+7PMJHUVHqxJOVOFdM0PyMyuA==",
-      "_ref": "18cc150de695204ba20e9ff4cfc974228797fd648059663b9d7d49ff34c486ae",
+      "sig": "u5yWOTFjWAGSuEiDb4nP+QHzwADvGCRvO5iGT1XGE9He3pJoe0ZpQf88xf4Vr+ebdG/p1DQPIaUpz9EqKtEddw==",
+      "_ref": "e0b63d975fe334585476a394a188e6b860352ac9d878ad84edacc987a9f4187a",
       "_verified": true
     },
     {
       "type": "org.buildguild.attestation",
       "guild": "did:guild:cartographers",
       "contract": "vote",
-      "subject": "18cc150de695204ba20e9ff4cfc974228797fd648059663b9d7d49ff34c486ae",
+      "subject": "e0b63d975fe334585476a394a188e6b860352ac9d878ad84edacc987a9f4187a",
       "value": "yes",
-      "basis": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
+      "basis": "76c4602f654b51f3f12fee9d2e3db96270f806203886691a5f032884c2b9637a",
       "createdAt": "2026-03-14T00:00:00Z",
       "author": "did:plc:memberC",
-      "sig": "/FAzr0+vNB/jpVePghrXxBoHFXuXQSsH+iAfdxyT/HS/R/DesozQrlkBwmHnk140vb11RyufZp1MYbzxZBi2Fw==",
-      "_ref": "3e98ba24bede57b8e0d051bdffb323c9cf4e1b77f6d971079176c73f22f15a15",
+      "sig": "hTW37OvTKhRsu+oJ2poIukTJV0fd2ad1R55k5dMwMbCykjTLzXMYlHqM69PS+h2lEqiyWAcGkIDugqz7ZN9JKQ==",
+      "_ref": "4b4fc4da21b33968d25ddfb804f4c24196b8ae12de5865fab4fdb66bb243cb63",
       "_verified": true
     },
     {
@@ -344,13 +781,13 @@
       "reward": "$1500",
       "createdAt": "2026-03-15T00:00:00Z",
       "author": "did:plc:memberA",
-      "sig": "i3SUmjrwecFylA0vpIs5yh6NTP/TQradzmeaVg/3ofGS8OSiQcDCL9TKwb3opGz93KLkW4jFl//Z9rM9UROYpQ==",
-      "_ref": "3e859faf891c380b85a71ccd3ddefc47aa5c1331127b7ab02d8896f610446267",
+      "sig": "B28Dt5g6xEYbfw6cwC4Wa3izsvaX4M9R3psdGthrJSgvPtz8KtHqz0TMHT53jk9K9naHV/4ijL7Gnc2bbVuekQ==",
+      "_ref": "1a9317450bdf0253ec4ca9adfc87e11df9a98ee7e719890838903b14fab7a44e",
       "_verified": true
     },
     {
       "type": "org.buildguild.offer",
-      "quest": "3e859faf891c380b85a71ccd3ddefc47aa5c1331127b7ab02d8896f610446267",
+      "quest": "1a9317450bdf0253ec4ca9adfc87e11df9a98ee7e719890838903b14fab7a44e",
       "role": "party",
       "party": [
         "did:plc:builderX",
@@ -362,31 +799,31 @@
       "terms": "on_delivery",
       "createdAt": "2026-03-16T00:00:00Z",
       "author": "did:plc:builderX",
-      "sig": "UJSOS2fK6KGX3bJWxXgATtCcCD5o7bVsasUWm1UA9Ei0508r5bfKbkgEBMRaVsssEnOxpL6l2dn/4BLlbKfmxQ==",
-      "_ref": "2e12cf1fe0f5738f36a8e1f63c411b424779a1bcdba2621fd030e149e40e6bda",
+      "sig": "mq17lzXiB18yJXhKfGA0a/FkpTLRtKUlhzp0hO3GBDKUH95EudW0sim9/rhqdFwhgs8wc9fDvXTqDYjLGDug1Q==",
+      "_ref": "d2ebc0a75914b43db6bf6dc11a1cee604089a7de15dfe94bb973e7abec9d198d",
       "_verified": true
     },
     {
       "type": "org.buildguild.acceptance",
-      "subject": "2e12cf1fe0f5738f36a8e1f63c411b424779a1bcdba2621fd030e149e40e6bda",
+      "subject": "d2ebc0a75914b43db6bf6dc11a1cee604089a7de15dfe94bb973e7abec9d198d",
       "createdAt": "2026-03-17T00:00:00Z",
       "author": "did:plc:memberA",
-      "sig": "E8+3kfhYpkmPca4FR2e9yZX8ajanvT9ZmjDXqKq9QqoSuUD+UyDN+vEgMJ30ZyOTwib+V55PjbYfuqs4c5WghA==",
-      "_ref": "c021b3ba1de33f035253821bb5b17cb1760cd5623c9dcf8d545b491427b807ad",
+      "sig": "tVN1Bv4bBEFgO5VW/Ja/gt/yugCHR+roNmvOoZPzLCToyBDGXH/5SiWOKw2cqpzxpyAdkhsfeTew3E9fSEYKqw==",
+      "_ref": "ef19d5afce2d707040a5d9c0c68e9c848b6f1b384ab05550f0c822025af78236",
       "_verified": true
     },
     {
       "type": "org.buildguild.acceptance",
-      "subject": "2e12cf1fe0f5738f36a8e1f63c411b424779a1bcdba2621fd030e149e40e6bda",
+      "subject": "d2ebc0a75914b43db6bf6dc11a1cee604089a7de15dfe94bb973e7abec9d198d",
       "createdAt": "2026-03-18T00:00:00Z",
       "author": "did:plc:recruitM",
-      "sig": "koYjKvR1H2foM1y+HVyTxJRBiniRXqRE3r6C0bLG0u8QbO3FnkhQQSjLPG1G4TNS2FuzKye1T0TqcZ2hm0cBNw==",
-      "_ref": "cb8342110b8d22b8e67c8a4b2596b473722ea833efbc0decbb3087156b863cef",
+      "sig": "c2iCIlZGRQeQkCqsVg+sYTsnJuUdkd8M53f25+vaGc7Cbdxq3MsInTAMypVSWTDD8cR3Fw4P1mtHEa7/gNkI+w==",
+      "_ref": "3322f5afd2d810c1843704e73526456bbdd6bd31167fb16d32402b3e30d7cc66",
       "_verified": true
     },
     {
       "type": "org.buildguild.amendment",
-      "supersedes": "2e12cf1fe0f5738f36a8e1f63c411b424779a1bcdba2621fd030e149e40e6bda",
+      "supersedes": "d2ebc0a75914b43db6bf6dc11a1cee604089a7de15dfe94bb973e7abec9d198d",
       "role": "party",
       "changes": {
         "amount": 180000,
@@ -395,59 +832,59 @@
       "reason": "added the eastern survey",
       "createdAt": "2026-03-19T00:00:00Z",
       "author": "did:plc:builderX",
-      "sig": "jyXnsXZTjqRBKEoSKEoTi3FaW06pIOqrjVi09kNklJ/o/9D2ubw3Hv9Sl+H13YQl53z716uLWdEUSynFUs8+qw==",
-      "_ref": "dc3b8e64501d7ef50829370f564dbf5fbcc4ec2deaccb05a2cb62ff3e95bb476",
+      "sig": "cMAiN2oQY2yo2d2g2uDRo2N/XDdxM+vcJjQNIoUXIGg5Io62FJQsEXMygsWy8WKsGe/iMB9gU/VY6UdCXQQjrA==",
+      "_ref": "7305b140907d2eb4d0d57ac5f8f33ad5d202d2564bd323ae1535369f8ae69a5b",
       "_verified": true
     },
     {
       "type": "org.buildguild.acceptance",
-      "subject": "dc3b8e64501d7ef50829370f564dbf5fbcc4ec2deaccb05a2cb62ff3e95bb476",
+      "subject": "7305b140907d2eb4d0d57ac5f8f33ad5d202d2564bd323ae1535369f8ae69a5b",
       "createdAt": "2026-03-20T00:00:00Z",
       "author": "did:plc:memberA",
-      "sig": "1oQ7bMFY+3kmPLSZlfvBMzUd9zSqTOkBkmjNlBubm89oyI/d7bf/UI8AiB5NwfGvQM8HTH8hpikaMFirNIvJ2Q==",
-      "_ref": "27368e5535662c6ab388ffef642f7764cc70f9f9bfbea3184d301a080d83a0dc",
+      "sig": "C/nVuY+aVDplsFfgU3YSuLOFgPFRrWgqO1d+gJmmZh7VR3iiJTTENelGuQHipl2pGI+MgECkAvS10bvl5J4hFw==",
+      "_ref": "3c572461b31732641189c9cfe58c56f95c5b58d7a4878b8b619f2c7b393a4ab2",
       "_verified": true
     },
     {
       "type": "org.buildguild.acceptance",
-      "subject": "dc3b8e64501d7ef50829370f564dbf5fbcc4ec2deaccb05a2cb62ff3e95bb476",
+      "subject": "7305b140907d2eb4d0d57ac5f8f33ad5d202d2564bd323ae1535369f8ae69a5b",
       "createdAt": "2026-03-21T00:00:00Z",
       "author": "did:plc:recruitM",
-      "sig": "iO3Ff5EACVhVZNitQW3v32nSY08f6H8JV2am0CFfiqznhwc710OSmaoF8p7FYlqJoxbkwLYGImmd/DaafD973A==",
-      "_ref": "4b26e2bfbbc543518cf5503ceedfbe333c6308c5a4f856e13589bba6ba648daa",
+      "sig": "qdhk2f6+zrLGWec2yzOqc8vuOD/nfmBx67HI9ibDQUF+VWobaeERj1+eiHYFXz0ATgJvM3pOO+bAwuTomEpB+w==",
+      "_ref": "1a08ad74772032b325c3696dfd00bb929737b9c464f80a2de79ee17dabad2dcd",
       "_verified": true
     },
     {
       "type": "org.buildguild.delivery",
-      "quest": "3e859faf891c380b85a71ccd3ddefc47aa5c1331127b7ab02d8896f610446267",
-      "agreement": "c021b3ba1de33f035253821bb5b17cb1760cd5623c9dcf8d545b491427b807ad",
+      "quest": "1a9317450bdf0253ec4ca9adfc87e11df9a98ee7e719890838903b14fab7a44e",
+      "agreement": "ef19d5afce2d707040a5d9c0c68e9c848b6f1b384ab05550f0c822025af78236",
       "source": {
         "repo": "https://tangled.sh/cartographers/atlas",
         "commit": "9f2c1ab7e4d0"
       },
       "createdAt": "2026-03-22T00:00:00Z",
       "author": "did:plc:builderX",
-      "sig": "GlpiaDH0Tgzt7Nndd/+sEYWAI3WAzzg2FGSSHXgrB0hHiv7WfMbx52O50P4ni6tdN2x3Cw6Y7IGvi9V2PXKvew==",
-      "_ref": "49315cbb04fe0e08405e43c2d459e1c924fa5e6271a017ad7e8a1a35fec69d8b",
+      "sig": "kRizYxGSGMG/PFlwTmtI0NRw2CFuMLcFlv9Blj7U1KSa3eEHAoGloOMECY9Cg8pb/fCIaRioUWjyIHSpXNgNIA==",
+      "_ref": "c764e6a631d9e231e50d13461d65f3d8f2a8ac594fe3bf371558a16d0ed96233",
       "_verified": true
     },
     {
       "type": "org.buildguild.witness",
-      "delivery": "49315cbb04fe0e08405e43c2d459e1c924fa5e6271a017ad7e8a1a35fec69d8b",
+      "delivery": "c764e6a631d9e231e50d13461d65f3d8f2a8ac594fe3bf371558a16d0ed96233",
       "commit": "9f2c1ab7e4d0",
       "treeHash": "5d41402abc4b",
       "mirror": "https://mirror.guild/atlas.git",
       "fetchedAt": "2026-03-23T00:00:00Z",
       "createdAt": "2026-03-24T00:00:00Z",
       "author": "did:plc:witnessW",
-      "sig": "5TQ7MAAt8F4DV6bqIIETfxznCzizReFFMM1sDJBZc3lCy4OYrrnkAJ0C4m8Aq8hwJqYb7UeABqMVeOH3LFcLXQ==",
-      "_ref": "9c124ea7ae38c2952ad5a8e01290b0ac87110c098cdf35a48d3b822964e335d0",
+      "sig": "tGaENQzXNSJkKL2wnlOrtMFl1KgpVGShtUaWu95Gk2CRI7ksN0zWQHm20icmRGR6tAF3LH7pHoOxbruddkXaYg==",
+      "_ref": "288e62dce83ab67f530b08b8374aafbe050ff60062a826c053cba027b60fac6a",
       "_verified": true
     },
     {
       "type": "org.buildguild.settlement",
-      "quest": "3e859faf891c380b85a71ccd3ddefc47aa5c1331127b7ab02d8896f610446267",
-      "for": "49315cbb04fe0e08405e43c2d459e1c924fa5e6271a017ad7e8a1a35fec69d8b",
+      "quest": "1a9317450bdf0253ec4ca9adfc87e11df9a98ee7e719890838903b14fab7a44e",
+      "for": "c764e6a631d9e231e50d13461d65f3d8f2a8ac594fe3bf371558a16d0ed96233",
       "payee": "did:plc:builderX",
       "party": [
         "did:plc:builderX",
@@ -458,14 +895,14 @@
       "rail": "btc",
       "createdAt": "2026-03-25T00:00:00Z",
       "author": "did:plc:memberA",
-      "sig": "TUEcDSDLyFmwVXO4QcBlo6wum6o3+sDkkEfi3X/KACmvj8hBAujkUBGM1xefs+4wjxf3iaRPHVc9r4slJxVaTw==",
-      "_ref": "bb880b9261b079c37df12ffcece951c00353836e284f12059e89e375185fad83",
+      "sig": "WhkHk41SMPP3FpM0cHabTHEuONMiajWGdGcmd8Sq7a6gCYHok+KNhPtm2NQSIY1Up9QCenoo7pNqycmR0iG9+A==",
+      "_ref": "c7fc8b3ac06022477062117c693172da7d78acd54d08887c947d44061fce26ba",
       "_verified": true
     },
     {
       "type": "org.buildguild.settlement",
-      "quest": "3e859faf891c380b85a71ccd3ddefc47aa5c1331127b7ab02d8896f610446267",
-      "for": "49315cbb04fe0e08405e43c2d459e1c924fa5e6271a017ad7e8a1a35fec69d8b",
+      "quest": "1a9317450bdf0253ec4ca9adfc87e11df9a98ee7e719890838903b14fab7a44e",
+      "for": "c764e6a631d9e231e50d13461d65f3d8f2a8ac594fe3bf371558a16d0ed96233",
       "payee": "did:plc:builderX",
       "party": [
         "did:plc:builderX",
@@ -476,431 +913,9 @@
       "rail": "btc",
       "createdAt": "2026-03-26T00:00:00Z",
       "author": "did:plc:memberA",
-      "sig": "2eu85z9jXVlgyuBDGydYrrK9OVUUtQeE98ASbSNko9163TPnDax3SM19Ns6HDfnXwniRGMhcaICp8rVYQUVvVw==",
-      "_ref": "a2259753e828409c02b630a234e44f872a6fb78d84c0f61063453c2b873ef909",
+      "sig": "KqEB01Q64kmZihrYCoBfsleOZmoi/Fu9vVEz8BvdiRn1fN4mBSpJLxwGYlR0NjSb4e/2zk72eKfrsSS0fJnQSQ==",
+      "_ref": "93805219e1ca8d69ae73834d7770d5d52604de9291258d7fbe26921d0c6e04e2",
       "_verified": true
     }
-  ],
-  "graph": {
-    "nodes": [
-      {
-        "id": "68d363a5407c5acdd6fa5b7d9098a6b015315b1a4adb6f45a398fd7ff5f37129",
-        "type": "charter",
-        "author": "did:plc:memberA",
-        "label": "charter",
-        "verified": true,
-        "createdAt": "2026-03-01T00:00:00Z"
-      },
-      {
-        "id": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
-        "type": "proposal",
-        "author": "did:plc:memberA",
-        "label": "vote: admit cruitM",
-        "verified": true,
-        "createdAt": "2026-03-02T00:00:00Z"
-      },
-      {
-        "id": "cf81389eebf8f2effb92c82b415ce5fa59900f6ad57859bf29172f8f8e3bdd9c",
-        "type": "attestation",
-        "author": "did:plc:memberA",
-        "label": "vote yes",
-        "verified": true,
-        "createdAt": "2026-03-03T00:00:00Z"
-      },
-      {
-        "id": "b3b604aa215ff8c8f6474e391f6ee420ab637223688c993a478d0d5fb852f759",
-        "type": "attestation",
-        "author": "did:plc:memberB",
-        "label": "vote yes",
-        "verified": true,
-        "createdAt": "2026-03-04T00:00:00Z"
-      },
-      {
-        "id": "9f2a5a8250b9c4cc1d124dccab92c70e877642f6b72230ba5e0e7cec7d6eee24",
-        "type": "proposal",
-        "author": "did:plc:memberB",
-        "label": "vote: grant_mandate tnessW",
-        "verified": true,
-        "createdAt": "2026-03-05T00:00:00Z"
-      },
-      {
-        "id": "f18c360e9b3ed81eb7d9806e1e91df3cb7a6144990d179c145a9df4c784547b5",
-        "type": "attestation",
-        "author": "did:plc:memberA",
-        "label": "vote yes",
-        "verified": true,
-        "createdAt": "2026-03-06T00:00:00Z"
-      },
-      {
-        "id": "88d7951b375273b8f4174fdc62ab139d097f83cd0e12b6808a6a20e24f2bf635",
-        "type": "attestation",
-        "author": "did:plc:memberB",
-        "label": "vote yes",
-        "verified": true,
-        "createdAt": "2026-03-07T00:00:00Z"
-      },
-      {
-        "id": "6470e96fa7d62d882c08a025cdbcae3ad36b43d717e4290c0afe7a72f5e91068",
-        "type": "attestation",
-        "author": "did:plc:memberC",
-        "label": "vote yes",
-        "verified": true,
-        "createdAt": "2026-03-08T00:00:00Z"
-      },
-      {
-        "id": "29dc61e4beeeb3bbf4eef6dfc47bc0c6e90d2a630b3192b21e6462fe24368a6f",
-        "type": "proposal",
-        "author": "did:plc:memberA",
-        "label": "vote: grant_mandate cruitM",
-        "verified": true,
-        "createdAt": "2026-03-09T00:00:00Z"
-      },
-      {
-        "id": "c6b641d7752383a95297bdacf0c9da892343aecca4d631a7d4a3bab62b7383ce",
-        "type": "attestation",
-        "author": "did:plc:memberA",
-        "label": "vote yes",
-        "verified": true,
-        "createdAt": "2026-03-10T00:00:00Z"
-      },
-      {
-        "id": "50341b86624d3ca7ac9be43c2a2dc0859817c7c18a8c79aa054ff4653c76743c",
-        "type": "attestation",
-        "author": "did:plc:memberB",
-        "label": "vote yes",
-        "verified": true,
-        "createdAt": "2026-03-11T00:00:00Z"
-      },
-      {
-        "id": "955bddcd6307c8030a298e81fd7c2ec1cafa98bb4824376f475d84bb7462b005",
-        "type": "attestation",
-        "author": "did:plc:memberC",
-        "label": "vote yes",
-        "verified": true,
-        "createdAt": "2026-03-12T00:00:00Z"
-      },
-      {
-        "id": "18cc150de695204ba20e9ff4cfc974228797fd648059663b9d7d49ff34c486ae",
-        "type": "proposal",
-        "author": "did:plc:memberC",
-        "label": "vote: recall cruitM",
-        "verified": true,
-        "createdAt": "2026-03-13T00:00:00Z"
-      },
-      {
-        "id": "3e98ba24bede57b8e0d051bdffb323c9cf4e1b77f6d971079176c73f22f15a15",
-        "type": "attestation",
-        "author": "did:plc:memberC",
-        "label": "vote yes",
-        "verified": true,
-        "createdAt": "2026-03-14T00:00:00Z"
-      },
-      {
-        "id": "3e859faf891c380b85a71ccd3ddefc47aa5c1331127b7ab02d8896f610446267",
-        "type": "quest",
-        "author": "did:plc:memberA",
-        "label": "quest: Chart the northern reach",
-        "verified": true,
-        "createdAt": "2026-03-15T00:00:00Z"
-      },
-      {
-        "id": "2e12cf1fe0f5738f36a8e1f63c411b424779a1bcdba2621fd030e149e40e6bda",
-        "type": "offer",
-        "author": "did:plc:builderX",
-        "label": "offer (party)",
-        "verified": true,
-        "createdAt": "2026-03-16T00:00:00Z"
-      },
-      {
-        "id": "c021b3ba1de33f035253821bb5b17cb1760cd5623c9dcf8d545b491427b807ad",
-        "type": "acceptance",
-        "author": "did:plc:memberA",
-        "label": "acceptance",
-        "verified": true,
-        "createdAt": "2026-03-17T00:00:00Z"
-      },
-      {
-        "id": "cb8342110b8d22b8e67c8a4b2596b473722ea833efbc0decbb3087156b863cef",
-        "type": "acceptance",
-        "author": "did:plc:recruitM",
-        "label": "acceptance",
-        "verified": true,
-        "createdAt": "2026-03-18T00:00:00Z"
-      },
-      {
-        "id": "dc3b8e64501d7ef50829370f564dbf5fbcc4ec2deaccb05a2cb62ff3e95bb476",
-        "type": "amendment",
-        "author": "did:plc:builderX",
-        "label": "amendment (party)",
-        "verified": true,
-        "createdAt": "2026-03-19T00:00:00Z"
-      },
-      {
-        "id": "27368e5535662c6ab388ffef642f7764cc70f9f9bfbea3184d301a080d83a0dc",
-        "type": "acceptance",
-        "author": "did:plc:memberA",
-        "label": "acceptance",
-        "verified": true,
-        "createdAt": "2026-03-20T00:00:00Z"
-      },
-      {
-        "id": "4b26e2bfbbc543518cf5503ceedfbe333c6308c5a4f856e13589bba6ba648daa",
-        "type": "acceptance",
-        "author": "did:plc:recruitM",
-        "label": "acceptance",
-        "verified": true,
-        "createdAt": "2026-03-21T00:00:00Z"
-      },
-      {
-        "id": "49315cbb04fe0e08405e43c2d459e1c924fa5e6271a017ad7e8a1a35fec69d8b",
-        "type": "delivery",
-        "author": "did:plc:builderX",
-        "label": "delivery @9f2c1ab",
-        "verified": true,
-        "createdAt": "2026-03-22T00:00:00Z"
-      },
-      {
-        "id": "9c124ea7ae38c2952ad5a8e01290b0ac87110c098cdf35a48d3b822964e335d0",
-        "type": "witness",
-        "author": "did:plc:witnessW",
-        "label": "witness",
-        "verified": true,
-        "createdAt": "2026-03-24T00:00:00Z"
-      },
-      {
-        "id": "bb880b9261b079c37df12ffcece951c00353836e284f12059e89e375185fad83",
-        "type": "settlement",
-        "author": "did:plc:memberA",
-        "label": "settle 90000",
-        "verified": true,
-        "createdAt": "2026-03-25T00:00:00Z"
-      },
-      {
-        "id": "a2259753e828409c02b630a234e44f872a6fb78d84c0f61063453c2b873ef909",
-        "type": "settlement",
-        "author": "did:plc:memberA",
-        "label": "settle 90000",
-        "verified": true,
-        "createdAt": "2026-03-26T00:00:00Z"
-      }
-    ],
-    "edges": [
-      {
-        "from": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
-        "to": "68d363a5407c5acdd6fa5b7d9098a6b015315b1a4adb6f45a398fd7ff5f37129",
-        "rel": "basis",
-        "dangling": false
-      },
-      {
-        "from": "cf81389eebf8f2effb92c82b415ce5fa59900f6ad57859bf29172f8f8e3bdd9c",
-        "to": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
-        "rel": "subject",
-        "dangling": false
-      },
-      {
-        "from": "cf81389eebf8f2effb92c82b415ce5fa59900f6ad57859bf29172f8f8e3bdd9c",
-        "to": "68d363a5407c5acdd6fa5b7d9098a6b015315b1a4adb6f45a398fd7ff5f37129",
-        "rel": "basis",
-        "dangling": false
-      },
-      {
-        "from": "b3b604aa215ff8c8f6474e391f6ee420ab637223688c993a478d0d5fb852f759",
-        "to": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
-        "rel": "subject",
-        "dangling": false
-      },
-      {
-        "from": "b3b604aa215ff8c8f6474e391f6ee420ab637223688c993a478d0d5fb852f759",
-        "to": "68d363a5407c5acdd6fa5b7d9098a6b015315b1a4adb6f45a398fd7ff5f37129",
-        "rel": "basis",
-        "dangling": false
-      },
-      {
-        "from": "9f2a5a8250b9c4cc1d124dccab92c70e877642f6b72230ba5e0e7cec7d6eee24",
-        "to": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
-        "rel": "basis",
-        "dangling": false
-      },
-      {
-        "from": "f18c360e9b3ed81eb7d9806e1e91df3cb7a6144990d179c145a9df4c784547b5",
-        "to": "9f2a5a8250b9c4cc1d124dccab92c70e877642f6b72230ba5e0e7cec7d6eee24",
-        "rel": "subject",
-        "dangling": false
-      },
-      {
-        "from": "f18c360e9b3ed81eb7d9806e1e91df3cb7a6144990d179c145a9df4c784547b5",
-        "to": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
-        "rel": "basis",
-        "dangling": false
-      },
-      {
-        "from": "88d7951b375273b8f4174fdc62ab139d097f83cd0e12b6808a6a20e24f2bf635",
-        "to": "9f2a5a8250b9c4cc1d124dccab92c70e877642f6b72230ba5e0e7cec7d6eee24",
-        "rel": "subject",
-        "dangling": false
-      },
-      {
-        "from": "88d7951b375273b8f4174fdc62ab139d097f83cd0e12b6808a6a20e24f2bf635",
-        "to": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
-        "rel": "basis",
-        "dangling": false
-      },
-      {
-        "from": "6470e96fa7d62d882c08a025cdbcae3ad36b43d717e4290c0afe7a72f5e91068",
-        "to": "9f2a5a8250b9c4cc1d124dccab92c70e877642f6b72230ba5e0e7cec7d6eee24",
-        "rel": "subject",
-        "dangling": false
-      },
-      {
-        "from": "6470e96fa7d62d882c08a025cdbcae3ad36b43d717e4290c0afe7a72f5e91068",
-        "to": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
-        "rel": "basis",
-        "dangling": false
-      },
-      {
-        "from": "29dc61e4beeeb3bbf4eef6dfc47bc0c6e90d2a630b3192b21e6462fe24368a6f",
-        "to": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
-        "rel": "basis",
-        "dangling": false
-      },
-      {
-        "from": "c6b641d7752383a95297bdacf0c9da892343aecca4d631a7d4a3bab62b7383ce",
-        "to": "29dc61e4beeeb3bbf4eef6dfc47bc0c6e90d2a630b3192b21e6462fe24368a6f",
-        "rel": "subject",
-        "dangling": false
-      },
-      {
-        "from": "c6b641d7752383a95297bdacf0c9da892343aecca4d631a7d4a3bab62b7383ce",
-        "to": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
-        "rel": "basis",
-        "dangling": false
-      },
-      {
-        "from": "50341b86624d3ca7ac9be43c2a2dc0859817c7c18a8c79aa054ff4653c76743c",
-        "to": "29dc61e4beeeb3bbf4eef6dfc47bc0c6e90d2a630b3192b21e6462fe24368a6f",
-        "rel": "subject",
-        "dangling": false
-      },
-      {
-        "from": "50341b86624d3ca7ac9be43c2a2dc0859817c7c18a8c79aa054ff4653c76743c",
-        "to": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
-        "rel": "basis",
-        "dangling": false
-      },
-      {
-        "from": "955bddcd6307c8030a298e81fd7c2ec1cafa98bb4824376f475d84bb7462b005",
-        "to": "29dc61e4beeeb3bbf4eef6dfc47bc0c6e90d2a630b3192b21e6462fe24368a6f",
-        "rel": "subject",
-        "dangling": false
-      },
-      {
-        "from": "955bddcd6307c8030a298e81fd7c2ec1cafa98bb4824376f475d84bb7462b005",
-        "to": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
-        "rel": "basis",
-        "dangling": false
-      },
-      {
-        "from": "18cc150de695204ba20e9ff4cfc974228797fd648059663b9d7d49ff34c486ae",
-        "to": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
-        "rel": "basis",
-        "dangling": false
-      },
-      {
-        "from": "18cc150de695204ba20e9ff4cfc974228797fd648059663b9d7d49ff34c486ae",
-        "to": "29dc61e4beeeb3bbf4eef6dfc47bc0c6e90d2a630b3192b21e6462fe24368a6f",
-        "rel": "target",
-        "dangling": false
-      },
-      {
-        "from": "3e98ba24bede57b8e0d051bdffb323c9cf4e1b77f6d971079176c73f22f15a15",
-        "to": "18cc150de695204ba20e9ff4cfc974228797fd648059663b9d7d49ff34c486ae",
-        "rel": "subject",
-        "dangling": false
-      },
-      {
-        "from": "3e98ba24bede57b8e0d051bdffb323c9cf4e1b77f6d971079176c73f22f15a15",
-        "to": "64cb48251b963d60f84eb6852a230525c7b52711bd75ef88870ca9729e943764",
-        "rel": "basis",
-        "dangling": false
-      },
-      {
-        "from": "2e12cf1fe0f5738f36a8e1f63c411b424779a1bcdba2621fd030e149e40e6bda",
-        "to": "3e859faf891c380b85a71ccd3ddefc47aa5c1331127b7ab02d8896f610446267",
-        "rel": "quest",
-        "dangling": false
-      },
-      {
-        "from": "c021b3ba1de33f035253821bb5b17cb1760cd5623c9dcf8d545b491427b807ad",
-        "to": "2e12cf1fe0f5738f36a8e1f63c411b424779a1bcdba2621fd030e149e40e6bda",
-        "rel": "subject",
-        "dangling": false
-      },
-      {
-        "from": "cb8342110b8d22b8e67c8a4b2596b473722ea833efbc0decbb3087156b863cef",
-        "to": "2e12cf1fe0f5738f36a8e1f63c411b424779a1bcdba2621fd030e149e40e6bda",
-        "rel": "subject",
-        "dangling": false
-      },
-      {
-        "from": "dc3b8e64501d7ef50829370f564dbf5fbcc4ec2deaccb05a2cb62ff3e95bb476",
-        "to": "2e12cf1fe0f5738f36a8e1f63c411b424779a1bcdba2621fd030e149e40e6bda",
-        "rel": "supersedes",
-        "dangling": false
-      },
-      {
-        "from": "27368e5535662c6ab388ffef642f7764cc70f9f9bfbea3184d301a080d83a0dc",
-        "to": "dc3b8e64501d7ef50829370f564dbf5fbcc4ec2deaccb05a2cb62ff3e95bb476",
-        "rel": "subject",
-        "dangling": false
-      },
-      {
-        "from": "4b26e2bfbbc543518cf5503ceedfbe333c6308c5a4f856e13589bba6ba648daa",
-        "to": "dc3b8e64501d7ef50829370f564dbf5fbcc4ec2deaccb05a2cb62ff3e95bb476",
-        "rel": "subject",
-        "dangling": false
-      },
-      {
-        "from": "49315cbb04fe0e08405e43c2d459e1c924fa5e6271a017ad7e8a1a35fec69d8b",
-        "to": "3e859faf891c380b85a71ccd3ddefc47aa5c1331127b7ab02d8896f610446267",
-        "rel": "quest",
-        "dangling": false
-      },
-      {
-        "from": "49315cbb04fe0e08405e43c2d459e1c924fa5e6271a017ad7e8a1a35fec69d8b",
-        "to": "c021b3ba1de33f035253821bb5b17cb1760cd5623c9dcf8d545b491427b807ad",
-        "rel": "agreement",
-        "dangling": false
-      },
-      {
-        "from": "9c124ea7ae38c2952ad5a8e01290b0ac87110c098cdf35a48d3b822964e335d0",
-        "to": "49315cbb04fe0e08405e43c2d459e1c924fa5e6271a017ad7e8a1a35fec69d8b",
-        "rel": "delivery",
-        "dangling": false
-      },
-      {
-        "from": "bb880b9261b079c37df12ffcece951c00353836e284f12059e89e375185fad83",
-        "to": "3e859faf891c380b85a71ccd3ddefc47aa5c1331127b7ab02d8896f610446267",
-        "rel": "quest",
-        "dangling": false
-      },
-      {
-        "from": "bb880b9261b079c37df12ffcece951c00353836e284f12059e89e375185fad83",
-        "to": "49315cbb04fe0e08405e43c2d459e1c924fa5e6271a017ad7e8a1a35fec69d8b",
-        "rel": "for",
-        "dangling": false
-      },
-      {
-        "from": "a2259753e828409c02b630a234e44f872a6fb78d84c0f61063453c2b873ef909",
-        "to": "3e859faf891c380b85a71ccd3ddefc47aa5c1331127b7ab02d8896f610446267",
-        "rel": "quest",
-        "dangling": false
-      },
-      {
-        "from": "a2259753e828409c02b630a234e44f872a6fb78d84c0f61063453c2b873ef909",
-        "to": "49315cbb04fe0e08405e43c2d459e1c924fa5e6271a017ad7e8a1a35fec69d8b",
-        "rel": "for",
-        "dangling": false
-      }
-    ]
-  }
+  ]
 }

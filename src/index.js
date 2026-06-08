@@ -38,6 +38,7 @@ import {
   putClaim,
   putAttestation,
   guildState,
+  guildGraph,
   reputation,
   getQuestSettlement,
   auditGraph,
@@ -222,6 +223,12 @@ async function route(request, env, url) {
       // Claimstead: derive this guild's governance state from its signed claims.
       if (method === "GET" && action === "state") {
         return json(await guildState(env, gid));
+      }
+      // The live commons graph: collective authority (members, mandates, delegated admits,
+      // proposal outcomes) + the verified record DAG, recomputed from signed claims. This is
+      // what the debug view reads instead of the static sample.
+      if (method === "GET" && action === "graph") {
+        return json(await guildGraph(env, gid));
       }
       if (method === "POST" && (action === "join" || action === "leave")) {
         // You can only join/leave as your own builder.
