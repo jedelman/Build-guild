@@ -298,6 +298,19 @@ Built + tested: `test/collective-amend.test.js` (raises version + rebinds later 
 prior-bar rejection leaves rules standing; referenced-charter chaining; 20-shuffle
 determinism).
 
+### One model end-to-end (the `/state` → `/graph` reconciliation)
+
+The older founder-rooted deriver (`deriveGuildState`) is no longer on the request path: the
+`GET /api/guilds/:id/state` endpoint is **removed**, and the front-end governance panel
+(`web/app.js` + `web/claimstead.js`) now reads the founder-free `GET /api/guilds/:id/graph`
+and posts **new-model** records — a charter whose `rules.genesis` is the founding cohort, a
+`proposal` carrying `question` + `basis` (the head), and a vote `attestation` with
+`subject`/`value`/`basis`. So adopt → propose → vote runs entirely on the collective model.
+`deriveGuildState` survives only as a tested standalone primitive (it still backs
+`evidenceBundle` + `test/governance.test.js`). Contract locked by
+`test/guild-client-flow.test.js` (the exact records the client posts → the payload the
+panel renders).
+
 Still open here: delegated *remove* of a delegated member via the vote path (revocation
 works today), and the guild-patron delegation in the agreement workflow. (`closesAt`
 survives only as an advisory "is voting open" gate — it gates decidability, never order.)

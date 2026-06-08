@@ -156,7 +156,7 @@ export function deriveCollective(charter, records, { now = Date.now() } = {}) {
     if (!closed) outcome = "open";
     else if (eligible === 0 || (cast * 100) / eligible < rule.quorum) outcome = "failed_quorum";
     else outcome = (cast === 0 ? 0 : (yes * 100) / cast) >= rule.threshold ? "passed" : "rejected";
-    decided[P._ref] = { ref: P._ref, action: P.action, outcome, rule, head: effHead, basis: frozen ? "frozen" : "live", tally: { yes, no, cast, stale, eligible } };
+    decided[P._ref] = { ref: P._ref, question: P.question, action: P.action, outcome, rule, head: effHead, basis: frozen ? "frozen" : "live", tally: { yes, no, cast, stale, eligible } };
     if (outcome === "passed") {
       applyEffect(P, members, mandates);
       if (ROSTER_ACTIONS.has(P.action)) { head = P._ref; headSnap.set(head, new Set(members)); } // roster changed → advance head + snapshot

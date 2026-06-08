@@ -8,7 +8,7 @@
 // attests that it happened, and the payee co-signs by confirming receipt. Trust is
 // the reputation system, and fraud is caught by independent audit (src/audit.js) —
 // not by held money.
-import { verifyRecords, deriveGuildState, tallyBadges, observe, buildContext } from "./governance.js";
+import { verifyRecords, tallyBadges, observe, buildContext } from "./governance.js";
 import { guildGraphFromRecords } from "./guild.js";
 import { contractsFor } from "./contracts.js";
 
@@ -69,17 +69,6 @@ export async function putAttestation(env, did, record) {
 async function verifiedRows(env, rows) {
   const resolve = await keyResolver(env);
   return verifyRecords((rows || []).map((r) => JSON.parse(r.json)), resolve);
-}
-
-// Derive a guild's governance state from its stored, signed claims.
-export async function guildState(env, guildId, opts) {
-  const id = String(guildId);
-  const { results } = await env.DB.prepare("SELECT json FROM gov_claims WHERE guild = ?").bind(id).all();
-  const verified = await verifiedRows(env, results);
-  const charter = verified.find((r) => r.type === "org.buildguild.charter" && r._verified);
-  if (!charter) return { guild: id, charter: null, members: [], roles: {}, proposals: {}, conflicts: [] };
-  const state = deriveGuildState(charter, verified.filter((r) => r.kind), opts);
-  return { charter: { version: charter.version, prose: charter.prose, founder: charter.founder }, ...state };
 }
 
 // The live commons graph for a guild: verify its stored signed claims, derive unified

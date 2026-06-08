@@ -102,11 +102,18 @@ export async function postClaim(fields) {
   await api("/gov/claims", { method: "POST", body: { record } });
   return record;
 }
+// Founder-free model: the charter's `rules.genesis` is the founding cohort; authority
+// thereafter comes only from passed microvotes. A proposal/vote pins `basis` = the current
+// membership head (from the /graph payload) so live-roster staleness is detectable.
 export const adoptCharter = (did, guildId, prose, rules) =>
-  postClaim({ type: "org.buildguild.charter", guild: String(guildId), version: 1, founder: did, prose, rules, author: did });
-export const govClaim = (did, guildId, kind, body) =>
-  postClaim({ type: "org.buildguild.claim", kind, author: did, guild: String(guildId), charterVersion: 1, body });
-export const guildState = (guildId) => api(`/guilds/${guildId}/state`);
+  postClaim({ type: "org.buildguild.charter", guild: String(guildId), version: 1, prev: null, prose, rules, author: did });
+export const propose = (did, guildId, { question, action, enacts, basis }) =>
+  postClaim({ type: "org.buildguild.proposal", guild: String(guildId), question, ...(action ? { action, enacts } : {}), basis, author: did });
+export const castVote = (did, guildId, { subject, value, basis }) =>
+  postClaim({ type: "org.buildguild.attestation", guild: String(guildId), contract: "vote", subject, value, basis, author: did });
+// The live commons: collective authority (members, mandates, delegated admits, proposal
+// outcomes, charter version) + the verified record DAG, recomputed from signed claims.
+export const guildGraph = (guildId) => api(`/guilds/${guildId}/graph`);
 
 // ---- reputation ------------------------------------------------------------
 export const reputation = (subject, type) =>

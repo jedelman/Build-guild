@@ -37,7 +37,6 @@ import {
   hasKey,
   putClaim,
   putAttestation,
-  guildState,
   guildGraph,
   reputation,
   getQuestSettlement,
@@ -219,10 +218,6 @@ async function route(request, env, url) {
         const memberIds = new Set(guild.members.map((m) => m.id));
         const candidates = (await listBuilders(env)).filter((b) => !memberIds.has(b.id));
         return json(recommendRecruits(guild.members, candidates));
-      }
-      // Claimstead: derive this guild's governance state from its signed claims.
-      if (method === "GET" && action === "state") {
-        return json(await guildState(env, gid));
       }
       // The live commons graph: collective authority (members, mandates, delegated admits,
       // proposal outcomes) + the verified record DAG, recomputed from signed claims. This is

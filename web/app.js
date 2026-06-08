@@ -296,7 +296,7 @@ async function mountGovernance(guildId, members) {
   const mount = host.querySelector(".gov-mount");
   let s;
   try {
-    s = await cs.guildState(guildId);
+    s = await cs.guildGraph(guildId);
   } catch {
     mount.textContent = "—";
     return;
@@ -306,7 +306,8 @@ async function mountGovernance(guildId, members) {
       <button class="btn" id="gov-adopt">Adopt default charter</button>`;
     host.querySelector("#gov-adopt").onclick = async () => {
       try {
-        await cs.adoptCharter(state.auth.did, guildId, "We chart together and split fairly.", DEFAULT_RULES);
+        // The adopter is the genesis cohort; they admit others by vote or delegated mandate.
+        await cs.adoptCharter(state.auth.did, guildId, "We chart together and split fairly.", DEFAULT_RULES([state.auth.did]));
         toast("Charter adopted.");
         openGuild(guildId);
       } catch (err) {
@@ -315,14 +316,16 @@ async function mountGovernance(guildId, members) {
     };
     return;
   }
-  const props = Object.values(s.proposals || {});
+  const col = s.collective || {};
+  const head = col.head; // the current membership head — proposals + votes pin it as `basis`
+  const props = col.proposals || [];
   mount.innerHTML = `
-    <p class="caption">Derived from signed claims (charter v${s.charterVersion}). ${s.members.length} member(s).</p>
+    <p class="caption">Derived from signed claims (charter v${col.charterVersion}). ${col.members.length} member(s)${col.mandates?.length ? ` · ${col.mandates.length} mandate(s)` : ""}.</p>
     <button class="btn ghost" id="gov-propose">+ Propose</button>
     ${props.length ? props.map((p) => `<div class="subform">
-        <div class="row between"><strong>${esc(p.question || "Proposal")}</strong>
+        <div class="row between"><strong>${esc(p.question || p.action || "Proposal")}</strong>
           <span class="badge ${p.outcome === "passed" ? "ok" : ""}">${esc(p.outcome)}</span></div>
-        <div class="hint mono">${p.tally.yes}y / ${p.tally.no}n · quorum ${Math.round(p.quorum * 100)}%</div>
+        <div class="hint mono">${p.tally.yes}y / ${p.tally.no}n · quorum ${p.rule?.quorum ?? 50}%${p.tally.stale ? ` · ${p.tally.stale} stale` : ""}</div>
         <div class="row gap-sm" style="margin-top:var(--s2)">
           <button class="btn ghost gov-vote" data-p="${esc(p.ref)}" data-v="yes">Vote yes</button>
           <button class="btn ghost gov-vote" data-p="${esc(p.ref)}" data-v="no">Vote no</button></div>
@@ -331,7 +334,7 @@ async function mountGovernance(guildId, members) {
     const v = await formDialog({ title: "Open a proposal", submitLabel: "Propose", fields: [{ name: "question", label: "Question", required: true, placeholder: "Adopt the gold standard?" }] });
     if (!v) return;
     try {
-      await cs.govClaim(state.auth.did, guildId, "proposal", { question: v.question, closesAt: Date.now() + 7 * 864e5 });
+      await cs.propose(state.auth.did, guildId, { question: v.question, basis: head });
       toast("Proposal opened.");
       openGuild(guildId);
     } catch (err) {
@@ -341,7 +344,7 @@ async function mountGovernance(guildId, members) {
   host.querySelectorAll(".gov-vote").forEach((b) =>
     (b.onclick = async () => {
       try {
-        await cs.govClaim(state.auth.did, guildId, "vote", { proposal: b.dataset.p, choice: b.dataset.v });
+        await cs.castVote(state.auth.did, guildId, { subject: b.dataset.p, value: b.dataset.v, basis: head });
         toast("Vote recorded.");
         openGuild(guildId);
       } catch (err) {
@@ -351,15 +354,21 @@ async function mountGovernance(guildId, members) {
   );
 }
 
-const DEFAULT_RULES = {
-  roles: {
-    founder: { can: ["admit", "remove", "grant_role", "open_proposal", "vote", "propose", "amend"] },
-    officer: { can: ["admit", "remove", "open_proposal", "vote", "propose"] },
-    member: { can: ["vote", "propose"] },
+// Founder-free default charter: a genesis cohort + per-action microvote bars (integer
+// percents). No standing officer class — authority is recallable mandates granted by vote.
+const DEFAULT_RULES = (genesis) => ({
+  genesis,
+  vote: {
+    admit: { threshold: 50, quorum: 50 },
+    remove: { threshold: 50, quorum: 50 },
+    grant_mandate: { threshold: 60, quorum: 50 },
+    recall: { threshold: 34, quorum: 25 },
+    amend: { threshold: 75, quorum: 60 },
+    default: { threshold: 50, quorum: 50 },
   },
+  roles: { member: { can: ["propose", "vote"] } },
   membership: { requireAcceptance: false },
-  proposal: { rule: "majority", threshold: 0.5, quorum: 0.5 },
-};
+});
 
 async function api(path, opts = {}) {
   const res = await fetch("/api" + path, {

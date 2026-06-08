@@ -87,7 +87,7 @@ export function guildGraphFromRecords(records, { now = Date.now() } = {}) {
       amendments: g.amendments,
       members: g.members,
       mandates: g.mandates.map((m) => ({ grantee: m.grantee, capability: m.capability, scope: m.scope, mode: m.mode })),
-      proposals: Object.values(g.proposals).map((p) => ({ ref: p.ref, action: p.action, outcome: p.outcome, basis: p.basis, tally: p.tally })),
+      proposals: Object.values(g.proposals).map((p) => ({ ref: p.ref, question: p.question, action: p.action, outcome: p.outcome, basis: p.basis, rule: p.rule, tally: p.tally })),
       delegatedAdmits: g.delegatedAdmits,
       staleVotes: g.staleVotes,
     };
