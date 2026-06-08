@@ -14,7 +14,6 @@
           "brief": { "type": "string", "maxLength": 2000 },
           "reward": { "type": "string", "maxLength": 200, "description": "Human-readable reward (e.g. 'revenue share', '$500', 'kudos'). Monetary value settles off-protocol, peer-to-peer." },
           "skills": { "type": "array", "items": { "type": "string", "maxLength": 120 }, "maxLength": 32 },
-          "delegates": { "type": "array", "items": { "type": "string", "format": "did" }, "maxLength": 16, "description": "Optional DIDs authorized to act patron-side (file offers/acceptances/amendments) for this quest. For a guild-patron, charter roles/capabilities may grant this instead." },
           "createdAt": { "type": "string", "format": "datetime" }
         }
       }

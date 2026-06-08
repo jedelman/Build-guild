@@ -38,6 +38,14 @@ co-signed, amendable agreement, and delivery is anchored to a git commit.
   `predicate`, with optional `context`. Endorsements, ratings, **votes**, and
   **membership** are all attestations; they differ only by predicate + eligibility.
 
+**Designation — the universal authority/trust grant:**
+- `org.buildguild.designation` — "X authorizes/trusts Y for a capability, in a scope."
+  Mode `delegate` (act *with* the grantor's authority — attenuated, revocable, chainable;
+  officers, patron delegates, sub-parties) or `trust` (the grantor *relies on* the
+  grantee — arbiters, witnesses, labelers). Generalizes governance's `role_grant` and
+  replaces ad-hoc delegate fields / charter-named-X prose. See
+  `notes/designation-primitive.md`.
+
 **Ancestors (still valid, superseded going forward):** `org.buildguild.skill`,
 `org.buildguild.endorsement`, `org.buildguild.repo`. New code uses `attestation`
 (`skill:<name>` predicate) for the same job.

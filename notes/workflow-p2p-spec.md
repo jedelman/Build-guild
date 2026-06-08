@@ -35,8 +35,14 @@ If you read nothing else: **the records are the contract; the server is a cache.
   terms live on the `offer` (see §3).
 - **Charter** — a guild's constitution: human prose + machine-enforced rules (roles,
   vote thresholds, who may admit members). Exists so each guild sets its *own* rules and
-  they bind verifiably, without a central admin. (Also names the trusted arbiters,
-  witnesses, and labelers a guild relies on — §5, §7.)
+  they bind verifiably, without a central admin. (The *policy* layer; who is actually
+  assigned to a role/trust is a **designation**.)
+- **Designation** — the one "X authorizes/trusts Y to act in some capacity" record
+  (`org.buildguild.designation`). Mode `delegate` = act *with* the grantor's authority
+  (attenuated, revocable, chainable — UCAN-style: officers, patron delegates, sub-parties);
+  mode `trust` = the grantor *relies on* the grantee (arbiters, witnesses, labelers), no
+  authority transferred. One primitive instead of six ad-hoc mechanisms — see
+  `notes/designation-primitive.md`.
 
 *How truth works (the part most worth internalizing)*
 - **Attestation** — the universal primitive: a signed, ternary (`yes`/`no`/`unknown`)
@@ -193,10 +199,10 @@ against the charter). Decisions:
 **Who may offer.**
 - *Party-side claim:* **any verified builder** (any verified DID). Solo = a party of one;
   guild membership boosts matching/Guild Power but isn't required.
-- *Patron-side:* the **quest author or an authorized delegate** — a guild officer holding
-  the relevant charter capability when the patron acts through a guild, or a DID in the
-  quest's optional `delegates`. (Mechanism: reuse charter roles/capabilities for
-  guild-patrons; an explicit `delegates` field on the quest for individuals.)
+- *Patron-side:* the **quest author or an authorized delegate** — anyone holding a
+  `quest.transact` **designation** for the quest (`org.buildguild.designation`, mode
+  `delegate`). This is the general primitive, not a one-off field — see
+  `notes/designation-primitive.md`.
 
 **What makes it AGREED — every named principal co-signs.** atproto is single-writer and
 we chose true per-person consent, so an offer naming `party:[A,B,C]` binds no one until
@@ -263,9 +269,10 @@ we chose true per-person consent, so an offer naming `party:[A,B,C]` binds no on
 
 - Default: contested attestations are *visible* (a quest with `deliver:yes` from the
   party and `deliver:no`-equivalent from the patron shows as contested, not clean).
-- Optional escalation: the charter may name an **arbiter** DID; their ruling is an
-  attestation (`deliver.*` / `pays.promptly`) that viewers may weight highly. No
-  platform adjudication — just an extra, clearly-attributed opinion.
+- Optional escalation: a guild **designates an arbiter** (`org.buildguild.designation`,
+  mode `trust`, capability `dispute.arbitrate`); their ruling is an attestation
+  (`deliver.*` / `pays.promptly`) that viewers who honor that designation weight highly.
+  No platform adjudication — just an extra, clearly-attributed, revocable opinion.
 - Reputation + the audit lens do the enforcing. Formal multi-round arbitration is out
   of scope for v1 (revisit if abuse shows up).
 
@@ -326,9 +333,10 @@ record attesting "I fetched `commit`/`treeHash` at time T," and optionally **mir
 bytes** (`mirror` uri). Because the witness record is itself on-protocol, the witness
 can't quietly retract, and multiple independent witnesses compound the guarantee.
 
-This reuses the charter-named-trusted-party pattern (same shape as arbiters and
-labelers, §5 + below): **guilds name the witnesses/mirrors they trust**, and a delivery
-gains weight from how many trusted witnesses hold it. The audit lens' `evidence-vanished`
+Witnesses are **designated** (`org.buildguild.designation`, mode `trust`, capability
+`delivery.witness`) — the same primitive as arbiters (§5) and labelers (below), see
+`notes/designation-primitive.md`: a guild designates the witnesses/mirrors it trusts, and
+a delivery gains weight from how many of them hold it. The audit lens' `evidence-vanished`
 label fires only when a referenced sha is unreachable *and* no trusted witness holds it —
 so honest deliveries are durable and deletions are loud.
 
@@ -352,8 +360,9 @@ clients/AppViews subscribe to the labelers they choose and filter accordingly. H
 
 - The **audit lens** (`src/audit.js`) ships as a labeler — publishing
   `collusion-suspected` / `evidence-vanished` labels onto quests and DIDs.
-- **Guild charters name the labelers/arbiters they trust** (extends the charter-arbiter
-  from §5); a guild's reputation view is the labelers it endorses.
+- **Guilds designate the labelers they trust** (`org.buildguild.designation`, mode
+  `trust`, capability `moderation.label` — the same primitive as arbiters and witnesses);
+  a guild's reputation view is the labelers it endorses.
 - Reputation is **subjective and composable** — you weight whose attestations and whose
   labels you trust. No global truth, no central moderator → moderation is decentralized,
   and "trust signal is the commons" sharpens to "the commons *as read through the

@@ -1,0 +1,25 @@
+{
+  "lexicon": 1,
+  "id": "org.buildguild.designation",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "The universal 'X authorizes/trusts Y to act in some capacity' primitive — one record for what used to be role_grant, patron delegates, and charter-named arbiters/witnesses/labelers. A grantor designates a `grantee` DID for a `capability`, within a `scope`, optionally time-boxed (`expiry`) and chained (`prev`). Two modes: 'delegate' = the grantee may act WITH the grantor's authority (attenuated, revocable, chainable — UCAN-style; their records in scope count as authorized by the grantor); 'trust' = the grantor RELIES ON the grantee for a function (arbiter/witness/labeler) with no authority transfer. Authorized iff the grantor either owns the resource in scope or holds an upstream designation/charter capability that includes granting it, and (for delegate) the capability+scope are a subset of the parent's (attenuation). Where the capability requires the designee's consent (e.g. taking an officer or arbiter role), they co-sign with org.buildguild.acceptance. Revoked by deleting/superseding this record (the grantor owns it; the deletion is witnessed like any other). Author is the grantor (repo owner). Written to the grantor's repo.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["grantee", "mode", "capability", "scope", "createdAt"],
+        "properties": {
+          "grantee": { "type": "string", "format": "did", "description": "The DID being designated." },
+          "mode": { "type": "string", "enum": ["delegate", "trust"], "description": "'delegate' = act WITH the grantor's authority (attenuated, revocable, chainable); 'trust' = the grantor relies on the grantee for the capability, no authority transfer." },
+          "capability": { "type": "string", "maxLength": 120, "description": "What the grantee may do / is trusted for — an id from the capability ontology, e.g. 'quest.transact', 'role:officer', 'guild.admit', 'dispute.arbitrate', 'delivery.witness', 'moderation.label'." },
+          "scope": { "type": "string", "maxLength": 512, "description": "What it applies to: an AT-URI / guild id / quest strongRef-uri, or '*' for all the grantor's resources. Attenuation lives here — a sub-delegation's scope must be within the parent's." },
+          "prev": { "type": "ref", "ref": "com.atproto.repo.strongRef", "description": "Optional parent designation this one chains from (UCAN-style). Lets an authorized holder sub-delegate an attenuated capability — enabling nested enterprises (guild-of-guilds, per-quest sub-parties)." },
+          "expiry": { "type": "string", "format": "datetime", "description": "Optional expiry; after this the designation no longer counts (time-boxed authority/trust)." },
+          "reason": { "type": "string", "maxLength": 300, "description": "Optional human note — part of the public trail." },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}
