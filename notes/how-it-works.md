@@ -1,5 +1,9 @@
 # How Build Guild's records work — and how to roll your own
 
+> New here, or just curious *why* it works this way? Start with
+> **[`the-idea.md`](./the-idea.md)** — the no-jargon pitch and root principles. This page
+> is the technical companion: the exact wire format and how to compute guild state yourself.
+
 Build Guild is a pile of **signed records**. No authoritative API: anyone can read
 them, verify them, and compute their own view. This page is the whole protocol. If
 you can write a `for` loop and call an HTTP endpoint, you can participate.
