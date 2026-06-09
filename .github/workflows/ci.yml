@@ -70,5 +70,8 @@ jobs:
       # so the colons in the inline script aren't parsed as YAML mappings.
       - name: Validate flake + build the dev shell
         run: |
+          # Ubuntu 24.04 runners restrict unprivileged user namespaces (AppArmor), which
+          # bubblewrap — used by buildFHSEnv to enter the shell — needs. Re-enable it.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           nix flake check --show-trace
           nix develop --command bash -c 'node --version && test -x "$CHROMIUM_PATH" && echo "chromium ok at $CHROMIUM_PATH"'
