@@ -15,12 +15,13 @@ Two tiers, both against a **local hermetic `wrangler dev`**:
    Chromium, acts as a persona via the switcher, walks the guild tabs, screenshots each view.
 
 ## One-time setup
-- Node ≥ 18 and `wrangler` (`npx wrangler` works). 
-- Browser tier (optional): `npm i -D playwright`.
-  **On NixOS** Playwright's bundled Chromium won't run — provide a nix one and point at it:
-  `export CHROMIUM_PATH=$(command -v chromium || command -v ungoogled-chromium)`
-  (e.g. inside `nix-shell -p ungoogled-chromium`). If unset/missing, the browser tier SKIPS
-  (exit 2) and the API gate still runs.
+- **On the NixOS box: run everything inside `nix develop`** — the flake provides Node 22 +
+  Chromium and exports `CHROMIUM_PATH` + `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` for you (see
+  `notes/dev-environment.md`). Then `npm ci`.
+- Browser tier needs Playwright: `npm i -D playwright` (it uses the flake's Chromium via
+  `CHROMIUM_PATH`, not a downloaded build). If Playwright/Chromium is missing the browser tier
+  SKIPS (exit 2) and the API gate still runs.
+- Off NixOS: Node ≥ 18 + `npx wrangler`; set `CHROMIUM_PATH` yourself for the browser tier.
 
 ## Run procedure
 Run from the repo root. Do these in order; **do not** use `sleep` to wait — poll.
