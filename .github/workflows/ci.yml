@@ -66,6 +66,9 @@ jobs:
             | sh -s -- install --no-confirm --extra-conf "experimental-features = nix-command flakes"
           echo "/nix/var/nix/profiles/default/bin" >> "$GITHUB_PATH"
       # Evaluate every output, then prove the dev shell actually builds + runs (forces the FHS
-      # env + Chromium closure — the bits most likely to break on a nixpkgs bump).
-      - run: nix flake check --show-trace
-      - run: nix develop --command bash -c 'node --version && test -x "$CHROMIUM_PATH" && echo "chromium: $CHROMIUM_PATH"'
+      # env + Chromium closure — the bits most likely to break on a nixpkgs bump). Block scalar
+      # so the colons in the inline script aren't parsed as YAML mappings.
+      - name: Validate flake + build the dev shell
+        run: |
+          nix flake check --show-trace
+          nix develop --command bash -c 'node --version && test -x "$CHROMIUM_PATH" && echo "chromium ok at $CHROMIUM_PATH"'
