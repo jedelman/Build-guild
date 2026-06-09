@@ -110,6 +110,16 @@ test("UC1: a recruited member can LEAVE (self-revoke) though someone else admitt
   assert.equal(deriveGuild(ch, recs).isMember(N), false, "anyone may leave by revoking their own membership");
 });
 
+test("UC1: a vote-admitted member can also leave (sovereign departure, no grant to revoke)", async () => {
+  const A = await actor("uc:A11"), B = await actor("uc:B11"), N = await actor("uc:N11");
+  const ch = await charter([A, B], closed([A, B]));
+  const p = await propose(A, "admit", { grantee: N }, ch._ref);
+  const recs = [p, await vote(A, p._ref, "yes", ch._ref), await vote(B, p._ref, "yes", ch._ref)];
+  assert.equal(deriveGuild(ch, recs).isMember(N), true, "voted in");
+  recs.push(await vr(N, { type: "org.buildguild.revocation", guild: GUILD, grantee: N, capability: "role:member", scope: GUILD }));
+  assert.equal(deriveGuild(ch, recs).isMember(N), false, "N leaves by self-revocation though a vote admitted her");
+});
+
 test("UC2: a non-member cannot recruit", async () => {
   const A = await actor("uc:A6"), X = await actor("uc:X6"), N = await actor("uc:N6");
   const ch = await charter([A], closed([A]));

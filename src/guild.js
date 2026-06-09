@@ -67,6 +67,14 @@ export function deriveGuild(charter, records, { now = Date.now() } = {}) {
     if (!changed) break;
   }
 
+  // Anyone may LEAVE: a member's own signed revocation of their role:member drops them,
+  // however they joined (genesis cohort, passed admit vote, or accepted grant). This is the
+  // target-less form web/claimstead.js leaveGuild() emits; revoked() above covers the
+  // grant-targeted form. Departure is sovereign — it needs no one else's consent.
+  for (const r of revocations) {
+    if (active(r, now) && r.author === r.grantee && r.capability === "role:member" && inScope(r.scope, guild)) members.delete(r.author);
+  }
+
   const liveMembers = [...members].sort();
   return {
     ...col,
