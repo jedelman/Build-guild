@@ -12,7 +12,9 @@
     "db:seed": "wrangler d1 execute build_guild --local --file=./seed.sql",
     "db:reset": "npm run db:migrate && npm run db:seed",
     "deploy": "npm run build && wrangler deploy",
-    "test": "node --test"
+    "test": "node --test",
+    "smoke:api": "node scripts/smoke-api.mjs",
+    "smoke:browser": "node scripts/smoke-browser.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.28.0",

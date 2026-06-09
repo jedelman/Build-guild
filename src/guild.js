@@ -45,34 +45,44 @@ export function deriveGuild(charter, records, { now = Date.now() } = {}) {
   const openJoin = charter.rules?.membership?.openJoin === true;
   const selfAdmit = (d) => openJoin && d.author === d.grantee;
 
+  // A revocation nullifies a grant if it TARGETS it, or matches the grantee+capability AND
+  // post-dates it — a revocation can't nullify a grant that didn't exist yet, so re-joining
+  // after leaving works (the old "leave" doesn't tombstone a fresh invite). Authorized by the
+  // grantor, the member themselves (leaving), or anyone who could have granted it.
   const revoked = (d) => revocations.some((r) =>
     active(r, now) &&
-    (r.target === d._ref || (r.grantee === d.grantee && r.capability === d.capability && (r.scope == null || r.scope === d.scope))) &&
-    (r.author === d.author || r.author === d.grantee || canAdmit(r.author))); // grantor, the member themselves (leaving), or anyone who could have granted it
+    (r.target === d._ref ||
+      (r.grantee === d.grantee && r.capability === d.capability && (r.scope == null || r.scope === d.scope) &&
+        (r.createdAt || "") >= (d.createdAt || ""))) &&
+    (r.author === d.author || r.author === d.grantee || canAdmit(r.author)));
 
   // Fixpoint: add members admitted by an authorized, accepted, un-revoked delegated grant
   // (or an open self-join). Iterate because a delegated-admitted member who ALSO holds an
   // admit mandate (or open admission) may admit further. Order-independent (set-based), so
   // two verifiers agree.
   const admittedVia = new Map(); // grantee → designation ref (delegated admits only)
+  const admitTime = new Map();   // grantee → latest admitting-grant timestamp (for re-join vs leave)
   for (let i = 0; i <= designations.length; i++) {
     let changed = false;
     for (const d of designations) {
       if (d.capability !== "role:member" || !inScope(d.scope, guild) || members.has(d.grantee)) continue;
       if (!active(d, now) || !accepted(d) || !(canAdmit(d.author) || selfAdmit(d)) || revoked(d)) continue;
       members.add(d.grantee);
+      admitTime.set(d.grantee, d.createdAt || "");
       if (!selfAdmit(d)) admittedVia.set(d.grantee, d._ref); // self-joins aren't delegated
       changed = true;
     }
     if (!changed) break;
   }
 
-  // Anyone may LEAVE: a member's own signed revocation of their role:member drops them,
-  // however they joined (genesis cohort, passed admit vote, or accepted grant). This is the
-  // target-less form web/claimstead.js leaveGuild() emits; revoked() above covers the
-  // grant-targeted form. Departure is sovereign — it needs no one else's consent.
+  // Anyone may LEAVE: a member's own role:member revocation drops them, however they joined
+  // (genesis cohort, passed admit vote, or accepted grant) — the target-less form
+  // web/claimstead.js leaveGuild() emits. But a LATER re-admission wins, so leaving then
+  // re-joining works: only drop if no admitting grant post-dates the revocation.
   for (const r of revocations) {
-    if (active(r, now) && r.author === r.grantee && r.capability === "role:member" && inScope(r.scope, guild)) members.delete(r.author);
+    if (!(active(r, now) && r.author === r.grantee && r.capability === "role:member" && inScope(r.scope, guild))) continue;
+    const at = admitTime.get(r.author);
+    if (at === undefined || at <= (r.createdAt || "")) members.delete(r.author);
   }
 
   const liveMembers = [...members].sort();

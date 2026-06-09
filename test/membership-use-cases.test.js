@@ -120,6 +120,19 @@ test("UC1: a vote-admitted member can also leave (sovereign departure, no grant 
   assert.equal(deriveGuild(ch, recs).isMember(N), false, "N leaves by self-revocation though a vote admitted her");
 });
 
+test("UC1: re-join after leaving works — a later self-join overrides an earlier leave (no tombstone)", async () => {
+  // Regression for a bug the API smoke harness caught: a target-less leave used to nullify
+  // ANY membership grant for that DID, including future ones, so re-joining silently failed.
+  const A = await actor("uc:A12"), N = await actor("uc:N12");
+  const ch = await charter([A]);
+  const t = (d) => `2026-06-0${d}T00:00:00Z`;
+  const join1 = await vr(N, { type: "org.buildguild.designation", guild: GUILD, grantee: N, capability: "role:member", scope: GUILD, mode: "delegate", createdAt: t(1) });
+  const leave1 = await vr(N, { type: "org.buildguild.revocation", guild: GUILD, grantee: N, capability: "role:member", scope: GUILD, createdAt: t(2) });
+  assert.equal(deriveGuild(ch, [join1, leave1]).isMember(N), false, "N left after the first join");
+  const join2 = await vr(N, { type: "org.buildguild.designation", guild: GUILD, grantee: N, capability: "role:member", scope: GUILD, mode: "delegate", createdAt: t(3) });
+  assert.equal(deriveGuild(ch, [join1, leave1, join2]).isMember(N), true, "re-joining after leaving works; the old leave doesn't tombstone the new join");
+});
+
 test("UC2: a non-member cannot recruit", async () => {
   const A = await actor("uc:A6"), X = await actor("uc:X6"), N = await actor("uc:N6");
   const ch = await charter([A], closed([A]));
