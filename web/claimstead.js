@@ -111,6 +111,24 @@ export const propose = (did, guildId, { question, action, enacts, basis }) =>
   postClaim({ type: "org.buildguild.proposal", guild: String(guildId), question, ...(action ? { action, enacts } : {}), basis, author: did });
 export const castVote = (did, guildId, { subject, value, basis }) =>
   postClaim({ type: "org.buildguild.attestation", guild: String(guildId), contract: "vote", subject, value, basis, author: did });
+
+// ---- membership (signed) ---------------------------------------------------
+// A role:member grant. Self-grant (grantee == you) = self-join an open guild; granting
+// someone else = an invite they must co-sign (accept). Server reprojects the roster.
+export const designate = (did, guildId, grantee, capability = "role:member") =>
+  postClaim({ type: "org.buildguild.designation", guild: String(guildId), grantee, capability, scope: String(guildId), mode: "delegate", author: did });
+// Co-sign a grant addressed to you (accept an invite) — `ref` is the designation's _ref.
+export const acceptGrant = (did, guildId, ref) =>
+  postClaim({ type: "org.buildguild.acceptance", guild: String(guildId), subject: ref, author: did });
+// Leave: revoke your own membership (works no matter who admitted you). Open admit votes
+// to remove others use a proposal instead.
+export const leaveGuild = (did, guildId) =>
+  postClaim({ type: "org.buildguild.revocation", guild: String(guildId), grantee: did, capability: "role:member", scope: String(guildId), author: did });
+// Self-join an open guild.
+export const joinGuild = (did, guildId) => designate(did, guildId, did);
+// Open an admit vote for a recruit (curated guilds where members can't admit directly).
+export const proposeAdmit = (did, guildId, grantee, name, basis) =>
+  propose(did, guildId, { question: `Admit ${name}?`, action: "admit", enacts: { grantee }, basis });
 // The live commons: collective authority (members, mandates, delegated admits, proposal
 // outcomes, charter version) + the verified record DAG, recomputed from signed claims.
 export const guildGraph = (guildId) => api(`/guilds/${guildId}/graph`);

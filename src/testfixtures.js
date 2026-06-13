@@ -37,7 +37,13 @@ async function seedTestGuild(env) {
   for (const p of PERSONAS) {
     if (p.role === "patron") continue; // patron isn't a guild member (not a payee)
     const b = await env.DB.prepare("SELECT id FROM builders WHERE did = ?").bind(p.did).first();
-    if (b) await env.DB.prepare("INSERT OR IGNORE INTO guild_members (guild_id, builder_id, role) VALUES (?, ?, 'member')").bind(g.id, b.id).run();
+    // Seed the party as 'founder' = the genesis cohort. Membership is otherwise the derived
+    // set from signed claims (reprojectGuildMembers); genesis is the only no-claim bootstrap,
+    // so seeding as 'founder' keeps Ada + Bjorn in the party across reprojections. UPSERT (not
+    // OR IGNORE) so re-seeding an older DB promotes pre-existing 'member' rows to 'founder'.
+    if (b) await env.DB.prepare(
+      "INSERT INTO guild_members (guild_id, builder_id, role) VALUES (?, ?, 'founder') ON CONFLICT(guild_id, builder_id) DO UPDATE SET role = 'founder'"
+    ).bind(g.id, b.id).run();
   }
   return g.id;
 }

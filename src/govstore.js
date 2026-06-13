@@ -10,6 +10,7 @@
 // not by held money.
 import { verifyRecords, tallyBadges, observe, buildContext } from "./governance.js";
 import { guildGraphFromRecords } from "./guild.js";
+import { projectMembership } from "./membership.js";
 import { contractsFor } from "./contracts.js";
 
 // Resolve did -> public CryptoKey from the registered device keys.
@@ -51,7 +52,59 @@ export async function putClaim(env, did, record) {
   await env.DB.prepare("INSERT OR IGNORE INTO gov_claims (ref, guild, kind, author_did, json) VALUES (?, ?, ?, ?, ?)")
     .bind(v._ref, guild, record.kind || record.type, did, JSON.stringify(record))
     .run();
+  // Membership is the derived set from signed claims — refresh the guild_members projection
+  // the rest of the app reads (roster, Guild Power, recruits). Roster-relevant claims only;
+  // the table is a cache, so a reproject hiccup must not fail the (authoritative) write.
+  if (guild && ROSTER_KINDS.has(record.type)) {
+    try { await reprojectGuildMembers(env, guild); } catch (e) { console.warn("reproject failed", guild, e?.message); }
+  }
   return { ref: v._ref };
+}
+
+// Claim types that can change a guild's roster: charter (genesis/rules), designation +
+// acceptance + revocation (delegated/self admits), proposal + vote (admit/remove enact).
+const ROSTER_KINDS = new Set([
+  "org.buildguild.charter",
+  "org.buildguild.designation",
+  "org.buildguild.acceptance",
+  "org.buildguild.revocation",
+  "org.buildguild.proposal",
+  "org.buildguild.attestation", // votes are attestations posted via this path
+]);
+
+// Rebuild the guild_members PROJECTION from signed claims. Founder rows (role 'founder') are
+// the server-asserted genesis; everyone else is recomputed from claims. Idempotent; safe to
+// call after any roster-relevant write.
+export async function reprojectGuildMembers(env, guildId) {
+  const gidText = String(guildId);
+  const gidNum = Number(guildId);
+  const { results: founderRows } = await env.DB.prepare(
+    "SELECT b.did FROM guild_members gm JOIN builders b ON b.id = gm.builder_id WHERE gm.guild_id = ? AND gm.role = 'founder' AND b.did != ''"
+  ).bind(gidNum).all();
+  const founderDids = (founderRows || []).map((r) => r.did);
+
+  const { results } = await env.DB.prepare("SELECT json FROM gov_claims WHERE guild = ?").bind(gidText).all();
+  const records = await verifiedRows(env, results);
+  const { roles } = projectMembership(gidText, founderDids, records);
+
+  // map derived member DIDs -> builder ids (skip DIDs with no builder on this instance)
+  const desired = new Map(); // builder_id -> role
+  for (const [did, role] of roles) {
+    const row = await env.DB.prepare("SELECT id FROM builders WHERE did = ?").bind(did).first();
+    if (row) desired.set(row.id, role);
+  }
+
+  const { results: cur } = await env.DB.prepare("SELECT builder_id FROM guild_members WHERE guild_id = ?").bind(gidNum).all();
+  const stmts = [];
+  for (const r of cur || []) {
+    if (!desired.has(r.builder_id)) stmts.push(env.DB.prepare("DELETE FROM guild_members WHERE guild_id = ? AND builder_id = ?").bind(gidNum, r.builder_id));
+  }
+  for (const [bid, role] of desired) {
+    stmts.push(env.DB.prepare(
+      "INSERT INTO guild_members (guild_id, builder_id, role) VALUES (?, ?, ?) ON CONFLICT(guild_id, builder_id) DO UPDATE SET role = excluded.role"
+    ).bind(gidNum, bid, role));
+  }
+  if (stmts.length) await env.DB.batch(stmts);
 }
 
 export async function putAttestation(env, did, record) {

@@ -7,12 +7,15 @@
   "scripts": {
     "build": "esbuild web/app.js --bundle --format=esm --target=es2020 --platform=browser --outfile=public/app.js --minify --legal-comments=none",
     "dev": "npm run build && wrangler dev",
+    "dev:demo": "npm run build && wrangler dev --ip 0.0.0.0 --port 8787 --var TEST_FIXTURES:1",
     "db:migrate": "wrangler d1 migrations apply build_guild --local",
     "db:migrate:remote": "wrangler d1 migrations apply build_guild --remote",
     "db:seed": "wrangler d1 execute build_guild --local --file=./seed.sql",
     "db:reset": "npm run db:migrate && npm run db:seed",
     "deploy": "npm run build && wrangler deploy",
-    "test": "node --test"
+    "test": "node --test",
+    "smoke:api": "node scripts/smoke-api.mjs",
+    "smoke:browser": "node scripts/smoke-browser.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.28.0",

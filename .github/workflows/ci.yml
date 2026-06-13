@@ -1,0 +1,77 @@
+name: CI
+
+# Safety net on every push + PR (the deploy/preview/staging workflows only cover main and
+# PRs-to-main). Three gates: unit+scenario suite, the API smoke against a real wrangler dev,
+# and the Nix dev flake actually building.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: unit + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+  smoke-api:
+    name: API smoke (live worker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Boot wrangler dev + run the API smoke
+        env:
+          WRANGLER_SEND_METRICS: "false"
+        run: |
+          npx wrangler d1 migrations apply build_guild --local
+          npx wrangler dev --port 8787 --var TEST_FIXTURES:1 > /tmp/wrangler.log 2>&1 &
+          timeout 120 bash -c 'until curl -sf http://127.0.0.1:8787/api/test/status >/dev/null 2>&1; do sleep 1; done' \
+            || { echo "::error::worker did not start"; cat /tmp/wrangler.log; exit 1; }
+          curl -s -XPOST http://127.0.0.1:8787/api/test/seed >/dev/null
+          BASE_URL=http://127.0.0.1:8787 npm run smoke:api
+
+  flake:
+    name: nix flake
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Install Nix via the official script (a plain curl, not a third-party Action) so this
+      # works regardless of the repo's Actions allowlist. Flakes enabled in the install conf.
+      - name: Install Nix (flakes)
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix \
+            | sh -s -- install --no-confirm --extra-conf "experimental-features = nix-command flakes"
+          echo "/nix/var/nix/profiles/default/bin" >> "$GITHUB_PATH"
+      # Evaluate every output, then prove the dev shell actually builds + runs (forces the FHS
+      # env + Chromium closure — the bits most likely to break on a nixpkgs bump). Block scalar
+      # so the colons in the inline script aren't parsed as YAML mappings.
+      - name: Validate flake + build the dev shell
+        run: |
+          # Ubuntu 24.04 runners restrict unprivileged user namespaces (AppArmor), which
+          # bubblewrap — used by buildFHSEnv to enter the shell — needs. Re-enable it.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          nix flake check --show-trace
+          nix develop --command bash -c 'node --version && test -x "$CHROMIUM_PATH" && echo "chromium ok at $CHROMIUM_PATH"'
