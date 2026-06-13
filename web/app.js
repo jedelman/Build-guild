@@ -84,12 +84,12 @@ function badgeCloudHTML(cloud) {
     .join("")}</div>`;
 }
 
-async function mountReputation(subject, type, heading = "Reputation") {
+async function mountReputation(subject, type, heading = "Reputation", mount = drawerBody) {
   const host = document.createElement("div");
   host.innerHTML = `<h3>${esc(heading)}</h3>
     <p class="caption">Co-signed attestations — counts, not a score. Anyone can run their own algorithm over the same facts.</p>
     <div class="rep-mount muted">Loading…</div>`;
-  drawerBody.appendChild(host);
+  mount.appendChild(host);
   try {
     const cloud = await cs.reputation(subject, type);
     host.querySelector(".rep-mount").outerHTML = badgeCloudHTML(cloud);
@@ -194,7 +194,7 @@ const contractsBy = (subjectType, rule) =>
 // Peer-to-peer payment panel. No custody: the patron pays the party directly and
 // RECORDS a co-signed settlement (with evidence); the payee confirms receipt +
 // rates. Reputation + the audit lens do the rest.
-async function mountPayment(q) {
+async function mountPayment(q, into = drawerBody) {
   if (!state.auth.authenticated) return;
   const isPatron = q.patron_did === state.auth.did;
   const payee = q.claimed_guild_id ? `guild:${q.claimed_guild_id}` : null;
@@ -212,7 +212,7 @@ async function mountPayment(q) {
   host.innerHTML = `<h3>Payment <span class="badge">peer-to-peer</span></h3>
     <p class="caption">${q.reward ? esc(q.reward) + " · " : ""}${termsLabel}. Pay each other directly via any rail, then record it here — the platform never holds funds.</p>
     <div class="pay-mount muted">…</div>`;
-  drawerBody.appendChild(host);
+  into.appendChild(host);
   const mount = host.querySelector(".pay-mount");
 
   let pay;
@@ -248,7 +248,7 @@ async function mountPayment(q) {
           });
           toast("Payment recorded.");
           await attestDialog("Rate this guild's delivery", payee, contractsBy("guild", "patron_of_quest"), settlementRef);
-          openQuest(q.id);
+          renderQuestPage(q.id);
         } catch (err) {
           toast(err.message, true);
         }
@@ -288,68 +288,72 @@ async function mountPayment(q) {
 
 // Compact governance panel: derived state from signed claims, adopt-charter,
 // propose, and vote — all signed client-side, verified + indexed server-side.
-async function mountGovernance(guildId, members) {
-  if (!state.auth.authenticated) return;
-  const host = document.createElement("div");
-  host.innerHTML = `<h3>Governance</h3><div class="gov-mount muted">…</div>`;
-  drawerBody.appendChild(host);
-  const mount = host.querySelector(".gov-mount");
-  let s;
-  try {
-    s = await cs.guildGraph(guildId);
-  } catch {
-    mount.textContent = "—";
-    return;
+// The Governance tab of a guild page. Derived state from signed claims; everyone sees the
+// proposals (governance is public + verifiable), authenticated members can adopt/propose/
+// vote. `pre` is the /graph payload already fetched by renderGuildPage (avoid a re-fetch).
+const GOV_GUIDE = "https://github.com/jedelman/Build-guild/blob/main/notes/the-idea.md";
+async function renderGovernancePanel(mount, guildId, pre) {
+  const authed = state.auth.authenticated;
+  let s = pre;
+  if (!s) {
+    try { s = await cs.guildGraph(guildId); } catch { mount.innerHTML = '<p class="muted">Couldn\'t load governance.</p>'; return; }
   }
+  const refreshGov = () => renderGuildPage(guildId, "governance");
+
   if (!s.charter) {
-    mount.innerHTML = `<p class="hint">No charter yet — adopt one to enable proposals + votes.</p>
-      <button class="btn" id="gov-adopt">Adopt default charter</button>`;
-    host.querySelector("#gov-adopt").onclick = async () => {
+    mount.innerHTML = `<p class="hint">No charter yet — adopt one to enable proposals + votes.
+      <a class="inline-link" href="${GOV_GUIDE}" target="_blank" rel="noopener">How governance works ↗</a></p>
+      ${authed ? '<button class="btn gold" id="gov-adopt">Adopt default charter</button>' : '<p class="muted">Log in with Bluesky to adopt a charter.</p>'}`;
+    const adopt = mount.querySelector("#gov-adopt");
+    if (adopt) adopt.onclick = async () => {
+      const ok = await confirmDialog({
+        title: "Adopt the default charter?",
+        body: "You become the genesis cohort. Vote bars: admit 50% · grant mandate 60% · recall 34% · amend 75%. Nothing is locked in — the charter can be amended later by vote.",
+        confirmLabel: "Adopt charter",
+      });
+      if (!ok) return;
       try {
-        // The adopter is the genesis cohort; they admit others by vote or delegated mandate.
         await cs.adoptCharter(state.auth.did, guildId, "We chart together and split fairly.", DEFAULT_RULES([state.auth.did]));
         toast("Charter adopted.");
-        openGuild(guildId);
-      } catch (err) {
-        toast(err.message, true);
-      }
+        refreshGov();
+      } catch (err) { toast(err.message, true); }
     };
     return;
   }
+
   const col = s.collective || {};
-  const head = col.head; // the current membership head — proposals + votes pin it as `basis`
+  const head = col.head; // the membership head — proposals + votes pin it as `basis`
   const props = col.proposals || [];
   mount.innerHTML = `
-    <p class="caption">Derived from signed claims (charter v${col.charterVersion}). ${col.members.length} member(s)${col.mandates?.length ? ` · ${col.mandates.length} mandate(s)` : ""}.</p>
-    <button class="btn ghost" id="gov-propose">+ Propose</button>
+    <p class="caption">Derived from signed claims (charter v${col.charterVersion}). ${col.members.length} member(s)${col.mandates?.length ? ` · ${col.mandates.length} mandate(s)` : ""}.
+      <a class="inline-link" href="${GOV_GUIDE}" target="_blank" rel="noopener">How it works ↗</a></p>
+    ${authed ? '<button class="btn gold" id="gov-propose">Open a proposal</button>' : '<p class="muted">Log in with Bluesky to propose or vote.</p>'}
     ${props.length ? props.map((p) => `<div class="subform">
         <div class="row between"><strong>${esc(p.question || p.action || "Proposal")}</strong>
           <span class="badge ${p.outcome === "passed" ? "ok" : ""}">${esc(p.outcome)}</span></div>
         <div class="hint mono">${p.tally.yes}y / ${p.tally.no}n · quorum ${p.rule?.quorum ?? 50}%${p.tally.stale ? ` · ${p.tally.stale} stale` : ""}</div>
-        <div class="row gap-sm" style="margin-top:var(--s2)">
+        ${authed && p.outcome === "open" ? `<div class="row gap-sm" style="margin-top:var(--s2)">
           <button class="btn ghost gov-vote" data-p="${esc(p.ref)}" data-v="yes">Vote yes</button>
-          <button class="btn ghost gov-vote" data-p="${esc(p.ref)}" data-v="no">Vote no</button></div>
+          <button class="btn ghost gov-vote" data-p="${esc(p.ref)}" data-v="no">Vote no</button></div>` : ""}
       </div>`).join("") : `<p class="muted">No proposals yet.</p>`}`;
-  host.querySelector("#gov-propose").onclick = async () => {
+
+  const proposeBtn = mount.querySelector("#gov-propose");
+  if (proposeBtn) proposeBtn.onclick = async () => {
     const v = await formDialog({ title: "Open a proposal", submitLabel: "Propose", fields: [{ name: "question", label: "Question", required: true, placeholder: "Adopt the gold standard?" }] });
     if (!v) return;
     try {
       await cs.propose(state.auth.did, guildId, { question: v.question, basis: head });
       toast("Proposal opened.");
-      openGuild(guildId);
-    } catch (err) {
-      toast(err.message, true);
-    }
+      refreshGov();
+    } catch (err) { toast(err.message, true); }
   };
-  host.querySelectorAll(".gov-vote").forEach((b) =>
+  mount.querySelectorAll(".gov-vote").forEach((b) =>
     (b.onclick = async () => {
       try {
         await cs.castVote(state.auth.did, guildId, { subject: b.dataset.p, value: b.dataset.v, basis: head });
         toast("Vote recorded.");
-        openGuild(guildId);
-      } catch (err) {
-        toast(err.message, true);
-      }
+        refreshGov();
+      } catch (err) { toast(err.message, true); }
     })
   );
 }
@@ -814,15 +818,16 @@ let currentView = "quests"; // job-board-first: Quest Board is the landing view
 const rail = document.getElementById("rail");
 const bottomnav = document.getElementById("bottomnav");
 
-// Primary destinations. The 4th swaps Enlist → Character once you have a sheet.
+// Primary destinations. The 4th is stable across a session: once authenticated it is
+// always "You" (your character sheet, or the Enlist empty state if you've not enlisted yet)
+// — it no longer swaps Enlist→Character the moment you create a sheet.
 function navItems() {
-  const enlisted = state.auth.authenticated && state.me;
   return [
     { view: "quests", label: "Quests", icon: "quest" },
     { view: "guilds", label: "Guilds", icon: "crest" },
     { view: "roster", label: "Roster", icon: "roster" },
-    enlisted
-      ? { view: "character", label: "Character", icon: "sheet", title: "Your character sheet" }
+    state.auth.authenticated
+      ? { view: "character", label: "You", icon: "sheet", title: "Your character sheet" }
       : { view: "enlist", label: "Enlist", icon: "sheet" },
   ];
 }
@@ -848,34 +853,44 @@ function renderNav() {
 // #/quest|guild|builder/:id to open an entity drawer over its home view, and
 // #/character for your own sheet. A single applyRoute() reacts to hashchange, so
 // navigation is just "set the hash"; back/forward and cold loads work for free.
-let renderedView = null; // which view's DOM is currently in <main>
-let openEntityKey = null; // "quest/5" etc. currently in the drawer, or null
-const ENTITY_HOME = { quest: "quests", guild: "guilds", builder: "roster" };
+let mainKey = null;        // identifies the content in <main> ("view:quests", "quest:5", …)
+let navView = null;        // which destination the nav is highlighting (null until first paint)
+let openEntityKey = null;  // the overlay drawer key (guild/builder/character), or null
+
+// Quests are DESTINATIONS — they render as a full page in <main>. Guilds and builders
+// still open as drawers in this increment (guild → tabbed page lands next). character =
+// your own sheet.
+const PAGE_HOME = { quest: "quests", guild: "guilds" };
+const DRAWER_HOME = { builder: "roster" };
 
 function parseHash() {
-  const [a = "", b] = location.hash.replace(/^#\/?/, "").split("/");
-  if (a === "character") return { view: "quests", entity: "character", id: null };
-  if (ENTITY_HOME[a] && b) return { view: ENTITY_HOME[a], entity: a, id: Number(b) };
+  const [a = "", b, c] = location.hash.replace(/^#\/?/, "").split("/");
+  if (a === "character") return { view: "quests", drawer: "character", id: null };
+  if (PAGE_HOME[a] && b) return { view: PAGE_HOME[a], page: a, id: Number(b), tab: c || null };
+  if (DRAWER_HOME[a] && b) return { view: DRAWER_HOME[a], drawer: a, id: Number(b) };
   const views = ["quests", "guilds", "roster", "enlist"];
-  return { view: views.includes(a) ? a : "quests", entity: null, id: null };
+  return { view: views.includes(a) ? a : "quests" };
 }
 
-// Render <main> for a view only when it actually changes, so opening a drawer
-// over the current view doesn't rebuild the list (and lose scroll position).
-function ensureView(view) {
-  if (renderedView === view) return;
-  currentView = view;
-  renderNav();
-  render();
-  renderedView = view;
+// Render <main> only when its keyed content changes, so layering a drawer over a page
+// doesn't rebuild it (preserving scroll). `fn` may be async — pages fetch their own data.
+async function renderMain(key, view, fn) {
+  if (navView !== view) { navView = currentView = view; renderNav(); } // null until first paint → always renders on boot
+  if (mainKey === key) return;
+  mainKey = key;
+  await fn();
 }
 
-function applyRoute() {
+async function applyRoute() {
   const r = parseHash();
-  // Entity drawers layer over the current view in-session; a cold load (or a
-  // shared link) falls back to the entity's home view.
-  ensureView(r.entity ? renderedView || r.view : r.view);
-  const key = r.entity ? `${r.entity}/${r.id ?? ""}` : null;
+  // 1) Main content: a destination page, or a list view. A drawer layering over existing
+  //    in-session content keeps it; only a cold load renders the home view beneath it.
+  if (r.page === "quest") await renderMain(`quest:${r.id}`, "quests", () => renderQuestPage(r.id));
+  else if (r.page === "guild") await renderMain(`guild:${r.id}:${r.tab || "overview"}`, "guilds", () => renderGuildPage(r.id, r.tab));
+  else if (!(r.drawer && mainKey)) await renderMain(`view:${r.view}`, r.view, render);
+
+  // 2) Overlay drawer (guild / builder / character) layered over the main content.
+  const key = r.drawer ? `${r.drawer}/${r.id ?? ""}` : null;
   if (key === openEntityKey) return;
   openEntityKey = key;
   if (!key) return closeDrawer();
@@ -884,28 +899,24 @@ function applyRoute() {
     toast("Couldn't open that link — it may have been removed.", true);
     openEntityKey = null;
   };
-  if (r.entity === "character") {
+  if (r.drawer === "character") {
     if (state.me) return openBuilder(state.me).catch(fail);
-    openEntityKey = null; // no sheet yet → just show Enlist
-    return ensureView("enlist");
+    openEntityKey = null; // no sheet yet → show the Enlist view
+    return renderMain("view:enlist", "enlist", render);
   }
-  if (r.entity === "quest") return openQuest(r.id).catch(fail);
-  if (r.entity === "guild") return openGuild(r.id).catch(fail);
-  if (r.entity === "builder") return openBuilder(r.id).catch(fail);
+  if (r.drawer === "builder") return openBuilder(r.id).catch(fail);
 }
 
-// All navigation is "set the hash"; applyRoute does the rendering. `go` re-fires
-// when the hash is unchanged (e.g. re-selecting the current destination).
+// All navigation is "set the hash"; applyRoute renders. `go` re-fires on an unchanged hash.
 function go(hash) {
   if (location.hash === hash) applyRoute();
   else location.hash = hash;
 }
 const navTo = (view) => go("#/" + view);
-// Close any open drawer by returning to the underlying view's URL (so Back/Esc
-// stay in sync with the history stack).
+// Close any open drawer by returning to the underlying view's URL (so Back/Esc stay in sync).
 const dismissDrawer = () => go("#/" + currentView);
-// After a data mutation, force the next view render to be fresh.
-const invalidateView = () => (renderedView = null);
+// After a data mutation, force the next main render to be fresh.
+const invalidateView = () => (mainKey = null);
 
 // Collapsible rail (desktop). Persisted so it survives reloads.
 const railToggle = document.getElementById("rail-toggle");
@@ -1026,51 +1037,65 @@ function patronLink(q) {
   return `<span class="mono">${esc(label)}</span>`;
 }
 
-async function openQuest(id) {
-  const q = await api(`/quests/${id}`);
+// A quest is a destination (a job posting) — it renders as a full page in <main> with a
+// back link to the board, not as a transient drawer. Recovers from a dead link itself.
+async function renderQuestPage(id) {
+  let q;
+  try {
+    q = await api(`/quests/${id}`);
+  } catch {
+    toast("Couldn't open that quest — it may have been removed.", true);
+    return go("#/quests");
+  }
   const meId = state.me;
   const isPatron = state.auth.authenticated && q.patron_did === state.auth.did;
   const canClaim = state.auth.authenticated && meId && q.status === "open" && !isPatron;
-  openDrawer(`
-    <div class="builder-head"><span class="crest">${icon("quest")}</span>
-      <div><h2>${esc(q.title)}</h2>
-      <div class="klass">by ${patronLink(q)} · ${esc(q.status)}</div></div></div>
-    <p class="tagline">${esc(q.brief || "")}</p>
-    <div class="badges">
-      ${q.reward ? badgeRaw(`${icon("reward")} ${esc(q.reward)}`, "role") : ""}
-      ${(q.skills || []).map((s) => `<span class="badge">${esc(s.name)}</span>`).join("")}
-    </div>
-    ${
-      canClaim
-        ? `<div class="row my-3"><button class="btn gold" id="claim-quest">Claim this quest</button></div>`
-        : ""
-    }
-    ${
-      isPatron && q.status !== "closed"
-        ? `<div class="row my-3 gap-sm">
-             ${q.status === "claimed" ? '<button class="btn" id="q-delivered">Mark delivered</button>' : ""}
-             <button class="btn ghost" id="q-closed">Close quest</button></div>`
-        : ""
-    }
-    <h3>Suggested parties</h3>
-    <p class="caption">Ranked by how well their combined, peer-endorsed skill-peaks cover this quest.</p>
-    ${
-      (q.suggested_parties || []).length
-        ? q.suggested_parties
-            .map(
-              (p) => `<div class="subform"><div class="row between">
-                ${entityLink(p.kind === "guild" ? "guild" : "builder", p.id, p.name, "strong-link")}<span class="badge ${p.coverage >= 100 ? "ok" : ""}">${p.coverage}% match</span></div>
-                <div class="klass">${p.kind}</div>
-                ${p.covered.length ? `<div class="hint">Covers: ${p.covered.map(esc).join(", ")}</div>` : ""}
-                ${p.missing.length ? `<div class="hint">Gaps: ${p.missing.map(esc).join(", ")}</div>` : ""}</div>`
-            )
-            .join("")
-        : '<p class="muted">No parties cover these skills yet — recruit some builders!</p>'
-    }`);
+  app.innerHTML = `
+    <a class="backlink" href="#/quests">${icon("caret")}<span>Quest board</span></a>
+    <article class="entity-page">
+      <div class="builder-head"><span class="crest">${icon("quest")}</span>
+        <div><h2>${esc(q.title)}</h2>
+        <div class="klass">by ${patronLink(q)} · ${esc(q.status)}</div></div></div>
+      <p class="tagline">${esc(q.brief || "")}</p>
+      <div class="badges">
+        ${q.reward ? badgeRaw(`${icon("reward")} ${esc(q.reward)}`, "role") : ""}
+        ${(q.skills || []).map((s) => `<span class="badge">${esc(s.name)}</span>`).join("")}
+      </div>
+      ${
+        canClaim
+          ? `<div class="row my-3"><button class="btn gold" id="claim-quest">Claim this quest</button></div>`
+          : ""
+      }
+      ${
+        isPatron && q.status !== "closed"
+          ? `<div class="row my-3 gap-sm">
+               ${q.status === "claimed" ? '<button class="btn" id="q-delivered">Mark delivered</button>' : ""}
+               <button class="btn ghost" id="q-closed">Close quest</button></div>`
+          : ""
+      }
+      <h3>Suggested parties</h3>
+      <p class="caption">Ranked by how well their combined, peer-endorsed skill-peaks cover this quest.</p>
+      ${
+        (q.suggested_parties || []).length
+          ? q.suggested_parties
+              .map(
+                (p) => `<div class="subform"><div class="row between">
+                  ${entityLink(p.kind === "guild" ? "guild" : "builder", p.id, p.name, "strong-link")}<span class="badge ${p.coverage >= 100 ? "ok" : ""}">${p.coverage}% match</span></div>
+                  <div class="klass">${p.kind}</div>
+                  ${p.covered.length ? `<div class="hint">Covers: ${p.covered.map(esc).join(", ")}</div>` : ""}
+                  ${p.missing.length ? `<div class="hint">Gaps: ${p.missing.map(esc).join(", ")}</div>` : ""}</div>`
+              )
+              .join("")
+          : '<p class="muted">No parties cover these skills yet — recruit some builders!</p>'
+      }
+      <div id="quest-extras"></div>
+    </article>`;
+  wireEntityLinks(app);
+  const extras = document.getElementById("quest-extras");
+  mountPayment(q, extras);
+  if (q.patron_did) mountReputation(q.patron_did, "client", "Client reputation", extras);
 
-  mountPayment(q);
-  if (q.patron_did) mountReputation(q.patron_did, "client", "Client reputation");
-
+  const refreshPage = () => renderQuestPage(id);
   const claim = document.getElementById("claim-quest");
   if (claim)
     claim.addEventListener("click", async () => {
@@ -1079,7 +1104,7 @@ async function openQuest(id) {
         await refresh();
         invalidateView();
         toast("Quest claimed!");
-        openQuest(id);
+        refreshPage();
       } catch (e) {
         toast(e.message, true);
       }
@@ -1093,7 +1118,7 @@ async function openQuest(id) {
           await refresh();
           invalidateView();
           toast(`Quest ${status}.`);
-          openQuest(id);
+          refreshPage();
         } catch (e) {
           toast(e.message, true);
         }
@@ -1148,7 +1173,7 @@ function renderGuilds() {
     ${loggedOut ? heroHTML() : ""}
     <div class="section-head">
       <div><h2>Guild Hall</h2><p>Suitably diverse parties combining their skill-peaks.</p></div>
-      ${loggedOut ? "" : '<button class="btn" id="new-guild">+ Found a guild</button>'}
+      ${loggedOut ? "" : '<button class="btn gold" id="new-guild">Found a guild</button>'}
     </div>
     <div class="grid" id="guild-grid"></div>`;
   if (!loggedOut) document.getElementById("new-guild").addEventListener("click", foundGuildPrompt);
@@ -1220,19 +1245,23 @@ function openDrawer(html) {
   drawerBody.innerHTML = html;
   drawer.classList.remove("hidden");
   drawer.setAttribute("aria-hidden", "false");
-  // Cross-links: any [data-go="builder|guild"] routes to that entity's drawer
-  // (a real history entry, so Back returns to where you came from).
-  drawerBody.querySelectorAll("[data-go]").forEach((el) =>
-    el.addEventListener("click", () => go(`#/${el.dataset.go}/${el.dataset.id}`))
-  );
+  wireEntityLinks(drawerBody);
   // Move focus into the panel for keyboard + screen-reader users.
   const first = drawer.querySelector(".drawer-close");
   if (first) first.focus();
 }
 
-// A cross-link button to another entity's drawer (wired centrally in openDrawer).
+// A cross-link button to another entity (quest/guild page or builder drawer). Wired
+// centrally by wireEntityLinks wherever entity markup is rendered (pages and drawers).
 const entityLink = (kind, id, label, cls = "") =>
   `<button type="button" class="entity-link${cls ? " " + cls : ""}" data-go="${kind}" data-id="${id}">${esc(label)}</button>`;
+// Route any [data-go="quest|guild|builder"] within `root` to that entity (a real history
+// entry, so Back returns to where you came from).
+function wireEntityLinks(root) {
+  root.querySelectorAll("[data-go]").forEach((el) =>
+    el.addEventListener("click", () => go(`#/${el.dataset.go}/${el.dataset.id}`))
+  );
+}
 function closeDrawer() {
   drawer.classList.add("hidden");
   drawer.setAttribute("aria-hidden", "true");
@@ -1431,7 +1460,7 @@ async function openBuilder(id) {
       closeDrawer();
       openEntityKey = null;
       currentView = "enlist";
-      renderedView = "enlist";
+      mainKey = "view:enlist";
       history.replaceState(null, "", "#/enlist");
       renderNav();
       renderEnlist(b);
@@ -1459,38 +1488,82 @@ async function openBuilder(id) {
   }
 }
 
-async function openGuild(id) {
-  const [g, recruits] = await Promise.all([api(`/guilds/${id}`), api(`/guilds/${id}/recruits`)]);
+// A guild is a team with a constitution — it renders as a tabbed PAGE in <main>
+// (Overview · Party · Governance), each tab a deep-linkable sub-route (#/guild/:id/party).
+const GUILD_TABS = ["overview", "party", "governance"];
+const GUILD_TAB_LABEL = { overview: "Overview", party: "Party", governance: "Governance" };
+async function renderGuildPage(id, tab = "overview") {
+  if (!GUILD_TABS.includes(tab)) tab = "overview";
+  let g, recruits, graph;
+  try {
+    [g, recruits, graph] = await Promise.all([
+      api(`/guilds/${id}`),
+      api(`/guilds/${id}/recruits`),
+      cs.guildGraph(id).catch(() => null), // governance may have no charter yet
+    ]);
+  } catch {
+    toast("Couldn't open that guild — it may have been removed.", true);
+    return go("#/guilds");
+  }
   const meId = state.me;
   const inGuild = g.members.some((m) => m.id === meId);
-  const championOf = Object.fromEntries(g.champions.map((c) => [c.display_name, c.champions]));
+  const openProps = (graph?.collective?.proposals || []).filter((p) => p.outcome === "open").length;
+  const tabHref = (t) => `#/guild/${id}${t === "overview" ? "" : "/" + t}`;
+  app.innerHTML = `
+    <a class="backlink" href="#/guilds">${icon("caret")}<span>Guild Hall</span></a>
+    <article class="entity-page">
+      <div class="builder-head"><span class="crest">${icon("crest")}</span>
+        <div><h2>${esc(g.name)}</h2>
+        <div class="klass">${g.members.length} member${g.members.length === 1 ? "" : "s"}</div></div></div>
+      <nav class="tabs" role="tablist" aria-label="Guild sections">
+        ${GUILD_TABS.map((t) => `<a class="tab${t === tab ? " active" : ""}" role="tab" aria-selected="${t === tab}" href="${tabHref(t)}">${GUILD_TAB_LABEL[t]}${t === "governance" && openProps ? `<span class="tab-badge" title="${openProps} open proposal${openProps === 1 ? "" : "s"}">${openProps}</span>` : ""}</a>`).join("")}
+      </nav>
+      <div class="tab-panel" id="guild-tab"></div>
+    </article>`;
+  const panel = document.getElementById("guild-tab");
+  if (tab === "governance") return renderGovernancePanel(panel, id, graph);
+  if (tab === "party") return renderGuildParty(panel, g, recruits, id, inGuild);
+  return renderGuildOverview(panel, g, id, inGuild, meId);
+}
 
-  openDrawer(`
-    <div class="builder-head"><span class="crest">${icon("crest")}</span>
-      <div><h2>${esc(g.name)}</h2>
-      <div class="klass">${g.members.length} member${g.members.length === 1 ? "" : "s"}</div></div></div>
-    <p class="tagline">${esc(g.charter || "")}</p>
-
+function renderGuildOverview(panel, g, id, inGuild, meId) {
+  panel.innerHTML = `
+    ${g.charter ? `<p class="tagline">${esc(g.charter)}</p>` : ""}
     <h3>Guild Power</h3>
-    <div class="power">
-      <div class="meter"><span style="width:${Math.min(100, g.diversity)}%"></span></div>
-      <span class="val">${g.diversity}</span>
-    </div>
-    <p class="caption">
-      Rewards complementary, peer-endorsed peaks across the party; redundant overlap drags it down.</p>
-
+    <div class="power"><div class="meter"><span style="width:${Math.min(100, g.diversity)}%"></span></div><span class="val">${g.diversity}</span></div>
+    <p class="caption">Rewards complementary, peer-endorsed peaks across the party; redundant overlap drags it down.</p>
     <div class="row my-3">
       ${
         state.auth.authenticated && meId
-          ? `<button class="btn ${inGuild ? "ghost" : "gold"}" id="join-toggle">${
-              inGuild ? "Leave guild" : "Join this guild"
-            }</button>`
+          ? `<button class="btn ${inGuild ? "ghost" : "gold"}" id="join-toggle">${inGuild ? "Leave guild" : "Join this guild"}</button>`
           : state.auth.authenticated
             ? `<span class="muted">Enlist (create your builder) to join.</span>`
             : `<button class="btn gold" id="login-to-join">Log in with Bluesky to join</button>`
       }
     </div>
+    <div id="guild-rep"></div>`;
+  const loginToJoin = panel.querySelector("#login-to-join");
+  if (loginToJoin) loginToJoin.addEventListener("click", startLogin);
+  const toggle = panel.querySelector("#join-toggle");
+  if (toggle)
+    toggle.addEventListener("click", async () => {
+      const action = inGuild ? "leave" : "join";
+      try {
+        await api(`/guilds/${id}/${action}`, { method: "POST", body: {} });
+        await refresh();
+        invalidateView();
+        toast(inGuild ? "Left the guild" : "Joined the guild!");
+        renderGuildPage(id, "overview");
+      } catch (e) {
+        toast(e.message, true);
+      }
+    });
+  mountReputation(`guild:${id}`, "guild", "Reputation", panel.querySelector("#guild-rep"));
+}
 
+function renderGuildParty(panel, g, recruits, id, inGuild) {
+  const championOf = Object.fromEntries(g.champions.map((c) => [c.display_name, c.champions]));
+  panel.innerHTML = `
     <h3>Party</h3>
     ${g.members
       .map((m) => {
@@ -1498,18 +1571,11 @@ async function openGuild(id) {
         return `<div class="subform"><div class="row between">
           ${entityLink("builder", m.id, m.display_name, "strong-link")}<span class="badge role">${esc(m.role)}</span></div>
           <div class="klass">${esc(m.klass)}</div>
-          ${
-            champs.length
-              ? `<div class="hint">Carries: ${champs.map(esc).join(", ")}</div>`
-              : `<div class="hint">Supporting — no top peak yet</div>`
-          }</div>`;
+          ${champs.length ? `<div class="hint">Carries: ${champs.map(esc).join(", ")}</div>` : `<div class="hint">Supporting — no top peak yet</div>`}</div>`;
       })
       .join("")}
-
     <h3>Combined skill-map</h3>
-    ${g.skill_map.map((s) => skillBar({ name: `${s.name} · ${s.champion}`, peak: s.peak })).join("") ||
-      '<p class="muted">No skills yet.</p>'}
-
+    ${g.skill_map.map((s) => skillBar({ name: `${s.name} · ${s.champion}`, peak: s.peak })).join("") || '<p class="muted">No skills yet.</p>'}
     <h3>Recommended recruits</h3>
     <p class="caption">Builders who'd fill the party's current gaps. Guild members can recruit them.</p>
     ${
@@ -1523,37 +1589,16 @@ async function openGuild(id) {
             )
             .join("")
         : '<p class="muted">This party already covers the candidate pool. Enlist more builders!</p>'
-    }`);
-
-  mountReputation(`guild:${id}`, "guild");
-  mountGovernance(id, g.members);
-
-  const loginToJoin = document.getElementById("login-to-join");
-  if (loginToJoin) loginToJoin.addEventListener("click", startLogin);
-
-  const toggle = document.getElementById("join-toggle");
-  if (toggle)
-    toggle.addEventListener("click", async () => {
-      const action = inGuild ? "leave" : "join";
-      try {
-        await api(`/guilds/${id}/${action}`, { method: "POST", body: {} });
-        await refresh();
-        invalidateView();
-        toast(inGuild ? "Left the guild" : "Joined the guild!");
-        openGuild(id);
-      } catch (e) {
-        toast(e.message, true);
-      }
-    });
-
-  drawerBody.querySelectorAll(".recruit").forEach((btn) =>
+    }`;
+  wireEntityLinks(panel);
+  panel.querySelectorAll(".recruit").forEach((btn) =>
     btn.addEventListener("click", async () => {
       try {
         await api(`/guilds/${id}/join`, { method: "POST", body: { builder_id: Number(btn.dataset.id) } });
         await refresh();
         invalidateView();
         toast("Recruit added to the party!");
-        openGuild(id);
+        renderGuildPage(id, "party");
       } catch (e) {
         toast(e.message, true);
       }
